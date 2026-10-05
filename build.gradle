@@ -1,0 +1,241 @@
+plugins {
+    id 'java'
+    id 'net.neoforged.moddev' version '2.0.148'
+}
+
+version = mod_version
+group = mod_group_id
+base.archivesName = mod_id
+
+// ============================================================
+//  版本一致性 · 由 mc_version 与 loader_version 自动推导，避免手填范围出错
+//
+//  两种版本号格式都要支持：
+//    · 旧三段式：NeoForge 21.1.255          <-> MC 1.21.1
+//    · 新四段式：NeoForge 26.1.2.114        <-> MC 26.1.2   （MC 自 2026 年起改用年份版本号）
+//  此处做前缀校验，拦截「复制配置后忘改版本号」导致的静默错版。
+// ============================================================
+def mcParts = (mc_version as String).split('\\.')
+def mcMajor = mcParts[0]
+def mcMinor = mcParts[1]
+def lvVersion = (loader_version as String)
+def lvPrefix
+if ((loader as String) == 'Forge') {
+    lvPrefix = "${mcMajor}.${mcMinor}."      // Forge 版本形如 1.20.1-47.4.26
+    if (!lvVersion.contains(lvPrefix)) {
+        throw new GradleException("版本线配置错乱：loader_version=${lvVersion} 不属于 MC ${mc_version}")
+    }
+} else {
+    // NeoForge 版本前缀必须与 MC 版本对齐：
+    //   MC 1.21.1 -> 去掉首位后的 "21.1."；MC 26.1.2 -> 去掉首位后的 "26.1."
+    def mcTail = mcParts.length > 1 ? "${mcMajor}.${mcMinor}." : "${mcMajor}."
+    lvPrefix = mcMajor == '1' ? "${mcMinor}." : mcTail
+    if (!lvVersion.startsWith(lvPrefix)) {
+        throw new GradleException("""
+            版本线配置错乱：loader_version=${lvVersion} 与 mc_version=${mc_version} 不匹配
+            期望 NeoForge 版本以 ${lvPrefix} 开头
+            （旧格式如 MC 1.21.1 -> 21.1.x；新格式如 MC 26.1.2 -> 26.1.x）
+            """.stripIndent())
+    }
+}
+
+def mcNextMinor = "${mcMajor}.${(mcMinor as int) + 1}"
+def mcRange     = "[${mc_version},${mcNextMinor})"
+// 加载器范围下界：三段式取前两段，四段式取前三段
+def lvNumsAll   = lvVersion.split('\\.')
+def lvRangeBase = lvNumsAll.length > 3
+        ? "${lvNumsAll[0]}.${lvNumsAll[1]}.${lvNumsAll[2]}"
+        : "${lvNumsAll[0]}.${lvNumsAll[1]}.0"
+def loaderRange = "[${lvRangeBase},${mcNextMinor})"
+
+// 校验 loader_version 不低于本线声明的最小版本（防止跨版本线复制后的残留配置）
+def minDeclared = (loader_version_range as String).trim().replaceAll('[\\[\\]\\(\\)]', '').split(',')[0].trim()
+def lvNums  = lvVersion.split('\\.')
+def minNums = minDeclared.split('\\.')
+if (minNums.length > 0 && minNums[0] ==~ /\\d+/ && lvNums.length > 0 && lvNums[0] ==~ /\\d+/) {
+    if ((lvNums[0] as int) < (minNums[0] as int)) {
+        throw new GradleException("loader_version=${lvVersion} 低于本线声明的最小版本 ${minDeclared}")
+    }
+}
+
+// ============================================================
+//  JDK 指派 · 从 gradle.properties 的 java_version 读取
+//
+//  java_version 22 及以上（新版 MC 用）指向系统安装的 Temurin；
+//  17 / 21 指向工作区分区（可能是指向系统的符号链接）。
+// ============================================================
+def javaVer = Integer.parseInt(java_version.toString())
+def jdkHome = new File(jdk_root as String, "jdk-${java_version}")
+def systemJdkHome = new File('C:/Program Files/Eclipse Adoptium')
+def effectiveJdk = jdkHome.isDirectory() ? jdkHome : null
+if (effectiveJdk == null && javaVer >= 22) {
+    effectiveJdk = systemJdkHome.listFiles()?.find { it.isDirectory() && it.name.startsWith("jdk-${javaVer}") }
+}
+
+java {
+    toolchain {
+        languageVersion = JavaLanguageVersion.of(javaVer)
+    }
+    withSourcesJar()
+}
+
+// JDK 指派：工作区 JDK 分区存在时显式指定编译器，否则由 Gradle 自动探测
+// （注意：toolchain 与 java 扩展都没有 executable 属性，必须在编译任务上指派）
+def workspaceJavac = new File(effectiveJdk ?: jdkHome, 'bin/javac.exe')
+if (workspaceJavac.isFile()) {
+    tasks.withType(JavaCompile).configureEach {
+        javaCompiler = javaToolchains.compilerFor {
+            languageVersion = JavaLanguageVersion.of(javaVer)
+        }
+    }
+}
+
+tasks.withType(JavaCompile).configureEach {
+    options.encoding = 'UTF-8'
+    options.release = javaVer
+    options.compilerArgs << '-Xlint:deprecation' << '-Xlint:unchecked'
+}
+
+// ============================================================
+//  共享源码同步 · 防屎山核心机制
+//
+//  路径来源：gradle.properties 的 shared_code_root（显式声明）
+//  不依赖相对路径推导 —— 因为本工作区通过 ASCII 镜像路径构建时，
+//  相对推导会把路径算到镜像根之外，导致同步静默失败。
+//
+//  .shared/shared-code/java  ->  build/shared-src/main/java
+//  一处修改、全版本生效；本工程 src/ 只放版本特有代码
+// ============================================================
+// 共享源码根：优先使用 ASCII 镜像路径拼接，避免中文路径经过 properties 解码后失真
+def sharedRoot = (project.findProperty('use_ascii_mirror')?.toString() == 'true')
+        ? new File(mirror_root as String, mirror_shared_subpath as String)
+        : new File(shared_code_root as String)
+
+// 启动即校验，路径不对立刻报错，不让问题拖到编译阶段
+if (!sharedRoot.isDirectory()) {
+    throw new GradleException("""
+        共享源码目录不可访问: ${sharedRoot}
+        这是防屎山机制的关键路径，缺失即意味着公共代码不会参与编译。
+        排查：1) 确认 .shared/shared-code 存在
+              2) 确认 ASCII 镜像 C:\\mcbuild 已建立（中文路径必须走镜像）
+              3) 检查 gradle.properties 的 use_ascii_mirror / mirror_root 配置
+        """.stripIndent())
+}
+
+// 用 fileTree 显式枚举源文件：立即求值，不会出现静默 NO-SOURCE
+def sharedJavaSrc = fileTree(new File(sharedRoot, 'java')).matching { include '**/*.java' }
+def sharedResSrc  = fileTree(new File(sharedRoot, 'resources')) { include '**' }
+
+tasks.register('syncSharedCode', Copy) {
+    group = 'mcmod'
+    description = '把 .shared/shared-code 的公共代码同步进本工程'
+    from(sharedJavaSrc) { into 'main/java' }
+    from(sharedResSrc) { into 'main/resources' }
+    into layout.buildDirectory.dir('shared-src')
+    duplicatesStrategy = DuplicatesStrategy.INCLUDE
+}
+
+tasks.register('diagnoseShared') {
+    group = 'mcmod'
+    description = '诊断共享源码同步路径'
+    doLast {
+        println "sharedRoot    : ${sharedRoot}"
+        println "sharedRoot exists : ${sharedRoot.exists()}"
+        println "java dir exists   : ${new File(sharedRoot, 'java').exists()}"
+        println "sharedJavaSrc files : ${sharedJavaSrc.files.size()}"
+        sharedJavaSrc.files.each { println "   - ${it}" }
+        println "建 shared-src 内容 :"
+        def outDir = layout.buildDirectory.dir('shared-src/main/java').get().asFile
+        println "   期望输出目录: ${outDir}  存在=${outDir.exists()}"
+        if (outDir.exists()) {
+            outDir.eachFileRecurse { if (it.isFile()) println "   * ${it}" }
+        }
+    }
+}
+
+sourceSets.main {
+    java.setSrcDirs(['src/main/java', layout.buildDirectory.dir('shared-src/main/java').get().asFile])
+    resources.setSrcDirs(['src/main/resources', layout.buildDirectory.dir('shared-src/main/resources').get().asFile])
+}
+
+tasks.named('compileJava') { dependsOn 'syncSharedCode' }
+tasks.named('processResources') { dependsOn 'syncSharedCode' }
+// sourcesJar 同样读取共享源码目录，需显式声明依赖，
+// 否则 Gradle 8.x 的隐式依赖校验会直接判定构建失败
+tasks.matching { it.name == 'sourcesJar' }.configureEach { dependsOn 'syncSharedCode' }
+
+// ============================================================
+//  Mod 元数据注入 · neoforge.mods.toml 里的占位符由此替换
+// ============================================================
+def expandProps = [
+        mod_id                 : mod_id,
+        mod_name               : mod_name,
+        mod_license            : mod_license,
+        mod_version            : mod_version,
+        mod_authors            : mod_authors,
+        mod_description        : mod_description,
+        neo_version_range      : loaderRange,
+        loader_version_range   : loader_version_range,
+        minecraft_version_range: mcRange
+]
+
+tasks.named('processResources', ProcessResources).configure {
+    inputs.properties(expandProps)
+    filesMatching(['META-INF/neoforge.mods.toml', 'META-INF/mods.toml', 'pack.mcmeta']) {
+        expand expandProps
+    }
+}
+
+neoForge {
+    version = project.loader_version as String
+
+    // Parchment 提供带参数名的可读映射；若目标版本尚未发布映射，
+    // 在 gradle.properties 里把 use_parchment 改为 false 即可跳过
+    if (project.findProperty('use_parchment')?.toString() != 'false') {
+        parchment {
+            minecraftVersion = project.mc_version as String
+            mappingsVersion  = project.parchment_version as String
+        }
+    }
+
+    runs {
+        client {
+            client()
+            systemProperty 'neoforge.enabledGameTestNamespaces', mod_id
+        }
+        server {
+            server()
+            programArgument '--nogui'
+        }
+        data {
+            clientData()
+            programArguments.addAll '--mod', mod_id as String, '--all',
+                    '--output', file('src/generated/resources/').absolutePath,
+                    '--existing', file('src/main/resources/').absolutePath
+        }
+    }
+
+    mods {
+        "${mod_id}" {
+            sourceSet sourceSets.main
+        }
+    }
+}
+
+dependencies {
+    // 需要第三方模组 API 时在此追加，例如：
+    // compileOnly "mezz.jei:jei-${minecraft_version}-neoforge-api:${jei_version}"
+}
+
+tasks.register('showEnv') {
+    group = 'mcmod'
+    description = '显示本版本线的构建环境指派'
+    doLast {
+        println "MC version      : ${mc_version}"
+        println "Loader          : NeoForge ${loader_version}"
+        println "Java version    : ${java_version}"
+        println "JDK path        : ${effectiveJdk ?: jdkHome}"
+        println "Shared code dir : ${sharedRoot}"
+        println "Shared files    : ${sharedJavaSrc.files.size()}"
+    }
+}

@@ -1,0 +1,18 @@
+﻿# Gradle 构建产物
+build/
+.gradle/
+out/
+
+# 运行时目录（游戏实测产生的存档、日志）
+run/
+runs/
+
+# IDE
+.idea/
+*.iml
+.vscode/
+
+# 系统
+Thumbs.db
+desktop.ini
+*.log

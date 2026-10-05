@@ -1,0 +1,4 @@
+rootProject.name = 'mcmod-26.2'
+
+// 加载共享配置：统一依赖源、镜像、Gradle 用户缓存
+apply from: new File(settingsDir, '../.shared/init.gradle')
