@@ -1,0 +1,19 @@
+{
+  "values": [
+    "minecraft:snowball",
+    "minecraft:ender_pearl",
+    "more_balls:wooden_ball",
+    "more_balls:cobblestone_ball",
+    "more_balls:snowball_question",
+    "more_balls:iron_ball",
+    "more_balls:hollow_iron_ball",
+    "more_balls:snowball_iron_nugget",
+    "more_balls:gold_ball",
+    "more_balls:snowball_gold_nugget",
+    "more_balls:combo_ball",
+    "more_balls:amethyst_ball",
+    "more_balls:copper_ball",
+    "more_balls:hollow_copper_ball",
+    "more_balls:snowball_copper_nugget"
+  ]
+}

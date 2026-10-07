@@ -5,8 +5,13 @@ plugins {
 
 version = mod_version
 group = mod_group_id
-base.archivesName = mod_id
-
+// jar 输出名：遵循命名规范 `[中文名] English_Name`（空格转下划线）。
+// 关键区分 —— 「文件名带中文」完全可以（见 1.16.5 整合包里的
+//   `[简单的语音聊天] voicechat-forge-1.16.5-2.6.6.jar`），
+// 但「内部 mod_id 与资源命名空间」必须满足 NeoForged Identifier 规范：
+//   只允许小写字母、数字、下划线、点、连字符。
+// 故两者分开处理：文件名走 mod_jar_basename，ID 走 mod_id。
+base.archivesName = project.findProperty('mod_jar_basename') ?: mod_id
 // ============================================================
 //  版本一致性 · 由 mc_version 与 loader_version 自动推导，避免手填范围出错
 //
@@ -222,9 +227,50 @@ neoForge {
     }
 }
 
+// ============================================================
+//  兼容性依赖
+//
+//  JEI：只编译期依赖其 API，运行期由用户实际安装的 JEI 提供；
+//       localRuntime 把完整 JEI 加进开发运行环境，方便 runClient 时直接验证兼容性。
+//  AppleSkin：无公开 API，采用「不硬依赖其类」的方式兼容（见 _docs/05-兼容性规范.md）。
+// ============================================================
+configurations {
+    localRuntime {
+        canBeConsumed = false
+        canBeResolved = false
+    }
+    runtimeClasspath.extendsFrom localRuntime
+}
+
+repositories {
+    maven { name = 'JaredsMaven'; url = 'https://maven.blamejared.com/' }
+    maven { name = 'ModMaven';   url = 'https://modmaven.dev' }
+}
+
 dependencies {
-    // 需要第三方模组 API 时在此追加，例如：
-    // compileOnly "mezz.jei:jei-${minecraft_version}-neoforge-api:${jei_version}"
+    // JEI：编译期只用 API，避免绑定实现细节导致 JEI 升级后崩
+    compileOnly "mezz.jei:jei-${mc_version}-neoforge-api:${jei_version}"
+    // 开发环境内加载完整 JEI，用于验证兼容性与调试
+    localRuntime "mezz.jei:jei-${mc_version}-neoforge:${jei_version}"
+
+    // Curios（饰品联动）：有公开 API，编译期依赖它。
+    // 运行时用 ModList 判断是否加载，没装时走不带饰品能力的那个物品类。
+    def curiosJar = file("${compat_jars}/curios-${mc_version}-neoforge.jar")
+    if (curiosJar.isFile()) {
+        compileOnly files(curiosJar)
+        localRuntime files(curiosJar)
+    } else {
+        logger.lifecycle("[compat] 未找到 Curios jar: ${curiosJar}（跳过，饰品联动不可用）")
+    }
+    // AppleSkin（苹果皮）：无公开 API，不硬依赖其类；仅把 jar 挂进开发环境
+    // 用于实测自研食物的饱和度/回复量显示是否正确。文件不存在时自动跳过，
+    // 因此缺该 jar 也不影响构建。
+    def appleSkinJar = file("${compat_jars}/appleskin-${mc_version}-neoforge.jar")
+    if (appleSkinJar.isFile()) {
+        localRuntime files(appleSkinJar)
+    } else {
+        logger.lifecycle("[compat] 未找到苹果皮测试 jar: ${appleSkinJar}（跳过，不影响构建）")
+    }
 }
 
 tasks.register('showEnv') {

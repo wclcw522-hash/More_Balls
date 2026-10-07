@@ -1,0 +1,9 @@
+{
+  "type": "more_balls:ball_cutting",
+  "ingredient": "#more_balls:balls/cuttable",
+  "result": {
+    "id": "more_balls:ball_half",
+    "count": 2,
+    "components": { "more_balls:fragment_source": 0 }
+  }
+}

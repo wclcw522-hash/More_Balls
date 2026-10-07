@@ -1,0 +1,8 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "category": "misc",
+  "key": { "#": "minecraft:iron_block" },
+  "pattern": [ " # ", "###", " # " ],
+  "result": { "count": 8, "id": "more_balls:iron_ball" },
+  "show_notification": false
+}

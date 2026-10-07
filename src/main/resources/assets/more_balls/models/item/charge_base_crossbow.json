@@ -1,0 +1,4 @@
+{
+  "parent": "minecraft:item/generated",
+  "textures": { "layer0": "more_balls:item/charge_base_crossbow" }
+}

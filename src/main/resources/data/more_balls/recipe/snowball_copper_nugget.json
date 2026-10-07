@@ -1,0 +1,11 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "category": "misc",
+  "key": {
+    "#": "minecraft:snowball",
+    "X": "minecraft:copper_ingot"
+  },
+  "pattern": [ " # ", "#X#", " # " ],
+  "result": { "count": 4, "id": "more_balls:snowball_copper_nugget" },
+  "show_notification": false
+}

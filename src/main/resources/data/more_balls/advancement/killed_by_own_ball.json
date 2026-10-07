@@ -1,0 +1,28 @@
+{
+    "parent":  "more_balls:aerodynamic_return",
+    "criteria":  {
+                     "unlocked":  {
+                                      "trigger":  "minecraft:impossible"
+                                  }
+                 },
+    "display":  {
+                    "frame":  "challenge",
+                    "description":  {
+                                        "translate":  "advancements.more_balls.killed_by_own_ball.description"
+                                    },
+                    "icon":  {
+                                 "components":  {
+                                                    "minecraft:item_model":  "more_balls:advancement/steve_and_snowball"
+                                                },
+                                 "id":  "minecraft:player_head"
+                             },
+                    "title":  {
+                                  "translate":  "advancements.more_balls.killed_by_own_ball.title"
+                              }
+                },
+    "requirements":  [
+                         [
+                             "unlocked"
+                         ]
+                     ]
+}

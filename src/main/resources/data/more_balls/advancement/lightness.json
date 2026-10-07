@@ -1,0 +1,24 @@
+{
+    "parent":  "more_balls:crossbow_ammo",
+    "criteria":  {
+                     "unlocked":  {
+                                      "trigger":  "minecraft:impossible"
+                                  }
+                 },
+    "display":  {
+                    "description":  {
+                                        "translate":  "advancements.more_balls.lightness.description"
+                                    },
+                    "icon":  {
+                                 "id":  "minecraft:feather"
+                             },
+                    "title":  {
+                                  "translate":  "advancements.more_balls.lightness.title"
+                              }
+                },
+    "requirements":  [
+                         [
+                             "unlocked"
+                         ]
+                     ]
+}

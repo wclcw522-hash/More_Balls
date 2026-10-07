@@ -1,0 +1,19 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "category": "misc",
+  "key": {
+    "B": "minecraft:iron_block",
+    "I": "minecraft:iron_ingot",
+    "P": "more_balls:ball_pouch"
+  },
+  "pattern": [
+    "BBB",
+    "IPI",
+    "III"
+  ],
+  "result": {
+    "count": 1,
+    "id": "more_balls:iron_ball_pouch"
+  },
+  "show_notification": false
+}

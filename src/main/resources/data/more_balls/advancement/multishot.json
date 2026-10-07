@@ -1,0 +1,27 @@
+{
+    "parent":  "more_balls:crossbow_ammo",
+    "criteria":  {
+                     "unlocked":  {
+                                      "trigger":  "minecraft:impossible"
+                                  }
+                 },
+    "display":  {
+                    "description":  {
+                                        "translate":  "advancements.more_balls.multishot.description"
+                                    },
+                    "icon":  {
+                                 "components":  {
+                                                    "minecraft:item_model":  "more_balls:advancement/three_snowballs"
+                                                },
+                                 "id":  "minecraft:snowball"
+                             },
+                    "title":  {
+                                  "translate":  "advancements.more_balls.multishot.title"
+                              }
+                },
+    "requirements":  [
+                         [
+                             "unlocked"
+                         ]
+                     ]
+}

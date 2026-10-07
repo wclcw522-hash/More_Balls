@@ -1,0 +1,14 @@
+{
+  "parent": "more_balls:root",
+  "criteria": {
+    "unlocked": {
+      "trigger": "minecraft:impossible"
+    }
+  },
+  "display": {
+    "description": { "translate": "advancements.more_balls.heat_smelt.description" },
+    "icon": { "id": "minecraft:blaze_powder" },
+    "title": { "translate": "advancements.more_balls.heat_smelt.title" }
+  },
+  "requirements": [ [ "unlocked" ] ]
+}

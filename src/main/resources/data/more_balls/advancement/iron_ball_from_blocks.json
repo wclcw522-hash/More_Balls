@@ -1,0 +1,15 @@
+{
+  "parent": "more_balls:root",
+  "criteria": {
+    "craft_iron_ball": {
+      "conditions": { "recipe_id": "more_balls:iron_ball" },
+      "trigger": "minecraft:recipe_crafted"
+    }
+  },
+  "display": {
+    "description": { "translate": "advancements.more_balls.iron_ball_from_blocks.description" },
+    "icon": { "id": "minecraft:iron_block" },
+    "title": { "translate": "advancements.more_balls.iron_ball_from_blocks.title" }
+  },
+  "requirements": [ [ "craft_iron_ball" ] ]
+}

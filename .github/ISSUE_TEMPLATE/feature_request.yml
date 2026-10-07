@@ -1,0 +1,20 @@
+name: 功能建议
+description: 想要点新东西
+title: "[建议] "
+labels: ["enhancement"]
+body:
+  - type: textarea
+    id: idea
+    attributes:
+      label: 你想要什么
+      placeholder: 希望能有一种球，扔出去之后会……
+    validations:
+      required: true
+
+  - type: textarea
+    id: why
+    attributes:
+      label: 为什么想要
+      description: 说明用途，或者它在什么场景下有意思
+    validations:
+      required: false

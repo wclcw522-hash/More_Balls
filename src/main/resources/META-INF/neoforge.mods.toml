@@ -9,6 +9,10 @@ displayName="${mod_name}"
 authors="${mod_authors}"
 description='''${mod_description}'''
 
+# Mixin 配置：让弩把 #more_balls:balls 当作合法的副手弹药（原版只认箭与烟花火箭）
+[[mixins]]
+config="more_balls.mixins.json"
+
 [[dependencies.${mod_id}]]
 modId="neoforge"
 type="required"

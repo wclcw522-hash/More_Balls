@@ -1,18 +1,45 @@
-﻿# Gradle 构建产物
-build/
+# ---------- Gradle ----------
 .gradle/
-out/
+build/
+!gradle/wrapper/gradle-wrapper.jar
+!gradle-wrapper.properties
 
-# 运行时目录（游戏实测产生的存档、日志）
-run/
-runs/
-
-# IDE
+# ---------- IDE ----------
 .idea/
 *.iml
+*.ipr
+*.iws
 .vscode/
+.settings/
+.classpath
+.project
+nbproject/
 
-# 系统
+# ---------- Minecraft dev environment ----------
+run/
+runs/
+logs/
+crash-reports/
+*.log
+
+# ModDevGradle / NeoForge caches
+build/
+src/generated/
+repositories/
+
+# ---------- OS ----------
+.DS_Store
 Thumbs.db
 desktop.ini
-*.log
+
+# ---------- Build output ----------
+out/
+bin/
+*.hprof
+*.jfr
+
+# ---------- Local notes ----------
+# 个人的临时笔记、草稿不要进仓库
+notes/
+TODO.local.md
+*.local.*

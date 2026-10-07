@@ -1,0 +1,24 @@
+{
+    "parent":  "more_balls:crossbow_ammo",
+    "criteria":  {
+                     "unlocked":  {
+                                      "trigger":  "minecraft:impossible"
+                                  }
+                 },
+    "display":  {
+                    "description":  {
+                                        "translate":  "advancements.more_balls.aerodynamic_return.description"
+                                    },
+                    "icon":  {
+                                 "id":  "minecraft:wind_charge"
+                             },
+                    "title":  {
+                                  "translate":  "advancements.more_balls.aerodynamic_return.title"
+                              }
+                },
+    "requirements":  [
+                         [
+                             "unlocked"
+                         ]
+                     ]
+}

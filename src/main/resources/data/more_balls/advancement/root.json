@@ -1,0 +1,19 @@
+{
+  "criteria": {
+    "get_any_ball": {
+      "conditions": {
+        "items": [
+          { "items": "#more_balls:balls" }
+        ]
+      },
+      "trigger": "minecraft:inventory_changed"
+    }
+  },
+  "display": {
+    "background": "minecraft:gui/advancements/backgrounds/stone",
+    "description": { "translate": "advancements.more_balls.root.description" },
+    "icon": { "id": "more_balls:wooden_ball" },
+    "title": { "translate": "advancements.more_balls.root.title" }
+  },
+  "requirements": [ [ "get_any_ball" ] ]
+}

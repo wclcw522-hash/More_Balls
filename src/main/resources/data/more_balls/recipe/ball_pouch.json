@@ -1,0 +1,20 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "category": "misc",
+  "key": {
+    "I": "minecraft:iron_ingot",
+    "L": "minecraft:leather",
+    "C": "minecraft:chest",
+    "S": "#minecraft:wooden_slabs"
+  },
+  "pattern": [
+    "III",
+    "LCL",
+    "LSL"
+  ],
+  "result": {
+    "count": 1,
+    "id": "more_balls:ball_pouch"
+  },
+  "show_notification": false
+}

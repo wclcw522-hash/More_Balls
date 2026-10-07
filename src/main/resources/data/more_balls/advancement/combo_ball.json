@@ -1,0 +1,37 @@
+{
+    "parent":  "more_balls:root",
+    "criteria":  {
+                     "combo_vertical":  {
+                                            "conditions":  {
+                                                               "recipe_id":  "more_balls:ball_combo_vertical"
+                                                           },
+                                            "trigger":  "minecraft:recipe_crafted"
+                                        },
+                     "combo_square":  {
+                                          "conditions":  {
+                                                             "recipe_id":  "more_balls:ball_combo_square"
+                                                         },
+                                          "trigger":  "minecraft:recipe_crafted"
+                                      }
+                 },
+    "display":  {
+                    "description":  {
+                                        "translate":  "advancements.more_balls.combo_ball.description"
+                                    },
+                    "icon":  {
+                                 "components":  {
+                                                    "more_balls:combo_sources":  "0,1,3,2"
+                                                },
+                                 "id":  "more_balls:combo_ball"
+                             },
+                    "title":  {
+                                  "translate":  "advancements.more_balls.combo_ball.title"
+                              }
+                },
+    "requirements":  [
+                         [
+                             "combo_vertical",
+                             "combo_square"
+                         ]
+                     ]
+}

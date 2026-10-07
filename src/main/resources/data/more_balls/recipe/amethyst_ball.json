@@ -1,0 +1,11 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "category": "misc",
+  "key": {
+    "#": "#more_balls:amethyst_blocks",
+    "X": "#more_balls:amethyst_gems"
+  },
+  "pattern": [ " # ", "#X#", " # " ],
+  "result": { "count": 4, "id": "more_balls:amethyst_ball" },
+  "show_notification": false
+}

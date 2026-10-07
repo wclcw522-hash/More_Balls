@@ -1,0 +1,18 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "category": "misc",
+  "key": {
+    "I": "minecraft:diamond",
+    "P": "more_balls:emerald_ball_pouch"
+  },
+  "pattern": [
+    "III",
+    "IPI",
+    "III"
+  ],
+  "result": {
+    "count": 1,
+    "id": "more_balls:diamond_ball_pouch"
+  },
+  "show_notification": false
+}

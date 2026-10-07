@@ -1,0 +1,41 @@
+# ---------- 换行符统一 ----------
+# 仓库里一律用 LF，检出时按平台自动处理，避免 Windows / macOS / Linux 协作出脏 diff
+* text=auto eol=lf
+
+# ---------- 明确文本类型 ----------
+*.java    text diff=java
+*.gradle  text
+*.properties text
+*.json    text
+*.md      text
+*.txt     text
+
+# ---------- 二进制（不要做行尾转换、不要在 diff 里显示） ----------
+*.jar     binary
+*.png     binary
+*.jpg     binary
+*.jpeg    binary
+*.gif     binary
+*.ogg     binary
+*.wav     binary
+*.mp3     binary
+*.zip     binary
+*.dat     binary
+
+# ---------- GitHub 语言统计 ----------
+# 本项目的 data/资源 json 数量极大（贴图、模型、配方、成就），
+# 不希望它们把语言占比冲淡成「JSON 仓库」
+assets/**/lang/*.json      linguist-generated
+assets/**/models/**        linguist-generated
+assets/**/items/**         linguist-generated
+assets/**/textures/**      linguist-generated
+data/**/recipe/**          linguist-generated
+data/**/advancement/**     linguist-generated
+data/**/tags/**            linguist-generated
+data/**/enchantment/**     linguist-generated
+data/**/villager_trade/**  linguist-generated
+data/**/damage_type/**     linguist-generated
+
+# ---------- diff 视图优化 ----------
+*.png     -diff
+*.jar     -diff

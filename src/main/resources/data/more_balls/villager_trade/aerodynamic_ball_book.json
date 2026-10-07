@@ -1,0 +1,20 @@
+{
+  "given_item_modifier": [
+    {
+      "type": "minecraft:enchant_randomly",
+      "include_additional_cost_component": false,
+      "only_compatible": false,
+      "options": "more_balls:aerodynamic_ball"
+    }
+  ],
+  "gives": {
+    "id": "minecraft:enchanted_book"
+  },
+  "max_uses": 12,
+  "reputation_discount": 0.05,
+  "wants": {
+    "count": 42,
+    "id": "minecraft:emerald"
+  },
+  "xp": 15
+}

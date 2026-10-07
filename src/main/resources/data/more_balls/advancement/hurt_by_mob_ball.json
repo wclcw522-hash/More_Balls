@@ -1,0 +1,24 @@
+{
+    "parent":  "more_balls:root",
+    "criteria":  {
+                     "unlocked":  {
+                                      "trigger":  "minecraft:impossible"
+                                  }
+                 },
+    "display":  {
+                    "description":  {
+                                        "translate":  "advancements.more_balls.hurt_by_mob_ball.description"
+                                    },
+                    "icon":  {
+                                 "id":  "minecraft:zombie_head"
+                             },
+                    "title":  {
+                                  "translate":  "advancements.more_balls.hurt_by_mob_ball.title"
+                              }
+                },
+    "requirements":  [
+                         [
+                             "unlocked"
+                         ]
+                     ]
+}

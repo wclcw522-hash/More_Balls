@@ -1,0 +1,12 @@
+{
+  "replace": false,
+  "values": [
+    "more_balls:ball_pouch",
+    "more_balls:iron_ball_pouch",
+    "more_balls:gold_ball_pouch",
+    "more_balls:emerald_ball_pouch",
+    "more_balls:diamond_ball_pouch",
+    "more_balls:obsidian_ball_pouch",
+    "more_balls:netherite_ball_pouch"
+  ]
+}

@@ -1,0 +1,15 @@
+{
+  "parent": "more_balls:root",
+  "criteria": {
+    "get_rubble": {
+      "conditions": { "items": [ { "items": "more_balls:rubble" } ] },
+      "trigger": "minecraft:inventory_changed"
+    }
+  },
+  "display": {
+    "description": { "translate": "advancements.more_balls.rubble.description" },
+    "icon": { "id": "more_balls:rubble" },
+    "title": { "translate": "advancements.more_balls.rubble.title" }
+  },
+  "requirements": [ [ "get_rubble" ] ]
+}

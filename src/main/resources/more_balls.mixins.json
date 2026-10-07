@@ -1,0 +1,11 @@
+{
+  "required": true,
+  "minVersion": "0.8",
+  "package": "com.mcmodworkspace.moreballs.mixin",
+  "mixins": [
+    "CrossbowItemMixin"
+  ],
+  "injectors": {
+    "defaultRequire": 1
+  }
+}

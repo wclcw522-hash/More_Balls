@@ -1,0 +1,76 @@
+name: Bug 报告
+description: 报告一个可复现的问题
+title: "[Bug] "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        **先看一眼**：这个 mod 目前处于测试阶段，已知问题不少。提交前请确认你已经：
+        - 备份过存档
+        - 用的是最新版本
+        - 只装了必要的 mod（排除冲突）
+
+  - type: input
+    id: mod-version
+    attributes:
+      label: Mod 版本
+      description: 在 mods 列表里看到的版本号，例如 0.3.3.24
+      placeholder: "0.3.3.24"
+    validations:
+      required: true
+
+  - type: input
+    id: neoforge-version
+    attributes:
+      label: NeoForge 版本
+      placeholder: "26.2.0.88"
+    validations:
+      required: true
+
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: 发生了什么
+      description: 描述现象。越具体越好。
+      placeholder: |
+        扔出铜球之后，球周围 3x3 的地面都被加热了，但我并没有要求加热普通方块。
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: 你期望发生什么
+      placeholder: 只有金属矿物应该被加热。
+    validations:
+      required: true
+
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: 复现步骤
+      placeholder: |
+        1. 拿一颗铜球
+        2. 对着地面右键
+        3. 观察球周围的地面
+    validations:
+      required: true
+
+  - type: textarea
+    id: crash-log
+    attributes:
+      label: 崩溃报告 / 日志
+      description: 崩溃就贴 crash-report，不崩就贴 latest.log 的相关片段
+      render: shell
+    validations:
+      required: false
+
+  - type: textarea
+    id: mod-list
+    attributes:
+      label: 装了哪些 mod
+      description: 如果是冲突问题，这一栏很关键
+      render: shell
+    validations:
+      required: false

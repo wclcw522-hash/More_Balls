@@ -1,0 +1,14 @@
+{
+  "parent": "more_balls:root",
+  "criteria": {
+    "unlocked": {
+      "trigger": "minecraft:impossible"
+    }
+  },
+  "display": {
+    "description": { "translate": "advancements.more_balls.piglin_trade_with_ball.description" },
+    "icon": { "id": "minecraft:gold_ingot" },
+    "title": { "translate": "advancements.more_balls.piglin_trade_with_ball.title" }
+  },
+  "requirements": [ [ "unlocked" ] ]
+}

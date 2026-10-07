@@ -1,0 +1,8 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "category": "misc",
+  "key": { "#": "minecraft:iron_ingot" },
+  "pattern": [ " # ", "# #", " # " ],
+  "result": { "count": 8, "id": "more_balls:hollow_iron_ball" },
+  "show_notification": false
+}
