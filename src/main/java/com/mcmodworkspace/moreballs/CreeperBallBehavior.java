@@ -430,7 +430,10 @@ public final class CreeperBallBehavior {
     @SubscribeEvent
     public static void onCreeperDeath(LivingDeathEvent event) {
         if (event.getEntity() instanceof Creeper creeper) {
+            var icon = findHeadIcon(creeper);
             removeHeadIcon(creeper);
+            MoreBalls.LOGGER.info("[ball] 持球苦力怕死亡 -> 清除头顶图标：找到={}，清除后仍存在={}",
+                    String.valueOf(icon), String.valueOf(findHeadIcon(creeper)));
         }
     }
 
@@ -493,7 +496,7 @@ public final class CreeperBallBehavior {
     // ===== 头顶图标 =====
 
     /** 找回这只苦力怕头顶那个图标实体（自己打标记，别认错别人的） */
-    private static Display.ItemDisplay findHeadIcon(Creeper creeper) {
+    static Display.ItemDisplay findHeadIcon(Creeper creeper) {
         return creeper.level()
                 .getEntitiesOfClass(Display.ItemDisplay.class, creeper.getBoundingBox().inflate(2.0D))
                 .stream()

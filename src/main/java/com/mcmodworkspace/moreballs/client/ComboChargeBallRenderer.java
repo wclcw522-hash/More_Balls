@@ -375,7 +375,11 @@ public class ComboChargeBallRenderer implements SpecialModelRenderer<int[]> {
                         // [start, px) 这一段的上边全部外露 —— 一个长条搞定
                         float xa = start;
                         float xb = px;
-                        float y = py;
+                        // ⚠️ **y 必须翻转**：贴图的 py 是「从上往下数」，而 3D 的 y 是
+                        //    「从下往上数」。不翻的话整个侧壁上下颠倒 —— 内侧那排跑到外侧、
+                        //    下侧那排跑到上侧，看起来就是「贴图错位、缺边」
+                        //    （作者 2026-10-09 描述的三个现象）。
+                        float y = 15 - py;
                         float ua = (start + 0.25F) / 16.0F;
                         float ub = (px - 1 + 0.75F) / 16.0F;
                         float v = (py + 0.5F) / 16.0F;
@@ -400,7 +404,7 @@ public class ComboChargeBallRenderer implements SpecialModelRenderer<int[]> {
                     } else if (!exposed && start >= 0) {
                         float xa = start;
                         float xb = px;
-                        float y = py + 1.0F;
+                        float y = 16 - py;   // 同上：翻转 y（下边的 3D 高度 = 16 - py）
                         float ua = (start + 0.25F) / 16.0F;
                         float ub = (px - 1 + 0.75F) / 16.0F;
                         float v = (py + 0.5F) / 16.0F;
@@ -423,8 +427,8 @@ public class ComboChargeBallRenderer implements SpecialModelRenderer<int[]> {
                     if (exposed && start < 0) {
                         start = py;
                     } else if (!exposed && start >= 0) {
-                        float ya = start;
-                        float yb = py;
+                        float ya = 15 - start;   // 同上：翻转 y
+                        float yb = 15 - py + 1.0F;
                         float x = px;
                         float va = (start + 0.25F) / 16.0F;
                         float vb = (py - 1 + 0.75F) / 16.0F;
@@ -448,8 +452,8 @@ public class ComboChargeBallRenderer implements SpecialModelRenderer<int[]> {
                     if (exposed && start < 0) {
                         start = py;
                     } else if (!exposed && start >= 0) {
-                        float ya = start;
-                        float yb = py;
+                        float ya = 15 - start;   // 同上：翻转 y
+                        float yb = 15 - py + 1.0F;
                         float x = px + 1.0F;
                         float va = (start + 0.25F) / 16.0F;
                         float vb = (py - 1 + 0.75F) / 16.0F;

@@ -673,7 +673,13 @@ public final class BallMobAI {
         //    现在两边共用同一条公式。
         float baseVelocity = profile.physicalVelocity();
         float velocity = baseVelocity * BallCharge.velocityMultiplier(chargeLevel);
-        ball.shoot(dx, dy + horizontal * 0.1D, dz, velocity, profile.inaccuracy());
+        // ⚠️ 抛物线补偿（作者 2026-10-09：优化怪物投掷精度）。
+        //
+        //    原来的系数是固定的 0.1，对近距离够用、远距离会明显打低。
+        //    改成按水平距离线性增长 —— 与玩家那条路径的抬升思路一致，
+        //    但怪物没有蓄力瞄准，所以抬得更稳一点。
+        double lift = Math.min(0.35D, 0.08D + horizontal * 0.02D);
+        ball.shoot(dx, dy + horizontal * lift, dz, velocity, profile.inaccuracy());
         // 伤害同样按「最终速度 / 无蓄力速度」缩放 —— 与玩家投掷一字不差
         ball.setDamage(profile.damage() * (velocity / baseVelocity));
 

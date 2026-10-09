@@ -1210,8 +1210,12 @@ public class BallProjectile extends ThrowableItemProjectile {
 
             // 球撞球同样算一次碰撞：两边各消耗 1 点耐久（作者指定）——
             // 弹性系数只决定动能怎么分配，不代表这一下不损伤球体
-            this.consumeDurability("球间碰撞");
-            other.consumeDurability("球间碰撞");
+            // ⚠️ **球撞球不再扣耐久**（作者 2026-10-09 修正）。
+            //
+            //    原来的规则是「两边各扣 1 点耐久」，但球是会互相持续接触的 ——
+            //    两个铁球撞在一起时每刻都在触发，<b>不到一秒就把耐久耗光当场炸掉</b>。
+            //    动能传递照旧做（上面已经算过），只是不再记账耐久。
+            //    耐久现在只由「撞墙 / 撞生物」这类真正的碰撞消耗。
 
             // 被撞后转为贴地滚动
             this.startRollingFromImpulse();
@@ -1744,6 +1748,14 @@ public class BallProjectile extends ThrowableItemProjectile {
     /** 【智慧】的扫描半径（格）—— 作者指定 10 */
     public static final double WISDOM_RADIUS = 10.0;
 
+    /**
+     * 【智慧】锁定时方向里的**向上抬升分量**（作者 2026-10-09 指定）。
+     *
+     * <p>不加这个的话，目标与球同高时锁定的方向 y 分量接近 0，球会贴着地面平移 ——
+     * 「第一次命中后球直接贴地」就是这个原因。</p>
+     */
+    private static final double WISDOM_LIFT = 0.35D;
+
     /** 【智慧】发射后持续尝试多少刻；过了这段还没找到就算了，别一直扫 */
     private static final int WISDOM_SCAN_TICKS = 40;
 
@@ -1877,7 +1889,14 @@ public class BallProjectile extends ThrowableItemProjectile {
             return;
         }
         double speed = Math.max(0.6, this.getDeltaMovement().length());
-        this.setDeltaMovement(direction.normalize().scale(speed));
+        // ⚠️ 锁定时给方向加一点**向上抬升**（作者 2026-10-09 反馈：锁定后球直接贴地飞）。
+        //    原来是把速度**整个**换成朝目标的方向，而目标在水平方向时 y 分量接近 0，
+        //    球就贴着地面平移过去。这里在水平瞄准的基础上补一点 y，保持「在空中飞」的观感。
+        Vec3 flat = new Vec3(direction.x, 0.0D, direction.z);
+        Vec3 aimDir = flat.lengthSqr() < 1.0E-6D
+                ? direction.normalize()
+                : flat.normalize().add(0.0D, WISDOM_LIFT, 0.0D).normalize();
+        this.setDeltaMovement(aimDir.scale(speed));
     }
 
     /**
