@@ -44,10 +44,7 @@ notes/
 TODO.local.md
 *.local.*
 
-# ---------- AI 助手的内部规程 ----------
-# 这些文件只对本项目的 AI 助手有意义（编写规范、踩坑记录），
-# 对真人开发者没有帮助 —— 不进公开仓库，本地保留即可。
-AGENTS.md
-CLAUDE.md
-.cursor/
+# ---------- 编辑器 / 工具本地文件 ----------
+.claude/
+CLAUDE.local.md
 .cursorrules
