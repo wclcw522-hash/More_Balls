@@ -255,7 +255,22 @@ public final class CreeperBallBehavior {
      * 之后它的坐标就问不到了 —— 而苦力怕要瞬移的正是那个落点。
      * 所以在珍珠还活着的每一刻把位置抄下来，等它消失时用。</p>
      */
-    private static final Map<UUID, Vec3> PEARL_TARGET = new ConcurrentHashMap<>();
+    /**
+     * 苦力怕 UUID → 它扔出的末影珍珠要飞向哪儿。
+     *
+     * <p>⚠️ 这是个**无上界**的 Map —— 每只扔过珍珠的苦力怕都会留一条，
+     * 而且只在「珍珠落地」时才移除；苦力怕被提前杀掉就永远留着。
+     * 用 LRU 限住（顺带避免区块反复加载时越堆越多）。</p>
+     */
+    private static final int PEARL_TARGET_CAPACITY = 128;
+
+    private static final Map<UUID, Vec3> PEARL_TARGET =
+            java.util.Collections.synchronizedMap(new java.util.LinkedHashMap<>(32, 0.75F, true) {
+                @Override
+                protected boolean removeEldestEntry(Map.Entry<UUID, Vec3> eldest) {
+                    return size() > PEARL_TARGET_CAPACITY;
+                }
+            });
 
     /**
      * 末影珍珠苦力怕的每刻逻辑。

@@ -1,6 +1,7 @@
 package com.mcmodworkspace.moreballs;
 
 import com.mcmodworkspace.moreballs.entity.BallProjectile;
+import net.minecraft.core.Holder;
 import net.minecraft.core.component.DataComponents;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.server.level.ServerLevel;
@@ -64,14 +65,45 @@ public final class BallAmmo {
         if (charged == null || charged.isEmpty()) {
             return null;
         }
-        for (Item item : BuiltInRegistries.ITEM) {
-            if (charged.contains(item) && item.builtInRegistryHolder().is(ModTags.Items.BALLS)) {
+        // 只遍历标签成员，不再遍历**整个物品注册表**。
+        //
+        // 这个方法挂在 ChargedBall 属性上，物品模型每帧都会问一次 ——
+        // 遍历全注册表（几千个物品）× 每帧 × 每把弩，代价相当可观。
+        // 标签成员通常只有十几个，而且 builtInRegistryHolder().is() 也顺带省掉了。
+        for (Holder<Item> holder : BuiltInRegistries.ITEM.getTagOrEmpty(ModTags.Items.BALLS)) {
+            Item item = holder.value();
+            if (charged.contains(item)) {
                 return item;
             }
         }
         return null;
     }
 
+    /**
+     * 这把弩里装填的那颗「球」的**完整栈（带组件）**，没装就返回 null。
+     *
+     * <p><b>渲染器必须用这个，而不是 {@link #chargedBallItem}。</b>
+     * 弩上那颗组合球的贴图靠 {@code combo_slot_1..4} 选象限，
+     * 而那些组件在<b>球</b>的栈上 —— 弩上一个都没有。
+     * {@code SpecialModelWrapper.update()} 传给渲染器的正是**弩**的物品栈，
+     * 所以之前 {@code extractArgument} 读弩读完永远是空的，只能画底图
+     * （作者反馈「组合球没有上膛贴图」）。</p>
+     */
+    public static ItemStack chargedBallStack(ItemStack crossbow) {
+        if (crossbow == null || crossbow.isEmpty()) {
+            return null;
+        }
+        ChargedProjectiles charged = crossbow.get(DataComponents.CHARGED_PROJECTILES);
+        if (charged == null || charged.isEmpty()) {
+            return null;
+        }
+        for (ItemStack projectile : charged.itemCopies()) {
+            if (isBall(projectile)) {
+                return projectile;
+            }
+        }
+        return null;
+    }
     /** 这把弩里装的是不是「球」 */
     public static boolean holdsChargedBall(ItemStack crossbow) {
         return chargedBallItem(crossbow) != null;
@@ -152,14 +184,34 @@ public final class BallAmmo {
      */
     private static final ThreadLocal<Integer> SHOT_INDEX = new ThreadLocal<>();
 
+    /**
+     * 本轮开始的**墙钟毫秒** —— 用来兜住「Mixin 的出口没跑到」的情况。
+     *
+     * <p>正常路径是 {@code performShooting} 进出各注入一次，把 ThreadLocal 夹在中间。
+     * 但那个方法一旦<b>抛异常</b>（或者出口注入点因为别的模组改了方法结构而没命中），
+     * {@code endShootingRound} 就不会执行 —— ThreadLocal 残留在服务端线程上，
+     * 之后**每一颗**球领到的序号都大于 0，全被当成多重射击附属弹：
+     * 表现是普通投掷的球也会「不可回收 + 落地即碎」。</p>
+     *
+     * <p>所以除了依赖成对调用，再记一个「本轮所属刻」当保险丝：
+     * 超过 {@link #ROUND_MAX_AGE_MS} 毫秒还没被清掉，就认为那一轮早就结束了，直接作废。</p>
+     */
+
+    /** 保险丝时长 —— 超时即认为上一轮是残留（一次发射远用不了这么久） */
+    private static final long ROUND_MAX_AGE_MS = 1000L;   // 约一秒，一次发射远用不了这么久
+
+    private static final ThreadLocal<Long> SHOT_ROUND_MS = new ThreadLocal<>();
+
     /** 由 Mixin 在 {@code performShooting} 进入时调用 */
     public static void beginShootingRound() {
         SHOT_INDEX.set(0);
+        SHOT_ROUND_MS.set(System.currentTimeMillis());
     }
 
     /** 由 Mixin 在 {@code performShooting} 返回时调用 */
     public static void endShootingRound() {
         SHOT_INDEX.remove();
+        SHOT_ROUND_MS.remove();
     }
 
     /**
@@ -172,9 +224,18 @@ public final class BallAmmo {
         if (index == null) {
             return false;
         }
+        // 保险丝：上一轮的出口没跑到时，这个值会一直挂着，
+        // 于是之后每一颗球都变成「附属弹」。超过一轮的正常时长就直接作废。
+        Long roundMs = SHOT_ROUND_MS.get();
+        if (roundMs == null
+                || System.currentTimeMillis() - roundMs > ROUND_MAX_AGE_MS) {
+            endShootingRound();
+            return false;
+        }
         SHOT_INDEX.set(index + 1);
         if (index > 0) {
-            MoreBalls.LOGGER.info("[ball] 同一次发射的第 {} 颗 -> 判定为多重射击附属弹", index + 1);
+            // 每次多重射击都走这里，别用 INFO 刷日志
+            MoreBalls.LOGGER.debug("[ball] 同一次发射的第 {} 颗 -> 判定为多重射击附属弹", index + 1);
             return true;
         }
         return false;

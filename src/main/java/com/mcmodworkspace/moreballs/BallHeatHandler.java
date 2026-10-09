@@ -217,8 +217,20 @@ public final class BallHeatHandler {
             for (BlockPos pos : data.positions()) {
                 BlockState state = level.getBlockState(pos);
 
-                if (BallProspecting.isMetalOre(level, state)) {
-                    // ===== 金属矿 / 粗矿块：攒够阈值就被烤熟破坏 =====
+                // 方块已经被挖掉/替换了 —— 记录必须丢掉。
+                //
+                // 原来只在「烤爆成功」那条路上 remove，于是玩家把热方块挖走后，
+                // 残留记录还会继续冒粒子、继续烫脚（对着空气），
+                // 直到热量自然衰减到 0 为止（作者反馈过「挖掉之后还在烧」）。
+                if (state.isAir()) {
+                    data.remove(pos);
+                    continue;
+                }
+
+                if (BallProspecting.isBreakableOre(level, state)) {
+                    // ===== 可破坏的金属矿 / 粗矿块：攒够阈值就被烤熟破坏 =====
+                    // 判据是「是矿 **且** 能解析出金属产物」—— 判不出产物就不爆，
+                    // 免得退回按原版掉落表掉出方块本身（作者 2026-10-08 报的）。
                     float threshold = ProspectingHeatData.BREAK_THRESHOLD
                             * thresholdMultiplier(state);
                     if (data.settle(pos, gameTime, threshold)) {
@@ -286,9 +298,11 @@ public final class BallHeatHandler {
         awardHeatSmelt(level, pos, data);
         data.remove(pos);
 
-        ItemStack product = BallProspecting.smeltProduct(level, state);
+        // ⚠️ 这里原来在产物为空时走 destroyBlock(pos, true) —— 那会按原版掉落表
+        //    掉出**方块本身**，正是「粗矿块被熔炼后掉回粗矿块」的原因。
+        //    现在改成留在原地（记录已 remove，回到「其它方块」那条路继续冒火烫脚）。
+        ItemStack product = BallProspecting.heatProduct(level, state);
         if (product.isEmpty()) {
-            level.destroyBlock(pos, true);
             return;
         }
 

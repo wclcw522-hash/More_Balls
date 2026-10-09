@@ -1,89 +1,156 @@
 package com.mcmodworkspace.moreballs.client;
 
-import java.util.List;
-import java.util.Arrays;
 import com.mcmodworkspace.moreballs.BallFragments;
+import com.mcmodworkspace.moreballs.BallAmmo;
 import com.mcmodworkspace.moreballs.ModComponents;
 import com.mcmodworkspace.moreballs.MoreBalls;
+import com.mojang.blaze3d.platform.NativeImage;
 import com.mojang.blaze3d.vertex.PoseStack;
 import com.mojang.blaze3d.vertex.VertexConsumer;
 import com.mojang.serialization.MapCodec;
+import java.io.IOException;
+import java.io.InputStream;
+import java.util.Arrays;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 import java.util.function.Consumer;
+import net.minecraft.client.Minecraft;
 import net.minecraft.client.renderer.SubmitNodeCollector;
 import net.minecraft.client.renderer.rendertype.RenderType;
 import net.minecraft.client.renderer.rendertype.RenderTypes;
 import net.minecraft.client.renderer.special.SpecialModelRenderer;
+import net.minecraft.client.renderer.texture.DynamicTexture;
 import net.minecraft.resources.Identifier;
+import net.minecraft.server.packs.resources.Resource;
 import net.minecraft.world.item.ItemStack;
 import net.neoforged.api.distmarker.Dist;
-import net.neoforged.api.distmarker.OnlyIn;
 import org.joml.Vector3f;
 import org.joml.Vector3fc;
 import org.jspecify.annotations.Nullable;
 
 /**
- * 组合球装填到弩上时，那把弩的外观。
+ * 组合球装填到弩上时的外观。
  *
- * <h2>为什么必须写渲染器</h2>
- * <p>组合球的小球是由物品组件决定的（四个象限各自一种材质），json 没法「按数据选图再叠四层，
- * 同时还要正确的手持姿态」，所以只能走 {@code minecraft:special} 这条路 ——
- * 渲染器在运行时能读到组件，也能拿到当前视角。</p>
+ * <h2>做法：运行时合成一张贴图，只画一个面</h2>
+ * <p>组合球的小球由物品组件决定（四个象限各自一种材质），外观没法预先画好。
+ * 但<b>也不需要叠层渲染</b> —— 那样会带来一堆麻烦（层间 z-fighting、被底图盖住、
+ * 每层都要单独选管线）。</p>
  *
- * <h2>几何尺寸照抄原版的物品模型</h2>
- * <p>{@code net.minecraft.client.renderer.ItemModelGenerator} 生成普通物品贴图时用的是：</p>
- * <pre>{@code
- * private static final float MIN_Z = 7.5F;
- * private static final float MAX_Z = 8.5F;
- * Vector3f from = new Vector3f(0.0F, 0.0F, 7.5F);
- * Vector3f to   = new Vector3f(16.0F, 16.0F, 8.5F);
- * }</pre>
- * <p>也就是说物品模型的几何空间是 <b>0..16</b>、贴图平面落在 <b>z = 7.5</b>。
- * 所以这里也按 0..16 提交顶点，平面取 7.4（比 7.5 靠前一点点，压在弩身之上），
+ * <p>这里用的是更直接的办法：</p>
+ * <ol>
+ *   <li>把「满弦空弩」底图与四个象限的贴图，在 CPU 上<b>合成成一张 16×16 的图</b></li>
+ *   <li>用 {@link DynamicTexture} 上传成运行时纹理，按象限组合<b>缓存</b></li>
+ *   <li>渲染时只提交<b>一个</b> 16×16 的面 —— 没有层叠、没有 z 冲突</li>
+ * </ol>
+ *
+ * <h2>几何：照原版物品模型</h2>
+ * <p>{@code net.minecraft.client.renderer.ItemModelGenerator} 生成普通物品贴图用的是
+ * {@code from=(0,0,7.5)} / {@code to=(16,16,8.5)} —— 也就是<b>几何空间 0..16、贴图平面 z=7.5</b>。
+ * 本渲染器同样按 0..16 提交顶点，平面取 7.4（比 7.5 靠前一点点），
  * 并在提交前统一 {@code scale(1/16)} 换算到物品空间。</p>
- *
- * <h2>贴图管线</h2>
- * <p>用 {@link RenderTypes#itemCutout(Identifier)} —— 原版渲染物品模型走的是
- * {@code ITEM_CUTOUT} 管线（见 {@code ItemFeatureRenderer} 里
- * {@code material.itemRenderType()}）。用实体管线（{@code entityCutout}）画物品会明显偏暗，
- * 因为两者的光照处理不同。</p>
  */
-@OnlyIn(Dist.CLIENT)
+// ⚠️ 这里**不要**加 @OnlyIn(Dist.CLIENT)。
+//
+// NeoForge 26.x 移除了 @OnlyIn 的运行时成员剥离行为，保留注解只会在每次启动时打印
+//   [ERROR] @OnlyIn used on class ...  （作者 2026-10-08 看到的「报错几十遍」就是它）
+// 客户端专用性已经由「注册时挂在客户端事件上」保证了，不需要这个注解。
 public class ComboChargeBallRenderer implements SpecialModelRenderer<int[]> {
 
-    /** 模型空间 → 物品空间。原版物品几何是 0..16 */
+    /** 模型空间 → 物品空间（原版物品几何是 0..16） */
     private static final float MODEL_SCALE = 1.0F / 16.0F;
 
-    /** 底图（满弦空弩）所在的平面。原版物品贴图在 7.5，这里取 7.4 压在前面 */
-    private static final float BASE_Z = 7.4F;
+    /** 贴图平面。原版物品贴图在 z=7.5，这里取 7.4，压在弩身前面 */
+    /**
+     * 正面的 z（原版 2D 贴片的正面在 8.5 —— {@code from=(0,0,7.5)} / {@code to=(16,16,8.5)}）。
+     *
+     * <p>⚠️ 原来写的是 {@code 7.4}，那个值<b>小于背面的 7.5</b>，也就是贴在贴片<b>之后</b>，
+     * 会被弩身挡住 —— 注释里「压在弩身前面」的说法是反的。</p>
+     */
+    private static final float PLANE_Z_FRONT = 8.5F;
 
-    /** 小球所在的平面，比底图再靠前一点，确保球在最上层不被盖住 */
-    private static final float PIECE_Z = 7.3F;
-
-    /** 某个象限没有内容（二合一球的下半就是这样） */
-    private static final int NO_PIECE = -1;
+    /** 背面的 z（略微靠后，避免与正面共面导致 z-fighting） */
+    private static final float PLANE_Z_BACK = 7.4F;
 
     private static final float MIN = 0.0F;
     private static final float MAX = 16.0F;
 
-    private static Identifier tex(String path) {
-        return Identifier.fromNamespaceAndPath(MoreBalls.MOD_ID, "textures/item/" + path + ".png");
+    /** 某个象限没有内容（二合一球的下半就是这样） */
+    private static final int NO_PIECE = -1;
+
+    private static Identifier resource(String path) {
+        return Identifier.fromNamespaceAndPath(MoreBalls.MOD_ID, path);
     }
 
-    /** 满弦的空弩 */
-    private static final Identifier BASE_TEXTURE = tex("charge_base_crossbow");
+    /** 底图：满弦的空弩 */
+    private static final Identifier BASE_TEXTURE = resource("textures/item/charge_base_crossbow.png");
 
     private static Identifier pieceTexture(int source, int quadrant) {
-        return tex("charge_piece_" + source + "_" + quadrant);
+        return resource("textures/item/charge_piece_" + source + "_" + quadrant + ".png");
     }
 
     /**
-     * 从物品上读四个象限的来源下标。
+     * 合成结果缓存：象限组合 → 已注册的动态纹理 id。
      *
-     * <p>任何一个缺失就返回 null —— 那时只画底图（一把满弦的空弩），
-     * 不会凭猜测画出一个错的球。</p>
+     * <p>同一组来源只合成一次。玩家能遇到的组合数很少，缓存不会失控。</p>
+     */
+    /**
+     * 合成结果缓存 —— 键是四个象限的下标，值是注册好的动态纹理 id。
+     *
+     * <p><b>用 LRU 而不是 HashMap</b>：组合球的象限组合是
+     * 8 种球的四象限排列，理论上千种，每种都会注册一张 DynamicTexture
+     * （显存 + 纹理管理器条目）。HashMap 只增不减，玩久了会一直堆。
+     * 封顶 {@link #COMPOSED_CAPACITY} 张，超了淘汰最久没用的那张。</p>
+     *
+     * <p>{@code null} 值表示「这张合成过、失败了」——负缓存，避免每次都重跑
+     * 一遍读图 + 逐像素合成（读图失败通常是资源包问题，短时间内不会好）。
+     * 资源包重载时由 {@link #clearCache()} 整体作废。</p>
+     */
+    private static final Map<String, Identifier> COMPOSED =
+            new java.util.LinkedHashMap<>(16, 0.75F, true) {
+                @Override
+                protected boolean removeEldestEntry(Map.Entry<String, Identifier> eldest) {
+                    return size() > COMPOSED_CAPACITY;
+                }
+            };
+
+    /** 缓存上限 —— 一张 16×16 的 RGBA 只有 1 KB，显存占用可忽略，这里限制的是纹理管理器条目数 */
+    private static final int COMPOSED_CAPACITY = 64;
+
+    /** 合成失败时占位用的「负缓存」标记 */
+    private static final Identifier FAILED = Identifier.fromNamespaceAndPath("minecraft", "missingno");
+
+    /**
+     * 作废全部合成缓存 —— 资源包重载后必须调用。
+     *
+     * <p>缓存里存的是「按当前资源包的贴图合成出来的结果」，
+     * 资源包一换、底图或象限贴图变了，旧结果就全错了。</p>
+     */
+    public static void clearCache() {
+        COMPOSED.clear();
+    }
+
+    // ===== 取参数 =====
+
+    /**
+     * 读四个象限的来源下标，{@code -1} 表示该象限留空。
+     *
+     * <p>两级取数：先读四个 {@code combo_slot_N} 组件；读不到就退回 {@code combo_sources}
+     * 字符串组件现算 —— 旧存档里的球只有后者，而补组件的 {@code ensureComboSlots}
+     * 只在物品待在背包里时才跑，装在弩上不会触发。</p>
+     *
+     * @return 四个象限的来源下标；连来源数据都没有时返回 null（此时只显示底图）
      */
     @Override
     public int @Nullable [] extractArgument(ItemStack stack) {
+        // ⚠️ 传进来的是**弩**（SpecialModelWrapper.update 传的是被渲染的物品栈），
+        //    而组合球的四个象限组件在**装填的那颗球**上 —— 先把球从弩里拆出来再读。
+        //    不拆的话这里恒返回 null，弩上永远只有底图。
+        stack = BallAmmo.chargedBallStack(stack);
+        if (stack == null || stack.isEmpty()) {
+            diag("② extractArgument() 弩上没有球 -> null（只画底图）");
+            return null;
+        }
         int kinds = BallFragments.sources().size();
         Integer[] raw = {
                 stack.get(ModComponents.COMBO_SLOT_1.get()),
@@ -92,6 +159,7 @@ public class ComboChargeBallRenderer implements SpecialModelRenderer<int[]> {
                 stack.get(ModComponents.COMBO_SLOT_4.get())
         };
 
+        int[] slots = new int[4];
         boolean anySlot = false;
         for (Integer v : raw) {
             if (v != null) {
@@ -99,111 +167,247 @@ public class ComboChargeBallRenderer implements SpecialModelRenderer<int[]> {
                 break;
             }
         }
-
-        int[] slots = new int[4];
         if (anySlot) {
             for (int i = 0; i < 4; i++) {
                 Integer v = raw[i];
                 slots[i] = (v == null) ? NO_PIECE : ((v >= 0 && v < kinds) ? v : 0);
             }
-            diag("② extractArgument()：读 combo_slot 组件 -> {}", Arrays.toString(slots));
+            diag("② extractArgument() 读 combo_slot -> {}", Arrays.toString(slots));
             return slots;
         }
 
         List<Integer> indexes = BallFragments.parseIndexes(
                 stack.getOrDefault(ModComponents.COMBO_SOURCES.get(), ""));
         if (indexes.isEmpty()) {
-            diag("② extractArgument()：slot 组件与 combo_sources 都为空 -> null，只画底图");
+            diag("② extractArgument() 组件全空 -> null（只画底图）");
             return null;
         }
         for (int q = 0; q < 4; q++) {
             int v = BallFragments.slotValue(indexes, q);
             slots[q] = (v >= 0 && v < kinds) ? v : NO_PIECE;
         }
-        diag("② extractArgument()：从 combo_sources={} 现算 -> {}", indexes, Arrays.toString(slots));
+        diag("② extractArgument() 从 combo_sources={} 现算 -> {}", indexes, Arrays.toString(slots));
         return slots;
     }
+
+    // ===== 渲染 =====
 
     @Override
     public void submit(int @Nullable [] slots, PoseStack poseStack,
                        SubmitNodeCollector collector, int lightCoords, int overlayCoords,
                        boolean hasFoil, int outlineColor) {
-        diag("③ submit() 被调用：slots={} light={} overlay={}", slots, lightCoords, overlayCoords);
+        diag("③ submit() 被调用：slots={}", Arrays.toString(slots));
+
+        Identifier texture = composedTexture(slots);
+        if (texture == null) {
+            // 走到这里说明连底图都合成不出来 —— 那是读图失败，readTexture 里已经报过了
+            diag("③ submit() 合成失败 -> 什么都不画");
+            return;
+        }
 
         poseStack.pushPose();
         poseStack.scale(MODEL_SCALE, MODEL_SCALE, MODEL_SCALE);
-
-        // 底图：满弦空弩。special 的 base 模型只提供手持姿态与纹理依赖、并不参与绘制，
-        // 所以这张图必须由这里画出来。
-        drawQuad(poseStack, collector, BASE_TEXTURE, BASE_Z, lightCoords, overlayCoords);
-
-        // 四个象限的小球，盖在底图之上。NO_PIECE（-1）表示该象限没内容，跳过不画 ——
-        // 二合一球就是这样：上半两个象限有材质，下半没有。
-        if (slots != null) {
-            for (int q = 0; q < 4; q++) {
-                if (slots[q] == NO_PIECE) {
-                    continue;
-                }
-                drawQuad(poseStack, collector, pieceTexture(slots[q], q + 1),
-                        PIECE_Z, lightCoords, overlayCoords);
-            }
-        }
-
+        drawQuad(poseStack, collector, texture, lightCoords, overlayCoords);
         poseStack.popPose();
+
+        diag("③ submit() 已提交一个面：texture={} 顶点={}~{} z={} scale={}（双面）",
+                texture, MIN, MAX, PLANE_Z_FRONT, MODEL_SCALE);
     }
 
-    /** 提交一张覆盖整个物品格的 16×16 平面 */
+    /**
+     * 诊断计数 —— {@code extractArgument} 与 {@code submit} 每帧都会走，
+     * 直接打日志会把 latest.log 刷爆，所以只记录最开始几次。
+     */
+    private static final java.util.concurrent.atomic.AtomicInteger DIAG =
+            new java.util.concurrent.atomic.AtomicInteger();
+
+    private static final int DIAG_LIMIT = 8;
+
+    private static void diag(String message, Object... args) {
+        if (DIAG.incrementAndGet() <= DIAG_LIMIT) {
+            MoreBalls.LOGGER.info("[ball][弩] " + message, args);
+        }
+    }
+
+    /**
+     * 提交一个覆盖整格的 16×16 平面 —— <b>双面</b>。
+     *
+     * <h2>⚠️ 绕序必须与 MC 的 FaceInfo 一致，否则整面被剔除</h2>
+     * <p>{@code ITEM_CUTOUT} 管线<b>没有</b> {@code withCull(false)}，走的是默认
+     * <b>背面剔除开启</b>。MC 对「正面朝 +Z」的硬约定是
+     * {@code FaceInfo.SOUTH} 的顺序：</p>
+     * <pre>
+     *   (MIN,MAX) → (MIN,MIN) → (MAX,MIN) → (MAX,MAX)     左上 → 左下 → 右下 → 右上
+     * </pre>
+     * <p>而这里原来写的是 <b>它的逆序</b>
+     * （{@code (MAX,MIN)→(MIN,MIN)→(MIN,MAX)→(MAX,MAX)}）——
+     * 那等价于 {@code Direction.NORTH} 的绕序，法线朝 <b>-Z</b>。
+     * 于是第一人称手持（手性为正的上下文）时整个面被判为背面、直接丢弃，
+     * 表现就是「弩整格看不见」（作者 2026-10-09 报的）。注释写「法线朝 +Z」是错的。</p>
+     *
+     * <h2>为什么要画两面</h2>
+     * <p>原版 2D 物品几何本来就是双面的 —— {@code ItemModelGenerator.bakeExtrudedSprite()}
+     * 会同时 bake {@code Direction.SOUTH} 与 {@code Direction.NORTH} 两面，
+     * 正是为了规避物品在不同 display context 下的手性翻转（拿在手上和放在地上，
+     * 同一个模型看到的是不同的一面）。只画一面就必然有一半场合是空白。</p>
+     *
+     * <h2>z 值</h2>
+     * <p>原版 2D 贴片的实体范围是 {@code from=(0,0,7.5)} / {@code to=(16,16,8.5)}：
+     * <b>正面在 8.5</b>、7.5 是背面。原来的 {@code PLANE_Z = 7.4} 落在贴片<b>之后</b>，
+     * 也会被弩身挡住。</p>
+     */
     private static void drawQuad(PoseStack poseStack, SubmitNodeCollector collector,
-                                 Identifier texture, float z, int light, int overlay) {
-        RenderType type = RenderTypes.entityCutout(texture, false);
+                                 Identifier texture, int light, int overlay) {
+        // 物品要用物品管线（原版 ItemFeatureRenderer 走的就是 ITEM_CUTOUT）。
+        RenderType type = RenderTypes.itemCutout(texture);
         collector.submitCustomGeometry(poseStack, type, (pose, buffer) -> {
-            // 逆时针，法线朝 +Z
-            vertex(buffer, pose, MAX, MIN, 1.0F, 1.0F, z, light, overlay);
-            vertex(buffer, pose, MIN, MIN, 0.0F, 1.0F, z, light, overlay);
-            vertex(buffer, pose, MIN, MAX, 0.0F, 0.0F, z, light, overlay);
-            vertex(buffer, pose, MAX, MAX, 1.0F, 0.0F, z, light, overlay);
+            // ---- 正面（+Z）：FaceInfo.SOUTH 的绕序 ----
+            vertex(buffer, pose, MIN, MAX, 0.0F, 0.0F, PLANE_Z_FRONT, 1.0F, light, overlay);
+            vertex(buffer, pose, MIN, MIN, 0.0F, 1.0F, PLANE_Z_FRONT, 1.0F, light, overlay);
+            vertex(buffer, pose, MAX, MIN, 1.0F, 1.0F, PLANE_Z_FRONT, 1.0F, light, overlay);
+            vertex(buffer, pose, MAX, MAX, 1.0F, 0.0F, PLANE_Z_FRONT, 1.0F, light, overlay);
+
+            // ---- 背面（-Z）：FaceInfo.NORTH 的绕序，UV 左右镜像 ----
+            vertex(buffer, pose, MAX, MAX, 0.0F, 0.0F, PLANE_Z_BACK, -1.0F, light, overlay);
+            vertex(buffer, pose, MAX, MIN, 0.0F, 1.0F, PLANE_Z_BACK, -1.0F, light, overlay);
+            vertex(buffer, pose, MIN, MIN, 1.0F, 1.0F, PLANE_Z_BACK, -1.0F, light, overlay);
+            vertex(buffer, pose, MIN, MAX, 1.0F, 0.0F, PLANE_Z_BACK, -1.0F, light, overlay);
         });
     }
 
     private static void vertex(VertexConsumer buffer, PoseStack.Pose pose,
                                float x, float y, float u, float v,
-                               float z, int light, int overlay) {
+                               float z, float normalZ, int light, int overlay) {
         buffer.addVertex(pose, x, y, z)
                 .setColor(0xFFFFFFFF)
                 .setUv(u, v)
                 .setOverlay(overlay)
                 .setLight(light)
-                .setNormal(pose, 0.0F, 0.0F, 1.0F);
+                .setNormal(pose, 0.0F, 0.0F, normalZ);
+    }
+
+    // ===== 合成与缓存 =====
+
+    /**
+     * 拿到「这颗组合球装填后」的贴图 id —— 没合成过就现合成。
+     *
+     * @param slots 四个象限的来源下标；{@code null} 表示没读到数据，此时只合成底图
+     */
+    private static @Nullable Identifier composedTexture(int @Nullable [] slots) {
+        int[] key = (slots == null) ? new int[] { NO_PIECE, NO_PIECE, NO_PIECE, NO_PIECE } : slots;
+        String cacheKey = Arrays.toString(key);
+        if (COMPOSED.containsKey(cacheKey)) {
+            Identifier cached = COMPOSED.get(cacheKey);
+            // 负缓存（合成失败过）直接返回 null，不要再读一遍贴图
+            return (cached == FAILED) ? null : cached;
+        }
+        Identifier baked = bake(slots);
+        // 失败也要记下来 —— 否则每帧都会重跑一次「读图 + 逐像素合成」
+        COMPOSED.put(cacheKey, (baked != null) ? baked : FAILED);
+        return baked;
     }
 
     /**
-     * 诊断用的调用计数。
+     * 把底图与四个象限在 CPU 上合成成一张 16×16 的图，注册成动态纹理。
      *
-     * <p>{@code extractArgument} 与 {@code submit} 是**每帧**都会走的，
-     * 直接打日志会把 latest.log 刷爆，所以只记录最开始几次 ——
-     * 定位「有没有走到这一步」几次就够，之后静默。</p>
+     * <p>逐像素对着 RGBA 做 source-over，透明像素不覆盖底下的内容。</p>
      */
-    private static final java.util.concurrent.atomic.AtomicInteger DIAG_COUNT =
-            new java.util.concurrent.atomic.AtomicInteger();
+    private static @Nullable Identifier bake(int @Nullable [] slots) {
+        NativeImage canvas = readTexture(BASE_TEXTURE);
+        if (canvas == null) {
+            MoreBalls.LOGGER.warn("[ball][弩] ★ 底图 {} 读不出来，弩的外观将不可见", BASE_TEXTURE);
+            return null;
+        }
 
-    private static final int DIAG_LIMIT = 5;
+        if (slots != null) {
+            for (int q = 0; q < 4; q++) {
+                if (slots[q] == NO_PIECE) {
+                    continue;
+                }
+                NativeImage piece = readTexture(pieceTexture(slots[q], q + 1));
+                if (piece == null) {
+                    continue;
+                }
+                overlay(canvas, piece);
+                piece.close();
+            }
+        }
 
-    private static void diag(String message, Object... args) {
-        if (DIAG_COUNT.incrementAndGet() <= DIAG_LIMIT) {
-            MoreBalls.LOGGER.info("[ball][弩] " + message, args);
+        // 每颗球一份贴图；名字带上尺寸与本图指纹，避免撞名
+        Identifier id = resource("combo_charge/" + Integer.toHexString(canvas.hashCode())
+                + "_" + COMPOSED.size());
+        String label = "more_balls combo charge " + Arrays.toString(slots);
+        Minecraft.getInstance().getTextureManager().register(id, new DynamicTexture(() -> label, canvas));
+        MoreBalls.LOGGER.info("[ball][弩] ④ 合成装填贴图 {} <- slots={}", id, Arrays.toString(slots));
+        return id;
+    }
+
+    /** 读一张贴图为可写像素缓冲；失败返回 null */
+    private static @Nullable NativeImage readTexture(Identifier id) {
+        try {
+            Resource resource = Minecraft.getInstance().getResourceManager().getResourceOrThrow(id);
+            try (InputStream in = resource.open()) {
+                return NativeImage.read(in);
+            }
+        } catch (IOException | RuntimeException e) {
+            MoreBalls.LOGGER.warn("[ball][弩] ★ 读取贴图失败 {}：{}", id, e.toString());
+            return null;
+        }
+    }
+
+    /**
+     * 把 {@code top} 按 alpha 叠到 {@code base} 上（source-over）。
+     *
+     * <p>两张图都是 16×16，直接逐像素处理。{@link NativeImage} 的坐标原点是左上角，
+     * 与贴图一致，不需要翻转。</p>
+     */
+    private static void overlay(NativeImage base, NativeImage top) {
+        int w = Math.min(base.getWidth(), top.getWidth());
+        int h = Math.min(base.getHeight(), top.getHeight());
+        for (int y = 0; y < h; y++) {
+            for (int x = 0; x < w; x++) {
+                int src = top.getPixel(x, y);
+                int sa = (src >>> 24) & 0xFF;
+                if (sa == 0) {
+                    continue;   // 全透明 → 保留底下的内容
+                }
+                if (sa == 255) {
+                    base.setPixel(x, y, src);
+                    continue;
+                }
+                int dst = base.getPixel(x, y);
+                double a = sa / 255.0;
+                int r = (int) (((src >> 16) & 0xFF) * a + ((dst >> 16) & 0xFF) * (1 - a));
+                int g = (int) (((src >> 8) & 0xFF) * a + ((dst >> 8) & 0xFF) * (1 - a));
+                int b = (int) ((src & 0xFF) * a + (dst & 0xFF) * (1 - a));
+                int da = (dst >>> 24) & 0xFF;
+                int outA = (int) (sa + da * (1 - a));
+                base.setPixel(x, y, (outA << 24) | (r << 16) | (g << 8) | b);
+            }
         }
     }
 
     /** 无状态，共用一个实例 */
     public static final ComboChargeBallRenderer INSTANCE = new ComboChargeBallRenderer();
 
+    /**
+     * 包围盒 —— 必须与 {@link #submit} 里**实际提交的几何**处在同一空间。
+     *
+     * <p>{@code submit} 会给 poseStack 乘 {@link #MODEL_SCALE}（1/16），
+     * 所以屏幕上的几何实际是 0..1；而原来这里返回的是模型空间的 0..16 ——
+     * 两者差 16 倍，包围盒比真实外观大出一大截（物品展示框 / GUI 里的缩放会跟着错）。</p>
+     */
     @Override
     public void getExtents(Consumer<Vector3fc> output) {
-        output.accept(new Vector3f(MIN, MIN, BASE_Z));
-        output.accept(new Vector3f(MAX, MAX, BASE_Z));
+        // 包围盒报的是**提交时 poseStack 所在的空间**，而 submit() 里
+        // 几何是在 scale(MODEL_SCALE) **之后**提交的 —— 也就是已经落到 0..1。
+        // 所以这里报 0..1，与几何一致。
+        float s = MODEL_SCALE;
+        output.accept(new Vector3f(MIN * s, MIN * s, MIN * s));
+        output.accept(new Vector3f(MAX * s, MAX * s, MAX * s));
     }
 
-    /** 注册用的 Unbaked —— 结构照原版 EndCubeSpecialRenderer / ConduitSpecialRenderer 的写法 */
+    /** 注册用的 Unbaked */
     public record Unbaked() implements SpecialModelRenderer.Unbaked<int[]> {
 
         public static final Unbaked INSTANCE = new Unbaked();
@@ -212,8 +416,6 @@ public class ComboChargeBallRenderer implements SpecialModelRenderer<int[]> {
 
         @Override
         public @Nullable SpecialModelRenderer<int[]> bake(SpecialModelRenderer.BakingContext context) {
-            // 这一行只会在模型加载时出现一次。它出现了 = 注册生效；
-            // 没出现 = 事件没挂对总线（模型会静默变空白，弩整个消失）。
             MoreBalls.LOGGER.info("[ball][弩] ① Unbaked.bake() 被调用 —— special 渲染器注册生效");
             return ComboChargeBallRenderer.INSTANCE;
         }

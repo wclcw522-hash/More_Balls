@@ -133,18 +133,42 @@ public final class BallFragments {
      * @param magnetic  【磁性】特质（无数值，看有没有）
      * @param glint     【金光闪闪】特质（无数值，金球专属）
      */
+    /**
+     * 一颗球的全部词条。
+     *
+     * <p>数值项走「相加」，特质项走「出现过 / 四合一要 ≥2 份」。</p>
+     *
+     * <p>⚠️ <b>特质项必须与 {@link BallProfile} 上的词条一一对应</b>。
+     * 早先这里只有 {@code morph / magnetic / glint} 三个，于是
+     * {@code wisdom / kindness / conduction / thunder / shock} 五个词条
+     * 在合成时被整个丢掉 —— 表现就是「紫水晶球 + 别的球合出来的组合球
+     * 没有【智慧】【善良】」（作者 2026-10-08 报的）。加新词条时这里和
+     * {@link #of(BallProfile, boolean)}、{@code comboProfile} 三处要一起改。</p>
+     */
+    /**
+     * 坚固值里的「永不碎裂」在**加法阶段**的替身。
+     *
+     * <p>{@code TOUGH_FOREVER} 是 {@code -1}，直接参与算术会算出 {@code -2}
+     * （一个比「永不碎裂」还强的怪值）。合成时先抬成这个足够大的数，
+     * 落回 profile 时再按阈值还原成哨兵。</p>
+     */
+    public static final double TOUGH_FOREVER_MARK = 100000.0D;
+
     public record Fragment(double toughness, double sense, double melt, double molten,
                            double magnet, double transmute,
-                           boolean morph, boolean magnetic, boolean glint) {
+                           boolean morph, boolean magnetic, boolean glint,
+                           boolean wisdom, boolean kindness, boolean conduction,
+                           boolean thunder, boolean shock) {
 
         public static final Fragment EMPTY =
-                new Fragment(0, 0, 0, 0, 0, 0, false, false, false);
+                new Fragment(0, 0, 0, 0, 0, 0, false, false, false, false, false, false, false, false);
 
         /** 按分数缩放一份词条（半球 0.5、四分之一 0.25） */
         public Fragment scaled(double factor) {
             return new Fragment(toughness * factor, sense * factor, melt * factor,
                     molten * factor, magnet * factor, transmute * factor,
-                    morph, magnetic, glint);
+                    morph, magnetic, glint,
+                    wisdom, kindness, conduction, thunder, shock);
         }
 
         /** 叠加 —— 数值相加，特质取「出现过」 */
@@ -152,7 +176,10 @@ public final class BallFragments {
             return new Fragment(toughness + other.toughness, sense + other.sense,
                     melt + other.melt, molten + other.molten,
                     magnet + other.magnet, transmute + other.transmute,
-                    morph || other.morph, magnetic || other.magnetic, glint || other.glint);
+                    morph || other.morph, magnetic || other.magnetic, glint || other.glint,
+                    wisdom || other.wisdom, kindness || other.kindness,
+                    conduction || other.conduction, thunder || other.thunder,
+                    shock || other.shock);
         }
     }
 
@@ -185,7 +212,13 @@ public final class BallFragments {
      */
     public static Fragment of(BallProfile p, boolean glint) {
         return new Fragment(
-                p.toughness() == BallBehavior.NOT_TOUGH ? 0 : p.toughness(),
+                // ⚠️ 坚固是**哨兵值**语义：NOT_TOUGH=0、TOUGH_FOREVER=-1。
+                //    直接参与加法会算出 -2（比「永不碎」还强）这种怪值。
+                //    这里把 TOUGH_FOREVER 抬成一个远大于任何限次的数，
+                //    落回 profile 时再按阈值还原成哨兵（见 toughFromFragment）。
+                p.toughness() == BallBehavior.NOT_TOUGH ? 0
+                        : (p.toughness() == BallBehavior.TOUGH_FOREVER
+                                ? TOUGH_FOREVER_MARK : p.toughness()),
                 p.sense() == BallBehavior.NOT_SENSE ? 0 : p.sense(),
                 p.hasMelt() ? p.meltThreshold() : 0,
                 p.hasMolten() ? p.moltenThreshold() : 0,
@@ -193,7 +226,12 @@ public final class BallFragments {
                 p.transmuteChance(),
                 p.morphBlock() != null,
                 p.magnetic(),
-                glint);
+                glint,
+                p.wisdom(),
+                p.kindness(),
+                p.conduction(),
+                p.hasThunder(),
+                p.shockDamage());
     }
 
     // ===== 合成球 =====
@@ -226,13 +264,23 @@ public final class BallFragments {
         int morphs = (a.morph() ? 1 : 0) + (b.morph() ? 1 : 0) + (c.morph() ? 1 : 0) + (d.morph() ? 1 : 0);
         int magnets = (a.magnetic() ? 1 : 0) + (b.magnetic() ? 1 : 0) + (c.magnetic() ? 1 : 0) + (d.magnetic() ? 1 : 0);
         int glints = (a.glint() ? 1 : 0) + (b.glint() ? 1 : 0) + (c.glint() ? 1 : 0) + (d.glint() ? 1 : 0);
+        int wisdoms = (a.wisdom() ? 1 : 0) + (b.wisdom() ? 1 : 0) + (c.wisdom() ? 1 : 0) + (d.wisdom() ? 1 : 0);
+        int kindnesses = (a.kindness() ? 1 : 0) + (b.kindness() ? 1 : 0) + (c.kindness() ? 1 : 0) + (d.kindness() ? 1 : 0);
+        int conductions = (a.conduction() ? 1 : 0) + (b.conduction() ? 1 : 0) + (c.conduction() ? 1 : 0) + (d.conduction() ? 1 : 0);
+        int thunders = (a.thunder() ? 1 : 0) + (b.thunder() ? 1 : 0) + (c.thunder() ? 1 : 0) + (d.thunder() ? 1 : 0);
+        int shocks = (a.shock() ? 1 : 0) + (b.shock() ? 1 : 0) + (c.shock() ? 1 : 0) + (d.shock() ? 1 : 0);
         return new Fragment(
                 Math.floor(sum.toughness()), Math.floor(sum.sense()),
                 Math.floor(sum.melt()), Math.floor(sum.molten()),
-                Math.floor(sum.magnet()), Math.floor(sum.transmute()),
+                Math.floor(sum.magnet()), sum.transmute(),   // 同上：概率保持小数
                 morphs >= QUAD_TRAIT_THRESHOLD,
                 magnets >= QUAD_TRAIT_THRESHOLD,
-                glints >= QUAD_TRAIT_THRESHOLD);
+                glints >= QUAD_TRAIT_THRESHOLD,
+                wisdoms >= QUAD_TRAIT_THRESHOLD,
+                kindnesses >= QUAD_TRAIT_THRESHOLD,
+                conductions >= QUAD_TRAIT_THRESHOLD,
+                thunders >= QUAD_TRAIT_THRESHOLD,
+                shocks >= QUAD_TRAIT_THRESHOLD);
     }
 
     /** 四合一时，「同种特质」要出现这么多份才算留住（作者指定：两个及以上） */
@@ -276,7 +324,17 @@ public final class BallFragments {
             return BallBehavior.profileFor(new ItemStack(balls.get(0)));
         }
 
-        Fragment merged = frags.size() <= 2
+        // ⚠️ 必须先校验份数。组件值是可以被 /give、数据包或旧存档写坏的，
+        //    而这里原来直接 `size() <= 2 ? get(0),get(1) : get(0..3)` ——
+        //    1 份会 get(1) 越界、3 份会 get(3) 越界、5 份以上静默只取前四。
+        //    这个方法在 profileFor 的热路径上（tooltip / 渲染 / 每刻 AI），
+        //    抛异常就是渲染线程崩。
+        if (frags.size() != 2 && frags.size() != 4) {
+            MoreBalls.LOGGER.warn("[ball] 组合球来源份数异常（{} 份，只支持 2 或 4）-> 退化为第一份：{}",
+                    frags.size(), indexes);
+            return BallBehavior.profileFor(new ItemStack(balls.get(indexes.get(0))));
+        }
+        Fragment merged = frags.size() == 2
                 ? combinePair(frags.get(0), frags.get(1))
                 : combineQuad(frags.get(0), frags.get(1), frags.get(2), frags.get(3));
 
@@ -286,7 +344,9 @@ public final class BallFragments {
         double bounce = 0.0D;
         double charge = 0.0D;
         double inaccuracy = 0.0D;
-        float scale = 1.0F;
+        // ⚠️ 初值必须是 0，不能是 1.0 —— entityScale 是「相对基准球的倍率」，
+        //    用 1.0 当种子之后，任何**小于 1** 的来源都会被它盖掉（Math.max 取不到）。
+        float scale = 0.0F;
         Block morph = null;
         BallSound sound = null;
         for (BallProfile p : parts) {
@@ -321,14 +381,13 @@ public final class BallFragments {
         if (sound != null) {
             out = out.withSound(sound);
         }
-        // 【变形】组合球**一律具备**（作者指定：耐久耗尽随机变成自身材质之一）。
-        // 这里填第一个来源的方块当**占位** —— 它只用来表示「有变形特质」，
-        // 真正变形时由 BallMorph 从全部材质里现场随机（金球那种单材质球才真的用它）。
-        // 这里**不再兜底**：曾经写成「没有来源带变形特质时自动取第一个来源的方块当占位」，
-        // 结果是每颗组合球都挂上【变形】，哪怕材质里根本没有带变形的球
-        // （作者报过：木-铜-铁-空心铁球也显示【变形】）。
-        // 现在只有真的继承了变形特质才写，语义才和 tooltip 一致。
-        if (morph != null) {
+        // 【变形】只有在这颗球的材质里**真的有** ≥2 份带变形特质时才生效
+        // —— 四合一的份数判定由 combineQuad 算好，就写在 merged.morph() 里。
+        //
+        // ⚠️ 这里原来只判 `morph != null`（第一份有值就写），把 combineQuad 的
+        //    「≥2 份」判定整个绕过去了 —— 表现就是「两个带同样特性的四分之一球
+        //    合出来的组合球没有那个特性」（作者 2026-10-08 报的）。
+        if (merged.morph() && morph != null) {
             out = out.withMorph(morph);
         }
         // （BallProfile 只提供 withXxx，没有 withoutXxx，所以清空就是写回 NOT_XXX）
@@ -336,16 +395,53 @@ public final class BallFragments {
         out = out.withMolten(merged.molten() > 0 ? (int) merged.molten() : BallBehavior.NOT_MOLTEN);
         out = out.withMagnet(merged.magnet() > 0 ? merged.magnet() : BallBehavior.NOT_MAGNET);
         out = out.withTransmute((float) merged.transmute()).withMagnetic(merged.magnetic());
+        // ===== 其余特质同样按「四合一 ≥2 份」落到输出 =====
+        //
+        // ⚠️ 这一段以前**完全不存在** —— wisdom / kindness / conduction / thunder / shock
+        //    五个词条虽然在各来源球上是对的，但组合时没有任何一行把它们写回 profile，
+        //    于是「紫水晶球 + 别的球」合出来的组合球没有【智慧】【善良】，
+        //    弩上的【智慧】不锁玩家、【善良】也不弹玩家（作者 2026-10-08 报的）。
+        out = out
+                .withWisdom(merged.wisdom())
+                .withKindness(merged.kindness())
+                .withConduction(merged.conduction())
+                // 引雷是阈值型：够份数就沿用底子的阈值，不够就写回「没有」哨兵
+                // ⚠️ 阈值必须取「**带引雷那一份**」的，不能取 base（第一格那颗球）。
+                //    空心铜球是唯一带引雷的球，如果它不在第一格，base.thunderThreshold()
+                //    就是 0 → 写回 NOT_THUNDER → 引雷整个消失，且**只跟摆放方向有关**。
+                .withThunder(merged.thunder() ? thunderThresholdFrom(parts) : BallBehavior.NOT_THUNDER)
+                .withShockDamage(merged.shock())
+                // ⚠️ 【金光闪闪】**不参与合成**（作者 2026-10-09 指定）：
+                //    这个特性只在**完整的一颗金球**上生效，一旦被切成半球/四分之一球
+                //    就失效，也不该通过组合球重新获得。所以这里显式写回 false，
+                //    而不是沿用 merged.glint()。
+                .withGlint(false);
         return out;
     }
 
     /** 数值向下取整（特质原样透传） */
+    /**
+     * 从各来源里找「带引雷那一份」的阈值。
+     *
+     * <p>【引雷】是阈值型词条 —— 份数够就保留，但阈值本身要沿用真正带它的那颗球的，
+     * 不能取第一格（那颗球很可能根本没有引雷）。</p>
+     */
+    private static int thunderThresholdFrom(List<BallProfile> parts) {
+        int best = BallBehavior.NOT_THUNDER;
+        for (BallProfile p : parts) {
+            if (p.hasThunder()) {
+                best = Math.max(best, p.thunderThreshold());
+            }
+        }
+        return best;
+    }
     private static Fragment floor(Fragment f) {
         return new Fragment(
                 Math.floor(f.toughness()), Math.floor(f.sense()),
                 Math.floor(f.melt()), Math.floor(f.molten()),
-                Math.floor(f.magnet()), Math.floor(f.transmute()),
-                f.morph(), f.magnetic(), f.glint());
+                Math.floor(f.magnet()), f.transmute(),   // 点金是概率，不能 floor（0.1 -> 0 会整个抹掉）
+                f.morph(), f.magnetic(), f.glint(),
+                f.wisdom(), f.kindness(), f.conduction(), f.thunder(), f.shock());
     }
 
     // ===== 组件 ↔ 下标列表 =====
@@ -418,7 +514,7 @@ public final class BallFragments {
 
         // 诊断：组合球贴图全靠这四个组件选图（模型是 composite 叠四层 select）。
         // 万一贴图又不显示，看这一行就知道是组件没写进去、还是模型那边没匹配上。
-        MoreBalls.LOGGER.info("[ball] 组合球 slots：indexes={} → slot1={} slot2={} slot3={} slot4={}",
+        MoreBalls.LOGGER.debug("[ball] 组合球 slots：indexes={} → slot1={} slot2={} slot3={} slot4={}",
                 indexes,
                 stack.get(ModComponents.COMBO_SLOT_1.get()),
                 stack.get(ModComponents.COMBO_SLOT_2.get()),
@@ -499,7 +595,21 @@ public final class BallFragments {
      * 而组合球的参数要靠合成规则现算，不缓存的话代价太高。
      * 组合的种类是有限的（同一个下标串永远是同一颗球），所以缓存上限自然有界。</p>
      */
-    private static final Map<String, BallProfile> COMBO_CACHE = new ConcurrentHashMap<>();
+    /**
+     * 组合球来源串 → 合成后的 profile。
+     *
+     * <p>键是来源下标串（如 {@code "0,2,3,5"}），可能的取值是 8 颗球的二合一与四合一，
+     * 数量有限但**没有硬上界**。加个 LRU 限住 —— 免得被数据包刷出一堆垃圾键。</p>
+     */
+    private static final int COMBO_CACHE_CAPACITY = 512;
+
+    private static final Map<String, BallProfile> COMBO_CACHE =
+            new java.util.LinkedHashMap<>(64, 0.75F, true) {
+                @Override
+                protected boolean removeEldestEntry(Map.Entry<String, BallProfile> eldest) {
+                    return size() > COMBO_CACHE_CAPACITY;
+                }
+            };
 
     /**
      * 从物品上的 {@link ModComponents#COMBO_SOURCES} 取出组合球的行为参数。

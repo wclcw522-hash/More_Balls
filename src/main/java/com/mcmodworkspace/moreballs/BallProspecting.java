@@ -1,6 +1,7 @@
 package com.mcmodworkspace.moreballs;
 
 import net.minecraft.core.BlockPos;
+import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.core.Direction;
 import net.minecraft.core.registries.Registries;
 import net.minecraft.resources.Identifier;
@@ -143,6 +144,20 @@ public final class BallProspecting {
     /** 方块 → 是否算「金属矿」的缓存（判定要走配方表，不能每刻都查） */
     private static final Map<BlockState, Boolean> METAL_CACHE = new ConcurrentHashMap<>();
 
+    /**
+     * 「能吸热 / 会被烤爆」的独立缓存。
+     *
+     * <p>⚠️ <b>绝对不能再复用 {@link #METAL_CACHE}。</b>
+     * 这两个判定内部会调 {@link #isMetalOre}，而后者自己就往 {@code METAL_CACHE} 写 ——
+     * 如果外层再用 {@code METAL_CACHE.computeIfAbsent(...)}，就变成「在计算函数里
+     * 递归更新同一个 ConcurrentHashMap」，直接抛
+     * {@code IllegalStateException: Recursive update}，服务端 tick 实体时当场崩。
+     * （2026-10-09 作者进世界就崩，就是这个。）</p>
+     *
+     * <p>分开两张表之后，外层只写 HEAT_CACHE，内层只写 METAL_CACHE，互不干扰。</p>
+     */
+    private static final Map<BlockState, Boolean> HEAT_CACHE = new ConcurrentHashMap<>();
+
     /** 一次矿物扫描的结果 —— 只统计与收集位置，磁吸目标另由 bestMagnetTarget 竞争得出 */
     public record ScanResult(int metalBlocks, List<BlockPos> orePositions) {
 
@@ -192,7 +207,8 @@ public final class BallProspecting {
                 for (int dz = -RADIUS; dz <= RADIUS; dz++) {
                     cursor.set(base.getX() + dx, base.getY() + dy, base.getZ() + dz);
                     BlockState state = level.getBlockState(cursor);
-                    if (state.isAir() || !isMetalOre(level, state)) {
+                    // 用 isHeatAbsorbing：金属储存块也要进热表（冒粒子 + 烫脚），只是永不破坏
+            if (state.isAir() || !isHeatAbsorbing(level, state)) {
                         continue;
                     }
                     // 只有进入「生效范围」的矿物才算数 —— 15 格扫描只是提前看到
@@ -229,21 +245,118 @@ public final class BallProspecting {
             return cached;
         }
 
-        boolean result = state.is(EXTRA_METAL_TAG);
-        if (!result) {
-            ItemStack asItem = new ItemStack(state.getBlock().asItem());
-            if (!asItem.isEmpty() && !asItem.is(Items.AIR)) {
-                SingleRecipeInput input = new SingleRecipeInput(asItem);
-                result = level.recipeAccess()
-                        .getRecipeFor(RecipeType.SMELTING, input, level)
-                        .map(holder -> isMetalProduct(holder.value().assemble(input)))
-                        .orElse(false);
+        boolean result;
+        if (isMetalStorageBlock(state)) {
+            // ⚠️ 金属储存块**本身不是矿**（作者 2026-10-08 报的：铁块被烤热后会被破坏）。
+            //
+            // 它们该走「其它方块」那条路 —— 攒到 200 封顶、一直冒火、踩上去烫脚，
+            // 但**方块永远不会消失**。之前因为 isMetalProduct 会把金属块当成
+            // 「粗矿块的熔炼产物」，连带把金属块自己也判成了矿，于是被 destroyBlock 掉了。
+            result = false;
+        } else {
+            result = state.is(EXTRA_METAL_TAG);
+            if (!result) {
+                ItemStack asItem = new ItemStack(state.getBlock().asItem());
+                if (!asItem.isEmpty() && !asItem.is(Items.AIR)) {
+                    SingleRecipeInput input = new SingleRecipeInput(asItem);
+                    result = level.recipeAccess()
+                            .getRecipeFor(RecipeType.SMELTING, input, level)
+                            .map(holder -> isMetalProduct(holder.value().assemble(input)))
+                            .orElse(false);
+                }
             }
         }
 
         METAL_CACHE.put(state, result);
         return result;
     }
+
+    /**
+     * 这格方块是不是<b>金属储存块本身</b>（铁块 / 铜块 / 金块 / 下界合金块）。
+     *
+     * <p>用<b>精确相等</b>而不是子串 —— 粗矿块的注册名 {@code raw_iron_block}
+     * 里也含有 {@code iron_block}，子串匹配会把粗矿块一起误判掉。</p>
+     */
+    /**
+     * 这格方块是不是<b>金属储存块本身</b>（铁块 / 金块 / 下界合金块，以及铜的一整族）。
+     *
+     * <p>必须先排掉 {@code raw_} 前缀 —— 粗矿块注册名 {@code raw_iron_block} 里
+     * 也含有 {@code iron_block}，不排掉会把它一起误判成储存块。</p>
+     *
+     * <p>⚠️ 铜的变体很多：{@code copper_block}、{@code exposed_copper}、
+     * {@code weathered_copper}、{@code oxidized_copper}，外加四个打蜡版本
+     * （{@code waxed_copper_block} 等）。原来这里只比对四个精确名，
+     * 那 8 个铜变体全部漏网、被判成「金属矿」，于是攒够热量就被烤爆
+     * （作者 2026-10-08 报的：金属块不该被破坏，只该冒粒子 + 烫脚）。</p>
+     */
+    /**
+     * 铜储存块家族的正则。
+     *
+     * <p>提成静态常量 —— {@code String.matches} 每次调用都会重新编译正则，
+     * 而这个方法在热路径上（每刻对热表里每格方块的邻居做判定），
+     * 每秒可能被调用上万次。</p>
+     */
+    /**
+     * 「金属储存块」标签 —— 让第三方模组的金属块也能享受「吸热、冒粒子、踩上去烫脚，
+     * 但永不消失」这套行为。
+     *
+     * <p>硬编码原版注册名管不到模组方块，所以判据以<b>标签优先</b>：
+     * 数据包往 {@code #more_balls:metal_storage_blocks} 里塞什么，什么就按储存块处理。
+     * 下面的注册名匹配只作为原版兜底。</p>
+     */
+    private static final TagKey<Block> METAL_STORAGE_TAG =
+            TagKey.create(net.minecraft.core.registries.Registries.BLOCK,
+                    Identifier.fromNamespaceAndPath(MoreBalls.MOD_ID, "metal_storage_blocks"));
+    private static final java.util.regex.Pattern COPPER_STORAGE_PATTERN =
+            java.util.regex.Pattern.compile("(waxed_)?(exposed_|weathered_|oxidized_)?copper(_block)?");
+    private static boolean isMetalStorageBlock(BlockState state) {
+        String path = state.getBlock().builtInRegistryHolder().key().identifier().getPath();
+        if (path.startsWith("raw_")) {
+            return false;
+        }
+        if (state.is(METAL_STORAGE_TAG)) {
+            return true;
+        }
+        if (path.equals("iron_block") || path.equals("gold_block") || path.equals("netherite_block")) {
+            return true;
+        }
+        return COPPER_STORAGE_PATTERN.matcher(path).matches();
+    }
+
+    /**
+     * <b>能吸热</b>的方块 —— 金属矿 + 金属储存块。
+     *
+     * <p>「能不能被加热」和「会不会被烤爆」是两件事，必须分开判：</p>
+     * <ul>
+     *   <li><b>金属储存块</b>：吸热、冒粒子、踩上去烫脚，但<b>永远不消失</b></li>
+     *   <li><b>金属矿 / 粗矿块</b>：吸热，攒够阈值会被烤熟破坏、掉金属产物</li>
+     * </ul>
+     *
+     * <p>之前只有一个 {@code isMetalOre} 同时担这两件事，把储存块短路成「不是矿」
+     * 之后，它连热都吸不到 —— 表现就是「不破坏」做到了，「冒粒子 + 烫脚」却没做到。</p>
+     */
+    public static boolean isHeatAbsorbing(ServerLevel level, BlockState state) {
+        // 同上：结论只跟方块类型有关，缓存掉
+        return HEAT_CACHE.computeIfAbsent(state, s ->
+                isMetalOre(level, s) || isMetalStorageBlock(s));
+    }
+
+    /**
+     * <b>会被烤爆</b>的方块 —— 是矿，<b>并且</b>能解析出金属产物。
+     *
+     * <p>判不出产物就不要爆：否则 {@code burstOre} 只能退回按原版掉落表掉出方块本身
+     * （作者 2026-10-08 报的：粗矿块被熔炼后掉回粗矿块）。</p>
+     */
+    public static boolean isBreakableOre(ServerLevel level, BlockState state) {
+        // 缓存 —— 这个方法在热路径上（每刻对热表里每格方块的邻居跑一遍），
+        // 而 heatProduct 要查熔炼配方（RecipeManager 的多次哈希查找）。
+        // 结论只跟方块类型有关、跟坐标无关，所以可以安全缓存。
+        return HEAT_CACHE.computeIfAbsent(state, s ->
+                !isMetalStorageBlock(s)
+                        && isMetalOre(level, s)
+                        && !heatProduct(level, s).isEmpty());
+    }
+
 
     /**
      * 「金属储存块」的判据关键字。
@@ -254,19 +367,32 @@ public final class BallProspecting {
     private static final List<String> METAL_BLOCK_KEYWORDS =
             List.of("iron_block", "copper_block", "gold_block", "netherite_block");
 
-    /** 熔炼产物算不算「金属」—— 锭，或者金属储存块 */
+    /**
+     * 熔炼产物算不算「金属」。
+     *
+     * <p>判据用<b>注册名</b>（不是翻译键）—— 翻译键是 {@code item.minecraft.iron_ingot}
+     * 这种形式，拿它做子串匹配会把「名字里恰好带 ingot 的模组方块」也卷进来。</p>
+     *
+     * <p>认三种产物：</p>
+     * <ul>
+     *   <li>{@code <金属>_ingot} —— 锭（铁锭、金锭、铜锭…）</li>
+     *   <li>{@code <金属>_scrap} —— 碎料。<b>下界残骸就是这个</b>：
+     *       {@code ancient_debris} 熔炼出 {@code netherite_scrap}，
+     *       它既不是锭也不是储存块，早先因此整个漏判、下界残骸根本不被加热
+     *       （作者 2026-10-08 报的）</li>
+     *   <li>金属储存块 —— 粗矿块被烤熟时掉的就是这个</li>
+     * </ul>
+     */
     private static boolean isMetalProduct(ItemStack product) {
         if (product.isEmpty()) {
             return false;
         }
-        String id = product.getItem().getDescriptionId();
-        // 锭：任何模组的 <金属>_ingot 都算
-        if (id.contains("ingot")) {
+        String path = product.getItem().builtInRegistryHolder().key().identifier().getPath();
+        if (path.endsWith("_ingot") || path.endsWith("_scrap")) {
             return true;
         }
-        // 金属储存块：粗矿块被烤熟时掉的就是这个
         for (String metal : METAL_BLOCK_KEYWORDS) {
-            if (id.contains(metal)) {
+            if (path.equals(metal)) {
                 return true;
             }
         }
@@ -294,10 +420,84 @@ public final class BallProspecting {
             return ItemStack.EMPTY;
         }
         SingleRecipeInput input = new SingleRecipeInput(asItem);
-        return level.recipeAccess()
+        ItemStack smelted = level.recipeAccess()
                 .getRecipeFor(RecipeType.SMELTING, input, level)
                 .map(holder -> holder.value().assemble(input))
                 .orElse(ItemStack.EMPTY);
+        if (!smelted.isEmpty()) {
+            return smelted;
+        }
+        // 粗矿块没有熔炼配方（原版 raw_iron_block 是 crafting_shapeless，拆成 9 个粗矿），
+        // 直接查表会拿到空 —— 那样 burstOre 就只能掉原方块（作者 2026-10-08 报的）。
+        // 这里补一条兜底：raw_X_block → X_block。
+        return rawBlockProduct(state);
+    }
+
+    /**
+     * 「粗矿块 → 对应的金属储存块」的兜底换算。
+     *
+     * <p>规则是把注册名里的 {@code raw_<金属>_block} 换成 {@code <金属>_block}，
+     * 再按同一个命名空间去找那个方块。找不到（比如模组只加了粗矿块、没加金属块）
+     * 就返回空，交给调用方决定退路。</p>
+     *
+     * <p>用注册表查找而不是硬编码物品列表 —— 任何模组只要按原版惯例命名，
+     * 粗矿块被烤熟时就会掉它自己的金属块。</p>
+     */
+    private static ItemStack rawBlockProduct(BlockState state) {
+        Identifier id = state.getBlock().builtInRegistryHolder().key().identifier();
+        String path = id.getPath();
+        if (!path.startsWith("raw_") || !path.endsWith("_block")) {
+            return ItemStack.EMPTY;
+        }
+        String metal = path.substring("raw_".length(), path.length() - "_block".length());
+        Identifier target = Identifier.fromNamespaceAndPath(id.getNamespace(), metal + "_block");
+        Block block = BuiltInRegistries.BLOCK.getOptional(target).orElse(null);
+        if (block == null || block == state.getBlock()) {
+            return ItemStack.EMPTY;
+        }
+        return new ItemStack(block.asItem());
+    }
+    /**
+     * <b>这格方块被烤熟后会掉什么</b> —— 唯一的产品解析入口。
+     *
+     * <p>三层，从可靠到兜底：</p>
+     * <ol>
+     *   <li><b>熔炼配方</b>：矿石 → 锭，最可靠</li>
+     *   <li><b>粗矿块换算</b>：{@code raw_X_block} → {@code X_block}（原版粗矿块没有熔炼配方）</li>
+     *   <li><b>命名推断</b>：{@code X_ore} → {@code X_ingot} / {@code X_block}</li>
+     * </ol>
+     *
+     * <p>解析不出就返回空 —— 调用方据此决定「不破坏」，而不是掉回原方块。</p>
+     */
+    public static ItemStack heatProduct(ServerLevel level, BlockState state) {
+        ItemStack smelted = smeltProduct(level, state);
+        if (!smelted.isEmpty()) {
+            return smelted;
+        }
+        return namedMetalProduct(state);
+    }
+
+    /**
+     * 按注册名推断产物：{@code X_ore} → {@code X_ingot}，没有锭就找 {@code X_block}。
+     *
+     * <p>只处理 {@code _ore} 结尾的方块 —— 猜不出来就别猜，返回空让上层保留方块。</p>
+     */
+    private static ItemStack namedMetalProduct(BlockState state) {
+        Identifier id = state.getBlock().builtInRegistryHolder().key().identifier();
+        String path = id.getPath();
+        if (!path.endsWith("_ore")) {
+            return ItemStack.EMPTY;
+        }
+        String base = path.substring(0, path.length() - "_ore".length());
+        for (String suffix : new String[] { "_ingot", "_block" }) {
+            Block block = BuiltInRegistries.BLOCK
+                    .getOptional(Identifier.fromNamespaceAndPath(id.getNamespace(), base + suffix))
+                    .orElse(null);
+            if (block != null && block != state.getBlock()) {
+                return new ItemStack(block.asItem());
+            }
+        }
+        return ItemStack.EMPTY;
     }
 
     // ===== 玩家侧 =====
@@ -464,5 +664,6 @@ public final class BallProspecting {
     /** 清空缓存（数据包重载后调用，避免残留过期结论） */
     public static void clearCache() {
         METAL_CACHE.clear();
+        HEAT_CACHE.clear();
     }
 }

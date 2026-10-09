@@ -1,6 +1,8 @@
 package com.mcmodworkspace.moreballs.entity;
 
 import net.minecraft.world.level.ClipContext;
+import net.minecraft.world.entity.Pose;
+import net.minecraft.world.entity.EntityDimensions;
 import net.minecraft.world.phys.AABB;
 import net.minecraft.world.entity.monster.Enemy;
 import com.mcmodworkspace.moreballs.BallBehavior;
@@ -345,6 +347,36 @@ public class BallProjectile extends ThrowableItemProjectile {
     /** 发射力度倍率（强弩附魔加成），在 shoot 时乘到初速度上 */
     private float launchMultiplier = 1.0F;
 
+    /**
+     * 【金光闪闪】的<b>吸引窗口</b>截止时刻（游戏刻）。
+     *
+     * <h2>规则（作者 2026-10-08 指定）</h2>
+     * <p>金球<b>第一次碰撞</b>之后的 5 秒（100 刻）内：</p>
+     * <ul>
+     *   <li>猪灵与猪灵蛮兵<b>不会被它捡起</b></li>
+     *   <li>它们被<b>强制禁用仇恨</b>（清掉记恨与当前攻击目标）</li>
+     *   <li>并被这颗金球<b>吸引</b>过去</li>
+     * </ul>
+     * <p>每次碰撞都会把这个截止时刻往后推 5 秒，所以「撞一下 → 猪灵围过来」可以反复触发。</p>
+     */
+    private long goldLureUntilTick = 0L;
+
+    /** 【金光闪闪】的窗口时长：5 秒 */
+    public static final int GOLD_LURE_WINDOW_TICKS = 100;
+
+    /** 这颗金球此刻是否处于吸引窗口内 */
+    public boolean isGoldLuring(long now) {
+        return this.getGoldLureUntil() > now;
+    }
+
+    public long getGoldLureUntil() {
+        return this.goldLureUntilTick;
+    }
+
+    /** 刷新吸引窗口 —— 由碰撞触发 */
+    public void refreshGoldLureWindow() {
+        this.goldLureUntilTick = this.level().getGameTime() + GOLD_LURE_WINDOW_TICKS;
+    }
     public BallProjectile(EntityType<? extends BallProjectile> type, Level level) {
         super(type, level);
     }
@@ -498,9 +530,25 @@ public class BallProjectile extends ThrowableItemProjectile {
         return this.isSettled() ? PICK_RADIUS : FLYING_PICK_RADIUS;
     }
 
-    /** 允许被其它实体推动 —— 玩家或生物蹭一下，球就会滚起来 */
+    /**
+     * 允许被其它实体推动 —— 玩家或生物蹭一下，球就会滚起来。
+     *
+     * <h2>为什么【金光闪闪】的吸引窗口内不给推</h2>
+     * <p>被吸引的猪灵会一拥而上，而它们会把球<b>顶着一路走</b>。球每滚一下就会撞到方块，
+     * 走 {@code consumeDurability("反弹")} 扣耐久 —— 金球耐久本来就低，推一会儿耐久就空了，
+     * 于是 {@code burst()} 里走 morph 直接变成金块（作者 2026-10-09 报的
+     * 「猪灵推动金球导致金球提前变成金块」）。</p>
+     *
+     * <p>那 5 秒窗口本来就是要让玩家看清楚「猪灵被吸引过来」，球在这段时间里
+     * 原地不动才符合设计意图 —— 而且窗口一过就恢复可推。</p>
+     */
     @Override
     public boolean isPushable() {
+        if (this.level() instanceof ServerLevel server
+                && BallBehavior.isGoldShiny(this.getItem())
+                && this.isGoldLuring(server.getGameTime())) {
+            return false;
+        }
         return true;
     }
 
@@ -683,8 +731,77 @@ public class BallProjectile extends ThrowableItemProjectile {
                         || !this.piercingIgnoreEntityIds.contains(target.getId()));
     }
 
+    /**
+     * <b>单个维度**内允许同时存在的球实体上限（作者 2026-10-09 指定）。</b>
+     *
+     * <p>超出之后从**最旧的**开始消失：球的飞行、静止、区块加载、回归寻路都会占资源，
+     * 玩家在外面狂扔一通再传走，那些球会一直挂在那儿 tick。上限本身就是防堆积。</p>
+     */
+    public static final int BALL_CAP = 50;
+
+    /** 上限检查的间隔（刻）—— 一秒一次足够，不必逐刻遍历维度 */
+    public static final int BALL_CAP_CHECK_INTERVAL = 20;
+
+    /**
+     * 覆盖整个维度的包围盒 —— {@code getEntitiesOfClass} 需要一个 AABB，
+     * 而我们要的是「这个维度里的全部球」。取值按 MC 的世界边界上界再放宽一点。
+     */
+    private static final net.minecraft.world.phys.AABB WHOLE_LEVEL_BOX =
+            new net.minecraft.world.phys.AABB(
+                    -3.0E7D, -2048.0D, -3.0E7D,
+                    3.0E7D, 2048.0D, 3.0E7D);
+
+    /**
+     * 执行一次上限检查：本维度的球多于 {@link #BALL_CAP} 时，
+     * 按<b>存在时长从久到近</b>的顺序清掉多出来的那些。
+     *
+     * <h2>为什么用 tickCount 排「新旧」</h2>
+     * <p>{@code tickCount} 是实体从生成起累计的 tick 数，越大代表存在越久 ——
+     * 正好就是「最旧」。不需要额外记时间戳。</p>
+     *
+     * <h2>为什么用 discard() 而不是 kill()</h2>
+     * <p>{@code kill()} 会走 {@code hurt(damageSources().genericKill())} 那条路，
+     * 对投射物来说会触发掉落/碎裂之类的收尾逻辑；{@code discard()} 是直接移除，
+     * **不产生任何掉落物** —— 这正是作者要的「无掉落消失」。</p>
+     */
+    private void enforceBallCap() {
+        if (!(this.level() instanceof net.minecraft.server.level.ServerLevel server)) {
+            return;
+        }
+        java.util.List<BallProjectile> all =
+                server.getEntitiesOfClass(BallProjectile.class, WHOLE_LEVEL_BOX);
+        int overflow = all.size() - BALL_CAP;
+        if (overflow <= 0) {
+            return;
+        }
+        // 存在最久的排前面
+        // tickCount 是 Entity 的 public 字段（不是 getter）
+        all.sort((a, b) -> Integer.compare(b.tickCount, a.tickCount));
+        for (int i = 0; i < overflow; i++) {
+            BallProjectile oldest = all.get(i);
+            if (oldest != this) {
+                // 不动「自己」—— 自己的 tick 正在跑，提前移除会打乱这一帧的后续逻辑
+                oldest.discard();
+            } else if (overflow > 1) {
+                // 自己被点到但还有别的要清，先跳过，下一轮再算
+                continue;
+            }
+        }
+        MoreBalls.LOGGER.debug("[ball] 实体上限 {}：本维度有 {} 颗，清掉最旧的 {} 颗",
+                BALL_CAP, all.size(), overflow);
+    }
+
     @Override
     public void tick() {
+        // 【实体上限】本维度的球超过上限时，从最旧的开始清掉。
+        //
+        // 每 20 刻（1 秒）才查一次 —— 逐刻遍历整个维度的实体没意义，
+        // 而这个上限本身是「防堆积」用的，晚一秒清理完全够。
+        // 只在服务端做：客户端的实体列表不完整，也轮不到它决定谁该消失。
+        if (!this.level().isClientSide() && this.level().getGameTime() % BALL_CAP_CHECK_INTERVAL == 0L) {
+            enforceBallCap();
+        }
+
         // 回归期间，<b>在 super.tick() 之前</b>先把恼鬼的开关压上。
         //
         // 这是照着恼鬼的字节码来的：它的 tick() 在父类 tick <b>前后各设一次</b>
@@ -747,8 +864,23 @@ public class BallProjectile extends ThrowableItemProjectile {
 
         // 【智慧】—— 紫水晶球：发射后扫描 10 格内无遮挡可直达的敌对（或仇恨中的中立）
         // 生物，找到最近的立刻锁定、把速度改成朝它飞。锁定一次即生效，之后不再改方向。
-        if (!this.wisdomLocked && this.profile().wisdom()) {
+        // 【智慧】原来是「锁一次就不再评估」（wisdomLocked 一置位永不复评），
+        // 而且搜索窗口只有前 40 刻。结果：怪物扔回来的球出手时方向已经对着目标，
+        // 那一次锁定几乎不改变弹道，之后再也不会拐弯 —— 表现就是「智慧不生效」。
+        // 改成周期性重锁：持续跟踪目标，直到球失效。
+        if (this.profile().wisdom() && this.wisdomRelockCooldown-- <= 0) {
+            this.wisdomRelockCooldown = WISDOM_RELOCK_INTERVAL;
             this.tryWisdomLock();
+        }
+
+        // 【金光闪闪】的吸引窗口：**无论球是不是静止**都要吸引。
+        //
+        // 原来这段只在「已静止」分支里，于是金球刚撞完还在滚动的那 5 秒里
+        // 猪灵完全没反应 —— 而作者要的正是「碰撞后的那 5 秒」。
+        if (BallBehavior.isGoldShiny(this.getItem())
+                && this.level() instanceof ServerLevel goldLevel
+                && this.isGoldLuring(goldLevel.getGameTime())) {
+            PiglinLure.lure(goldLevel, this.position());
         }
 
         // 【熔融】状态的外观：进了熔融的球周身冒火（环绕 + 拖尾）
@@ -891,7 +1023,7 @@ public class BallProjectile extends ThrowableItemProjectile {
 
             // 【金光闪闪】：金球躺在地上就一直在喊猪灵过来 ——
             // 每刻覆写它们的寻路终点与攻击目标，直到球被捡走（球没了这段自然停止）。
-            if (this.getItem().is(ModItems.GOLD_BALL.get())
+            if (BallBehavior.isGoldShiny(this.getItem())
                     && this.level() instanceof ServerLevel lureLevel) {
                 PiglinLure.lure(lureLevel, this.position());
             }
@@ -1219,18 +1351,21 @@ public class BallProjectile extends ThrowableItemProjectile {
             return;
         }
 
-        // 【善良】：不会伤害友好与中立生物 —— 碰到它们不结算任何伤害，改成原样反弹。
+        // 【善良】：<b>不伤害同阵营</b> —— 碰到自己人就原样弹开，不结算伤害。
         //
-        // 判据用原版的 {@link Enemy} 接口：敌对生物（僵尸 / 骷髅 / 苦力怕 / 掠夺者）
-        // 都实现它，而中立（猪 / 牛 / 末影人）与友好（村民 / 铁傀儡）都不实现 ——
+        // 作者 2026-10-09 明确：判据是「**同阵营**」，而不是「对方是不是友好生物」。
+        // 也就是**按发射者**决定：玩家扔出的球不伤玩家阵营（友好 + 中立），
+        // 而**敌怪扔出的球不伤敌怪** —— 怪物互相残杀不算「善良」。
+        //
+        // 阵营用原版的 {@link Enemy} 接口划分：僵尸 / 骷髅 / 苦力怕 / 掠夺者实现它，
+        // 中立（猪 / 末影人）与友好（村民 / 铁傀儡）不实现 ——
         // 比按 MobCategory 分类更准，也自动涵盖其它模组添加的生物。
-        //
-        // 排除作者自己：不然贴身投掷时会被自己的球弹在脸上。
         if (this.profile().kindness()
-                && entity instanceof LivingEntity friendly
-                && !(friendly instanceof Enemy)
-                && friendly != this.getOwner()) {
-            this.bounceOffEntity(friendly);
+                && entity instanceof LivingEntity other
+                && other != this.getOwner()
+                && isSameSide(this.getOwner(), other)) {
+            this.bounceOffEntity(other);
+            this.friendlyBounced = true;   // 见 onHit：别让二次 bounceBack 覆盖它
             return;
         }
 
@@ -1268,7 +1403,7 @@ public class BallProjectile extends ThrowableItemProjectile {
             // 顺便给这只猪灵留个记号 —— 它之后捡起这颗球时，交易是不是「特殊交易」
             // 就看这个记号（被球打过就只能拿普通回礼）。
             if (entity instanceof AbstractPiglin piglin
-                    && this.getItem().is(ModItems.GOLD_BALL.get())) {
+                    && BallBehavior.isGoldShiny(this.getItem())) {
                 piglin.setData(ModAttachments.GOLD_BALL_HURT.get(), true);
                 PiglinLure.forgetAnger(piglin);
             }
@@ -1368,6 +1503,12 @@ public class BallProjectile extends ThrowableItemProjectile {
     /** 命中分岔：<b>穿透 → 继续飞；坚固 → 反弹；其余 → 碎裂</b> */
     @Override
     protected void onHit(HitResult hitResult) {
+        // 【金光闪闪】作者 2026-10-08 指定：金球**第一次碰撞**之后 5 秒内，
+        // 猪灵与猪灵蛮兵不会被它捡起，且这段时间会被强制禁用仇恨并被它吸引。
+        // 每次碰撞都把窗口往后推 5 秒 —— 见 refreshGoldLureWindow()。
+        if (BallBehavior.isGoldShiny(this.getItem())) {
+            this.refreshGoldLureWindow();
+        }
         // 回归虚化期间穿过一切，不结算任何碰撞。
         //
         // 光设 noPhysics 不够：那只让 move() 不再做碰撞推挤，
@@ -1388,7 +1529,12 @@ public class BallProjectile extends ThrowableItemProjectile {
                 if (this.piercingIgnoreEntityIds.size() >= this.getPierceLevel() + 1) {
                     if (this.isTough()) {
                         super.onHit(hitResult);
-                        this.bounceBack();
+                        // 同上：善良已经反射过就不要覆盖
+                        if (this.friendlyBounced) {
+                            this.friendlyBounced = false;
+                        } else {
+                            this.bounceBack();
+                        }
                     } else {
                         this.burst();
                     }
@@ -1402,7 +1548,14 @@ public class BallProjectile extends ThrowableItemProjectile {
 
             if (this.isTough()) {
                 super.onHit(hitResult);
-                this.bounceBack();
+                // ⚠️ 【善良】命中友好生物时 super.onHit 已经走过 bounceOffEntity
+                //    做过标准向量反射；这里再无条件 bounceBack()（水平整体取反）
+                //    会把那次反射**覆盖成原路折回** —— 表现就是「善良的反弹不生效」。
+                if (this.friendlyBounced) {
+                    this.friendlyBounced = false;   // 用完即清，别影响后续命中
+                } else {
+                    this.bounceBack();
+                }
                 return;
             }
         } else if (hitResult.getType() == HitResult.Type.BLOCK) {
@@ -1545,7 +1698,16 @@ public class BallProjectile extends ThrowableItemProjectile {
     private static final int WISDOM_SCAN_TICKS = 40;
 
     /** 【智慧】是否已经锁定过 */
-    private boolean wisdomLocked;
+    private boolean wisdomLocked;   // 只表示「当前处于锁定态」，不再是一道永久闸门
+
+    /** 【善良】已经在 onHitEntity 里反弹过 —— 告诉 onHit 不要再 bounceBack 覆盖它 */
+    private boolean friendlyBounced;
+
+    /** 【智慧】的重锁倒计时（刻）—— 归零时重新搜索并锁定目标 */
+    private int wisdomRelockCooldown;
+
+    /** 【智慧】多久重新锁定一次目标（刻）。原来是「只锁一次」，那对怪物扔回的球几乎无效 */
+    private static final int WISDOM_RELOCK_INTERVAL = 5;
 
     /**
      * 【智慧】的扫描与锁定。
@@ -1562,9 +1724,8 @@ public class BallProjectile extends ThrowableItemProjectile {
      * 不会因为锁定突然减速或加速。</p>
      */
     private void tryWisdomLock() {
-        if (this.tickCount > WISDOM_SCAN_TICKS) {
-            return;
-        }
+        // 不再有「只在前 40 刻搜索」的硬窗口 —— 只靠上面的重锁间隔限流，
+        // 否则球飞过 2 秒后就永远不再识别新目标。
         if (!(this.level() instanceof ServerLevel level)) {
             return;
         }
@@ -1643,11 +1804,41 @@ public class BallProjectile extends ThrowableItemProjectile {
     /**
      * 这颗生物算不算【智慧】的目标。
      *
-     * <p>两个来源：<b>敌对生物</b>（原版 {@link Enemy} 接口，自动涵盖模组生物），
-     * 以及<b>有仇恨目标的中立生物</b>。</p>
+     * <p>三个来源：<b>敌对生物</b>（原版 {@link Enemy} 接口，自动涵盖模组生物）、
+     * <b>有仇恨目标的中立生物</b>，以及<b>玩家</b>。</p>
+     *
+     * <p>为什么玩家也算 —— 作者 2026-10-08 报的：怪物拿【智慧】球扔玩家时，
+     * 球完全不会锁定。原因是玩家既不是 {@link Enemy}、也不是 {@link Mob}，
+     * 在上面两条判据里全部落空。把玩家放进来之后：</p>
+     * <ul>
+     *   <li>玩家扔的球 —— 自己会被 {@code candidate == getOwner()} 排除，不会自锁</li>
+     *   <li>怪物扔的球 —— 锁定最近的玩家，正是想要的行为</li>
+     *   <li>玩家之间互扔 —— 会互相锁定（相当于 PVP 里多了个追踪，合理）</li>
+     * </ul>
      */
+    /**
+     * 发射者与命中目标是不是「同一阵营」。
+     *
+     * <p>划分依据是原版的 {@link Enemy} 接口 —— 它是「敌对生物」的标记接口：
+     * {@code Monster} 与 {@code Piglin} 系都实现它，而动物、村民、铁傀儡不实现。</p>
+     *
+     * <ul>
+     *   <li>发射者是敌怪 → 命中敌怪算同阵营（不伤害）</li>
+     *   <li>发射者不是敌怪（玩家 / 动物 / 没有发射者） → 命中非敌怪算同阵营</li>
+     * </ul>
+     *
+     * <p>没有发射者时按「玩家阵营」算 —— 无主之球不该误伤村民与动物。</p>
+     */
+    private static boolean isSameSide(net.minecraft.world.entity.Entity owner, LivingEntity target) {
+        boolean ownerHostile = owner instanceof Enemy;
+        boolean targetHostile = target instanceof Enemy;
+        return ownerHostile == targetHostile;
+    }
     private static boolean isWisdomTarget(LivingEntity entity) {
         if (entity instanceof Enemy) {
+            return true;
+        }
+        if (entity instanceof Player) {
             return true;
         }
         return entity instanceof Mob mob && mob.getTarget() != null;

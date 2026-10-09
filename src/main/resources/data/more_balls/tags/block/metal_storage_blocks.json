@@ -1,0 +1,16 @@
+{
+  "__comment": "「金属储存块」—— 吸热、冒粒子、踩上去烫脚，但**永远不会被烤爆**。原版的铁块/金块/下界合金块/整族铜块由代码里的注册名兜底，这里开放给数据包与第三方模组：把自己的金属块塞进来就能享受同一套行为。",
+  "values": [
+    "minecraft:iron_block",
+    "minecraft:gold_block",
+    "minecraft:netherite_block",
+    "minecraft:copper_block",
+    "minecraft:exposed_copper",
+    "minecraft:weathered_copper",
+    "minecraft:oxidized_copper",
+    "minecraft:waxed_copper_block",
+    "minecraft:waxed_exposed_copper",
+    "minecraft:waxed_weathered_copper",
+    "minecraft:waxed_oxidized_copper"
+  ]
+}

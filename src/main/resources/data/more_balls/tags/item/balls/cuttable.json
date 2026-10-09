@@ -1,4 +1,5 @@
 {
+  "__comment": "能被切石机切开的球。注意这里**只按子分类引用**，组合球（combo_ball）虽然落在 balls/solid 里，但由 BallCuttingRecipe 在代码里单独排除 —— 标签语法本身没有「排除」这一说，而把 solid 的成员逐条抄过来会失去自动适配新球的能力。",
   "values": [
     "#more_balls:balls/solid",
     "#more_balls:balls/hollow"

@@ -53,6 +53,8 @@ public class MoreBalls {
         //    这里不需要额外的「是不是客户端」判断：该事件只在客户端触发，
         //    而方法引用是延迟解析的 —— 专用服务器永远不会加载到 MoreBallsClient。
         modEventBus.addListener(MoreBallsClient::registerSpecialModelRenderers);
+        // 资源包重载时清掉按贴图算出来的缓存（弩的组合球贴图）
+        modEventBus.addListener(MoreBallsClient::registerReloadListeners);
 
         LOGGER.info("[{}] 初始化完成：分类「球」、标签 #{}:balls、右键投掷（含蓄力）、弩弹药",
                 MOD_ID, MOD_ID);

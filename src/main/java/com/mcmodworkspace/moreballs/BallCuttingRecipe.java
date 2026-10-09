@@ -1,6 +1,7 @@
 package com.mcmodworkspace.moreballs;
 
 import com.mojang.serialization.MapCodec;
+import net.minecraft.world.level.Level;
 import net.minecraft.network.RegistryFriendlyByteBuf;
 import net.minecraft.network.codec.StreamCodec;
 import net.minecraft.world.item.ItemStack;
@@ -92,6 +93,26 @@ public class BallCuttingRecipe extends StonecutterRecipe {
             product.set(ModComponents.FRAGMENT_SOURCE.get(), sourceIndex);
         }
         return product;
+    }
+
+    /**
+     * 除了父类的判据，还要把<b>组合球</b>挡在外面。
+     *
+     * <p>组合球落在 {@code #more_balls:balls/solid} 里，所以标签层面它是「可切」的。
+     * 但它不在 {@link BallFragments#sources()} 里 —— 一旦被切，
+     * 上面的 {@code assemble} 拿到的 {@code indexOfBall} 是 {@code -1}，
+     * 产出的就是**没有来源组件的裸半球**：既合不出球也不显示词条，
+     * 等于凭空生成一件废品。</p>
+     *
+     * <p>用代码排除而不是在标签里抄白名单 —— 后者每加一颗球都要改标签，
+     * 而「{@code sources()} 里没有的球不能切」这条规则天然覆盖所有情况。</p>
+     */
+    @Override
+    public boolean matches(SingleRecipeInput input, Level level) {
+        if (BallFragments.indexOfBall(input.item().getItem()) < 0) {
+            return false;
+        }
+        return super.matches(input, level);
     }
 
     @Override

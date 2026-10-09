@@ -1,0 +1,8 @@
+{
+  "__comment": "「熔融物烧伤」的本质是火焰伤害（作者 2026-10-09 指出），因此不该被护甲值减免。原版护甲减免的判定挂在 minecraft:bypasses_armor 这个标签上，把本模组的伤害类型塞进来即可跳过护甲结算；火焰保护附魔不在这个标签的管辖范围内，仍然正常生效。",
+  "__replace_note": "⚠️ 「replace\": false」是必须的 —— 它让本文件与原版标签**合并**而不是**替换**。少了它，原版那条 bypasses_armor（虚空伤害、/kill 等）会被本模组整个挤掉。其余 6 个 data/minecraft/tags 文件都带着这一项，本文件当初漏了。",
+  "replace": false,
+  "values": [
+    "more_balls:molten_burn"
+  ]
+}

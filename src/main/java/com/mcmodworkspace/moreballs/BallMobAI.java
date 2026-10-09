@@ -218,6 +218,18 @@ public final class BallMobAI {
      *
      * <p>捡到的球会直接进主手，之后走同一套蓄力投掷流程，所以捡起来就能扔。</p>
      */
+    /**
+     * 【金光闪闪】的吸引窗口内，这颗金球是否<b>禁止被捡取</b>。
+     *
+     * <p>规则（作者 2026-10-08）：金球第一次碰撞后 5 秒内不会被猪灵捡起，
+     * 这段时间留出来做「猪灵被吸引」的表演。窗口外照常可捡。</p>
+     */
+    private static boolean isGoldLureLocked(BallProjectile ball) {
+        if (!BallBehavior.isGoldShiny(ball.getItem())) {
+            return false;
+        }
+        return ball.isGoldLuring(ball.level().getGameTime());
+    }
     private static void tryPickUpBall(Mob mob) {
         if (!(mob instanceof Enemy)) {
             return; // 牛羊之类不参与
@@ -240,8 +252,15 @@ public final class BallMobAI {
         //    两者共用同一套半径、概率、条件，所以先取实体、没有再取掉落物。
         List<BallProjectile> near = findBalls(mob, PICKUP_RADIUS);
         if (!near.isEmpty()) {
+            // 【金光闪闪】作者 2026-10-08 指定：金球在「碰撞后 5 秒」的吸引窗口内
+            // **不能被捡起** —— 那段窗口是留给玩家看清「猪灵被吸引过来」的，
+            // 球一落地就被捡走的话，这个效果根本看不见。
+            BallProjectile candidate = near.get(0);
+            if (isGoldLureLocked(candidate)) {
+                return;
+            }
             if (mob.getRandom().nextFloat() < PICKUP_CHANCE) {
-                pickUpBall(mob, near.get(0));
+                pickUpBall(mob, candidate);
             }
             return;
         }
@@ -344,7 +363,7 @@ public final class BallMobAI {
 
         // 【金光闪闪】的猪灵交易是**唯一**允许「丢掉手上东西去接球」的情形 ——
         // 它本来就是这么设计的（金剑落地、金球入手）。
-        boolean piglinTrade = stack.is(ModItems.GOLD_BALL.get()) && mob instanceof Piglin;
+        boolean piglinTrade = BallBehavior.isGoldShiny(stack) && mob instanceof Piglin;
         // 其它怪物手上拿着东西就别抢它的。特别是骷髅：它拿着弓，
         // 之前这里漏了判断，于是它会跑来捡球、把弓丢在脚边
         //（作者 2026-10-07 报「小白怎么接球了，还把弓扔了」）。
@@ -364,7 +383,7 @@ public final class BallMobAI {
         // 【金光闪闪】：猪灵捡到金球当场交易 ——
         // 没被这颗球打过就是「特殊交易」，一口气给好几次产物（详见 PiglinLure）。
         // 猪灵蛮兵不算 Piglin，这里自然被排除在外：它们只会拿着球，不办事。
-        if (stack.is(ModItems.GOLD_BALL.get()) && mob instanceof Piglin piglin) {
+        if (BallBehavior.isGoldShiny(stack) && mob instanceof Piglin piglin) {
             boolean special = !Boolean.TRUE.equals(
                     piglin.getExistingDataOrNull(ModAttachments.GOLD_BALL_HURT.get()));
             PiglinLure.onPiglinPickedUpGoldBall(piglin, source);
@@ -619,6 +638,9 @@ public final class BallMobAI {
         Vec3 start = origin.add(forward.scale(forwardOffset));
 
         BallProjectile ball = new BallProjectile(level, mob, stack);
+        // ⚠️ 玩家路径（BallThrowHandler）与弩路径（BallAmmo）都设了重量，怪物这条漏了。
+        //    不设的话紫水晶球（重量 5）会按默认 4 结算重力，弹道与玩家扔的不一致。
+        ball.setWeight(profile.weight());
         ball.setPos(start.x, start.y, start.z);
         ball.setToughness(BallItem.remainingToughness(stack, profile.toughness()));
         ball.setBounce(profile.bounce());
@@ -665,7 +687,22 @@ public final class BallMobAI {
     }
 
     /** 兜底识别用的记录表；用强引用，过期条目手动清（弱引用会被 GC 无声清掉，踩过） */
-    private static final Map<UUID, ShotStamp> RECENT_SHOTS = new HashMap<>();
+    /**
+     * 射手 UUID → 上一次发射的时间戳（用于「同一次齐射」兜底识别）。
+     *
+     * <p>⚠️ 这是个**无上界**的 Map，每个开过弩的实体都会留下一条记录、永不清理。
+     * 用 LRU 限住，并改成并发安全的实现（怪物 tick 走服务端线程，但主手投掷
+     * 有可能在别的线程被触发，原版 HashMap 不安全）。</p>
+     */
+    private static final int RECENT_SHOTS_CAPACITY = 256;
+
+    private static final Map<UUID, ShotStamp> RECENT_SHOTS =
+            java.util.Collections.synchronizedMap(new java.util.LinkedHashMap<>(64, 0.75F, true) {
+                @Override
+                protected boolean removeEldestEntry(Map.Entry<UUID, ShotStamp> eldest) {
+                    return size() > RECENT_SHOTS_CAPACITY;
+                }
+            });
 
     /**
      * 判定「同一次发射」的时间窗口（刻）。
@@ -700,10 +737,21 @@ public final class BallMobAI {
         UUID id = owner.getUUID();
         ShotStamp last = RECENT_SHOTS.get(id);
 
+        // ⚠️ 只处理**弩射出来的**球。
+        //
+        // 这条兜底原本只按「同一个射手在 5 刻内又出现一颗球」判定，
+        // 完全不看来源 —— 于是玩家**连着右键扔两颗球**时，第二颗就被打成
+        // 「多重射击附属弹」，而附属弹的规则是「落定即碎、碎裂无掉落、且跳过 morph」。
+        // 表现就是：金球扔出去不等变金块，直接碎（作者 2026-10-09 报的）。
+        // 手扔的球不会经过 AbstractArrow 的发射流程，本来就不该有多重射击。
+        if (!ball.isFromCrossbow()) {
+            return;
+        }
+
         if (last != null && now - last.gameTime() <= SAME_VOLLEY_TICKS) {
             RECENT_SHOTS.put(id, new ShotStamp(now, last.count() + 1));
             ball.setMultishotSide(true);
-            MoreBalls.LOGGER.info("[ball] 兜底识别：同一次发射的第 {} 颗 -> 判定为附属弹", last.count() + 1);
+            MoreBalls.LOGGER.debug("[ball] 兜底识别：同一次发射的第 {} 颗 -> 判定为附属弹", last.count() + 1);
             // 「三军听令！」：用多重射击第一次打出球。
             // 走到这里就说明同一把弩在一次发射里射出了不止一颗 —— 多重射击生效了。
             // 记在**射手**头上（玩家才拿成就），怪物射的不算。

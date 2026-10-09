@@ -83,11 +83,14 @@ public class BallFragmentItem extends Item {
         if (idx < 0) {
             return super.getName(stack);
         }
+        // idx 来自物品组件，可能被 /give 或数据包写坏 —— 夹到合法区间，
+        // 否则渲染线程会在 tooltip 里抛 IndexOutOfBounds。
+        int safe = Math.max(0, Math.min(idx, BallFragments.SHORT_ID.size() - 1));
         return Component.translatable(
                 this.parts == 2
                         ? "item.more_balls.ball_half.format"
                         : "item.more_balls.ball_quarter.format",
-                Component.translatable("ball.more_balls.short." + BallFragments.SHORT_ID.get(idx)));
+                Component.translatable("ball.more_balls.short." + BallFragments.SHORT_ID.get(safe)));
     }
 
     @Override

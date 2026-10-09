@@ -219,7 +219,7 @@ public final class BallTooltip {
         }
 
         // 【金光闪闪】—— 金球专属（这套猪灵行为整套都挂在金球上，所以直接认物品）
-        if (stack.is(ModItems.GOLD_BALL.get())) {
+        if (BallBehavior.isGoldShiny(stack)) {
             out.add(Entry.of(line("tooltip.more_balls.entry.gold_shiny"), Kind.TRAIT));
         }
 

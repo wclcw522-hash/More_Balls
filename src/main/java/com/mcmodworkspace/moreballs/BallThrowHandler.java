@@ -67,6 +67,10 @@ public final class BallThrowHandler {
         if (BallBehavior.profileFor(stack).chargeLevels() <= 0) {
             return;
         }
+        // ── 接点 ②：「按住右键不再表示蓄力」挂在这里 ──
+        //    戴着袖珍活塞时应把时长压到最短，让「按住」纯粹变成「连续投掷」的开关。
+        //        event.setDuration(PocketPistonCompat.isFullChargeLocked(
+        //                (Player) event.getEntity()) ? 0 : BallCharge.USE_DURATION);
         event.setDuration(BallCharge.USE_DURATION);
     }
 
@@ -84,9 +88,26 @@ public final class BallThrowHandler {
             return;
         }
 
+        // ── 接点 ①：「奇异饰品 · 袖珍活塞」的「锁定蓄力等级为最大」挂在这里 ──
+        //    当前 PocketPistonCompat.isFullChargeLocked 恒返回 false（接口已留、未启用），
+        //    所以下面这行行为不变。将来改成：
+        //        int level = PocketPistonCompat.isFullChargeLocked(player)
+        //                ? profile.chargeLevels()
+        //                : BallCharge.levelAt(BallCharge.usedTicks(player), profile.chargeLevels());
         int level = BallCharge.levelAt(BallCharge.usedTicks(player), profile.chargeLevels());
         throwBall(player, stack, level);
     }
+
+    // ── 接点 ③：「按住右键连续投掷」需要新增一个监听器 ──
+    //
+    //  将来在 MoreBalls 的 mod 总线里注册一个 PlayerTickEvent.Post（或
+    //  EntityTickEvent.Post 判 Player）监听，逻辑是：
+    //      戴着袖珍活塞 + 玩家正在使用球 + 冷却已结束 → throwBall(player, stack, 满级)
+    //  「间隔跟原版雪球一样」= 复用 throwBall 末尾那套 player.getCooldowns() 冷却队列，
+    //  不要另外定一个频率常量。雪球本身没有冷却，所以这里实际是「球自己的
+    //  BallProfile.cooldownTicks()」，为 0 时按每刻一次限流。
+    //
+    //  当前不实现 —— 等奇异饰品更新到 26.2（作者 2026-10-09 指定）。
 
     /**
      * 实际出手。

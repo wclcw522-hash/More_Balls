@@ -1,18 +1,8 @@
 {
+  "__comment": "额外声明「是金属矿」的方块。主判据是熔炼配方反查，这里只补那些产物查不出来、又该被烤熟的方块。金属储存块（铁块/铜块/金块及其铜变体）不写在这里 —— 它们能被加热但永不破坏，由 BallProspecting.isMetalStorageBlock 单独判定。",
   "values": [
     "minecraft:raw_iron_block",
     "minecraft:raw_copper_block",
-    "minecraft:raw_gold_block",
-    "minecraft:iron_block",
-    "minecraft:gold_block",
-    "minecraft:netherite_block",
-    "minecraft:copper_block",
-    "minecraft:exposed_copper",
-    "minecraft:weathered_copper",
-    "minecraft:oxidized_copper",
-    "minecraft:waxed_copper_block",
-    "minecraft:waxed_exposed_copper",
-    "minecraft:waxed_weathered_copper",
-    "minecraft:waxed_oxidized_copper"
+    "minecraft:raw_gold_block"
   ]
 }

@@ -1,6 +1,7 @@
 package com.mcmodworkspace.moreballs;
 
 import net.minecraft.core.registries.Registries;
+import java.util.List;
 import net.minecraft.resources.Identifier;
 import net.minecraft.resources.ResourceKey;
 import net.minecraft.world.item.ItemStack;
@@ -68,6 +69,14 @@ public final class ModEnchantments {
     /** 【空气动力球】回到作者身边时对作者的物理伤害（作者指定：1 滴血） */
     public static final float AERODYNAMIC_SELF_DAMAGE = 1.0F;
 
+    /**
+     * 本模组添加的全部附魔，按创造模式里想展示的顺序排。
+     *
+     * <p>供创造模式物品栏摆「附魔书」用 —— 原版附魔书靠 {@code stored_enchantments}
+     * 组件承载附魔，这里逐个包成 ItemStack 展示。</p>
+     */
+    public static final List<ResourceKey<Enchantment>> ALL = List.of(
+            POWERFUL_CROSSBOW, LIGHTNESS, SWIFTNESS, AERODYNAMIC_BALL);
     private static ResourceKey<Enchantment> key(String path) {
         return ResourceKey.create(Registries.ENCHANTMENT,
                 Identifier.fromNamespaceAndPath(MoreBalls.MOD_ID, path));

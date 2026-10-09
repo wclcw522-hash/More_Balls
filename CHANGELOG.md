@@ -5,7 +5,362 @@
 > 26.3 线已冻结（那边 Curios 与 NeoForge 不兼容，饰品功能没法测）。
 > 26.3 线的历史见 `[26.3更多球]_More_Balls\CHANGELOG.md`。
 
-### 组合球数值回调 · 弩外观重写 · JEI 插件（0.3.3.50 ~ 0.3.3.53）
+### 0.3.3.81
+
+### 收尾：清掉遗留的三项
+
+**① 启动自检的误报**
+
+`BallIntegrationCheck.INTENTIONALLY_EXCLUDED` 里列了四个雪球变体，**但漏了裸的
+`snowball` 与 `ender_pearl`** —— 于是每次启动都刷一条 WARN：
+
+```
+[ball] ★ 自检提示：以下物品在 #more_balls:balls 标签里，但没进 BallFragments.sources()
+      …… [snowball, ender_pearl]
+```
+
+这两个是本模组只让「顺便能被弩装填」的原版物品，不参与切割与组合球。
+已补进排除列表并写明理由（那张表的约定是「每一条都要写清理由」）。
+
+**② 三个无上界的静态缓存**
+
+| 缓存 | 原状 | 现状 |
+|---|---|---|
+| `BallFragments.COMBO_CACHE` | `ConcurrentHashMap`，无上限 | **LRU 512** |
+| `BallMobAI.RECENT_SHOTS` | `HashMap`，无上限、非线程安全 | **LRU 256 + 同步包装** |
+| `CreeperBallBehavior.PEARL_TARGET` | `ConcurrentHashMap`，无上限 | **LRU 128 + 同步包装** |
+
+`RECENT_SHOTS` 与 `PEARL_TARGET` 都是 `Map<UUID, ...>` —— 每个相关实体留一条、
+**实体被提前移除时就永远留着**。LRU 兜住它们（都不影响正确性：被挤掉的只是旧记录）。
+
+**③ 没有改动的部分**
+
+Mixin、Access Transformer、资源覆盖**一律未动** —— 经评估崩溃风险很低，
+按作者意见保持现状。
+
+---
+## 0.3.3.79
+
+### 预留接口 · 奇异饰品「袖珍活塞」联动（作者指定：先留接口，暂不实现）
+
+作者希望在与 **Artifacts（奇异饰品）** 同时加载时，为它的「袖珍活塞」饰品追加一组效果：
+
+- **锁定蓄力等级为最大**
+- **锁定右键蓄力功能**
+- **解锁按住右键连续投掷**（间隔与原版雪球一致，即复用球自己的冷却队列）
+
+**问题**：奇异饰品目前只更新到 **26.1.2**，而本条线是 26.2。所以本轮**只预留接口**。
+
+**新增两个类**（照搬收纳袋那套「双层隔离」写法）：
+
+- `PocketPistonCompat` —— 对外入口。`isLoaded()` 同时检查 `artifacts` 与 `curios`；
+  `wearing(player)` 走 Curios 饰品查询；**`isFullChargeLocked(player)` 目前恒返回 false**
+  （接口已留、行为未变）。
+- `PocketPistonAccess` —— 真正触碰 `top.theillusivec4.curios.*` 符号的隔离层，
+  没装 Curios 时 JVM 不会加载它，不会 `NoClassDefFoundError`。
+
+**关键设计**：判定**只走 Curios 的饰品查询 API**，不引用奇异饰品的任何类 ——
+这样它更新到 26.2 时**不需要改我们的代码**。
+
+**`BallThrowHandler` 里标了三处接点**（只加注释，行为不变）：
+
+1. `onStopUsing` 的等级计算 —— 戴着时直接用 `chargeLevels` 满级
+2. `onStartUsing` 的 `USE_DURATION` —— 戴着时压到最短，让「按住」不再表示蓄力
+3. 类尾 —— 将来加 `PlayerTickEvent` 监听实现连续投掷
+
+将来只需把 `isFullChargeLocked` 改成 `return wearing(player);`，再补上接点 ③ 的监听器即可。
+
+**另外**：本轮顺带核查确认 —— **没有修改过任何原版安装文件**。
+`26.2-NeoForge测试.jar` 等原版 jar 时间戳仍是 10/07（安装日期），
+今天变动的只有 `options.txt` / `usercache.json` 这类游戏自己写的运行时数据。
+mod 通过 `assets/minecraft/` 与 `data/minecraft/` 覆盖原版资源，是标准做法。
+
+---
+## 0.3.3.78
+
+### 4 项 bug —— 每项都先做了完整代码遍历（含反编译 JEI / MC 源码）
+
+**① 收纳袋溢出的实体球仍被吸走消失**
+
+*根因就在一行*：`cappedSegment` 里写的是
+
+```java
+int size = Math.max(slots, BallPouchContents.FIXED_SEGMENT_SIZE);   // 恒等于 27
+```
+
+`slots ≤ 27` 恒成立，所以长度**从来没被裁过** —— 上一轮加的「容量截断」等于完全没生效。
+更糟的是循环把 `slots..26` 格清成空，而 `fillInto` 的「找空格」正好命中这些空格，
+把球写进**界面根本不存在的格子**、再 `setCount(0)`、返回 `true`，
+调用方据此 `discard()` 实体 —— 球就这么没了。
+
+**那个 `max` 不但没拦住，还亲手给溢出球腾出了落点。**
+
+已改为 `Math.min(Math.max(slots, 0), FIXED_SEGMENT_SIZE)`（长度 = 真实容量），
+并把回写时另一段也裁一遍（顺带清掉旧存档里的幽灵球）。
+
+**② 弩上组合球贴图只剩底图**
+
+*根因*：`extractArgument` 收到的是**弩的物品栈**，不是装填的那颗球。
+`SpecialModelWrapper.update()` 传给渲染器的就是「正在渲染的物品」= 弩，
+而 `combo_slot_1..4` 组件在**球**上 —— 弩上一个都没有，所以该方法**恒返回 null**，
+`bake(null)` 只叠底图。
+
+*修法*：`BallAmmo` 新增 `chargedBallStack(crossbow)`，从弩的 `CHARGED_PROJECTILES`
+里把球拆出来；渲染器先拆再读。
+
+**③ JEI 组合球材料格「仍然没有轮换显示」**
+
+*根因*：`#more_balls:fragments/half` 标签里**只有一条** `more_balls:ball_half` ——
+8 种材质靠 `fragment_source` 组件区分、共用同一个物品 id，
+所以 `TagSlotDisplay` 只解析出**一个**裸模板，槽里就一个候选，
+JEI 的 `CycleTicker` **物理上没法轮替**。
+
+*修法*：改用 `SlotDisplay.Composite`，列出 8 个带不同 `fragment_source` 的实例。
+JEI 对 `Composite` 注册了 universal 解释器，会把每个 child 的结果全部塞进同一个槽 ——
+8 个候选，每秒轮换。**不碰 `registerItemSubtypes`，所以不会让 JEI 物品列表冒出一排各材质半球。**
+
+**④ JEI 示例整合 + 补上 `setRecipe`**
+
+*挖出的既有 bug*：`ICraftingCategoryExtension.setRecipe` 的**默认实现是空方法**，
+而 `CraftingRecipeCategory.setRecipe` 只转调它 —— 一直没覆写，
+所以 JEI 里那两个配方**永远是空网格**。这才是「点不开」的真正根子，
+与 `display()` 用什么物品、与 `isSpecial()` 都无关。
+
+已补上 `setRecipe`（从 `display()` 的 `ShapedCraftingRecipeDisplay` 取材料与产物铺格）。
+
+**产物槽改用 `comboResult()`**（真实 `combo_ball` + 示例来源组件）——
+二合一与四合一现在**共用同一个产物**，JEI 按产物归组，
+「用途」页里自动并列显示两种合成表。
+
+### 关于「不要动原版代码」
+
+核查结果：**真正的覆盖只有 `assets/minecraft/items/crossbow.json` 一处**，
+而且必须覆盖（要改原版弩的模型）。那 6 个 `data/minecraft/tags/*.json`
+**都带 `"replace": false`**，是标准**追加**语法，与原版标签合并、不替换 ——
+复原它们反而会让附魔进不了附魔台、金球不被猪灵喜爱。
+
+**皮肤不加载的原因不在代码**：日志里是
+`Couldn't look up profile properties ... sessionserver.mojang.com ... Connect timed out` ——
+连不上 Mojang 的皮肤服务器，是网络问题。
+
+---
+## 0.3.3.77
+
+### 按作者澄清修正 3 项（同样走「修前遍历 → 修 → 修后遍历 → 自测」）
+
+**① JEI 组合球材料格：改回「与切球（石切机）一致」的标签显示**
+
+上一版我用了 `Composite` 列出木/铁/金三种具体材质，方向错了。作者要的是
+**跟切球配方一样的观感** —— 用标签表示「任意半球」。
+
+已改回 `SlotDisplay.TagSlotDisplay(#more_balls:fragments/half)`：
+`TagSlotDisplay` 会把标签内**全部**物品解析进同一个槽，JEI 的 `CycleTicker`
+自然轮替显示它们 —— 这正是石切机配方那套观感，也是「轮替」的真正机制。
+
+**② 善良：改成「不伤害同阵营」**
+
+原来只判「对方不是 `Enemy`」，**没看发射者是谁**。作者明确：判据是**同阵营** ——
+也就是按发射者决定：
+
+- 玩家扔出的球 → 不伤玩家阵营（友好 + 中立）
+- **敌怪扔出的球 → 不伤敌怪**（怪物互相残杀不算「善良」）
+
+新增 `isSameSide(owner, target)`，用原版 `Enemy` 接口划分阵营。
+无发射者时按「玩家阵营」算，免得无主之球误伤村民。
+
+**③ 收纳袋：确认实体球路径已被覆盖**
+
+作者指出要改的是**实体状态**的球。查下来实体球进袋有两条路：
+`BallProjectile.giveTo → giveToPlayer`（有兜底，袋满会退到背包）与
+**`BallPouchCurios.autoCollect`**（Curios 饰品袋每 10 刻扫一次停着的球）。
+两条都收在 `BallPouchItem.insert` 里，而它的**两个分支**
+（`insertToAmmo` / `insertToTransit`）上一版都已加 `cappedSegment` ——
+**实体路径已被覆盖**，作者测的应是 0.3.3.76 之前的版本。
+
+同时更正了 `insertToTransit` 那段**错误注释**（「界面上的槽位限制管的是手动拖拽，
+两者不冲突」）—— 那句话正是当初放行越界写入的依据。
+
+### 流程
+
+本轮「修复后遍历」当场抓出两处**过期注释**（还写着「不要用 TagSlotDisplay」、
+「来源固定用下标 0」），均已清理 —— 这正是这条规矩的价值。
+
+---
+## 0.3.3.76
+
+### 剩余 4 项 bug —— 同样走「修复前遍历 → 修 → 修复后遍历 → 自测」
+
+**① 猪灵（含蛮兵）被吸引后仍有攻击意图**
+
+*根因*：`ADMIRING_ITEM` 压不住**远程攻击** —— 拿弩的猪灵走的不是 FIGHT 的近战分支，
+那条路根本不看 activity。真正决定「能不能攻击」的是脑里的 `ATTACK_TARGET`。
+
+*修法*：**每刻清 `ATTACK_TARGET`**。它一空，远程与近战都找不到可打的目标；
+`ANGRY_AT` / `HURT_BY` 仍按低频清（那个每刻擦会引发重选抖动）。
+
+**② 被怪物捡走的球【智慧】【善良】不生效**
+
+*根因*（两处独立缺陷，都在 `BallProjectile`）：
+
+- **善良**：`onHit` 里 `isTough()` 分支先调 `super.onHit()` → 走到 `bounceOffEntity` 做标准向量反射，
+  紧接着**无条件 `bounceBack()`**（水平整体取反）把那次反射**覆盖成原路折回**。
+- **智慧**：`wisdomLocked` 一置位永不复评，加上「只在前 40 刻搜索」的硬窗口 ——
+  怪物扔球时出手方向本来就对着目标，那一次锁定几乎不改变弹道，之后再也不拐弯。
+
+*修法*：善良分支置 `friendlyBounced` 标志、`onHit` 据此跳过二次反弹（两处：穿透分支 + 普通分支）；
+智慧改成**每 5 刻重锁一次**，去掉 40 刻硬窗口。
+
+*顺带*：怪物投掷漏设 `ball.setWeight(profile.weight())`（玩家路径与弩路径都有）——
+紫水晶球重量 5 会被按默认 4 结算重力，弹道与玩家扔的不一致。
+
+**③ JEI 组合球材料格「轮替显示」失效**
+
+*根因*（比我之前以为的更根本）：**JEI 的轮替靠的是「一个槽里有多个 ingredient」**。
+`ItemSlotDisplay` / `ItemStackSlotDisplay` 只解析出**一个** stack，永远显示固定那一种；
+只有 `Composite` / `TagSlotDisplay` 才会把多个候选塞进同一个槽。
+
+**而且我上一轮改错了地方** —— JEI 的材料格读的是 `comboExtension` 的 `getIngredients()`，
+**根本不看 `BallComboRecipe.display()`**。所以那轮改 `display()` 是无用功。
+
+*修法*：`halfStack()` / `quarterStack()` 改用 **`SlotDisplay.Composite`**，
+列出木(0)/铁(2)/金(3) 三个带 `fragment_source` 的实例 —— 槽里就有 3 个候选，JEI 的
+`CycleTicker` 会按时间循环显示。
+
+**④ 收纳袋中转区满时仍吸球并让球消失**
+
+*根因*：`BallPouchItem.insertToTransit` / `insertToAmmo` **完全没有容量检查**。
+数据层每段被 `BallPouchContents.fitTo` **无条件补齐到 27 格**，
+而 `tier(...).transitSlots()`（该等级真正的容量 9/12/…/27）**只有界面和 tooltip 在用** ——
+写入路径一次都没碰过。
+
+于是满袋时球被塞进**第 10~27 格**：界面把那些格子涂成灰色且 `isActive()==false`（不可见、不可拖拽），
+调用方看到 `ball.isEmpty()` 成立又把地面实体 `discard()` —— **球看起来就人间蒸发了**。
+tooltip 会显示「转运格：10 / 9」这种不可能的数字，正是这个 bug 的旁证。
+
+*修法*：新增 `cappedSegment(segment, slots)`，写入前按等级容量截断（越界格子强制清空，
+顺带清掉旧存档里的幽灵球）。两条写入路径都改用它。
+
+---
+## 0.3.3.75
+
+### 🐛 两个「修了几轮都没好」的 bug —— 修复前先做了完整代码遍历
+
+**① 弩上膛组合球后整格不可见**
+
+*根因*：`ComboChargeBallRenderer.drawQuad()` 的**顶点绕序是反的**。
+
+```java
+// 之前（等价于 Direction.NORTH 的绕序，法线朝 -Z）
+(MAX,MIN) → (MIN,MIN) → (MIN,MAX) → (MAX,MAX)
+
+// MC 对「正面朝 +Z」的硬约定 FaceInfo.SOUTH
+(MIN,MAX) → (MIN,MIN) → (MAX,MIN) → (MAX,MAX)
+```
+
+`ITEM_CUTOUT` 管线**没有** `withCull(false)`，默认**背面剔除开启** ——
+于是第一人称手持时那一整个面被判为背面、直接丢弃，格子就是空白的。
+原版 2D 物品几何之所以画**双面**（`ItemModelGenerator.bakeExtrudedSprite()`
+同时 bake SOUTH 与 NORTH），正是为了规避不同 display context 的手性翻转。
+
+*同时修正*：`PLANE_Z` 从 `7.4` 拆成 `PLANE_Z_FRONT = 8.5`（原版贴片正面）与
+`PLANE_Z_BACK = 7.4` —— 原来的 7.4 小于背面的 7.5，贴在贴片**之后**、会被弩身挡住。
+
+*验证方式*：日志里出现 `③ submit() 已提交一个面` 就证明 combo_ball 的 case 命中了
+（另外 14 个 case 与整个 fallback 都是普通 `minecraft:model`，不碰 special 渲染器）。
+所以「没匹配到 case」「属性没注册」「贴图读不到」这三个方向的排查**从一开始就是错的**。
+
+**② 熔融物烧伤的等级与时长**
+
+*根因*：**测试路径根本没进模组代码**。作者用 `/effect give` 实测，
+那条路径直接构造 `MobEffectInstance` 调 `addEffect`，完全不经过 `applyMoltenBurn` ——
+所以改了多少轮内层公式都读不到。日志里的 `已将熔融物烧伤效果应用于…` 就是原版
+`EffectCommands` 的输出。
+
+*修法*：新增 `MoltenBurnApplication`，监听 **`MobEffectEvent.Added`**。
+这是「附加效果」所有路径（模组调用点 / 原版命令 / 药水 / 命令方块 / 其他模组）
+的**唯一汇合点**，在这里按规格重算：
+
+- 等级 = 已有等级 + `⌊护甲值 / 10⌋`，封顶 5 级
+- 时长 = **本次挂载自带时长** × `(1 + 金属装备数)`
+
+「原有时长」取 `getEffectInstance().getDuration()` 而不是写死常量 ——
+这样 `/effect give @s ... 60 1` 挂上来也会被正确放大。
+
+*配套*：新增 `META-INF/accesstransformer.cfg`，打开
+`MobEffectInstance.duration` / `amplifier` 两个私有字段。
+
+---
+## 0.3.3.70
+
+### 🐛 紧急修复：进世界即崩（`IllegalStateException: Recursive update`）
+
+**现象**：装载球并进入世界后，服务端 tick 实体时当场崩溃并踢回标题界面。
+
+**根因**（0.3.3.68 引入）：
+
+```java
+// BallProspecting.isHeatAbsorbing
+return METAL_CACHE.computeIfAbsent(state, s -> isMetalOre(level, s) || ...);
+//                                               ↑ isMetalOre 内部也往 METAL_CACHE 写！
+```
+
+`ConcurrentHashMap` 明确禁止「在计算函数里递归更新同一个 map」——
+外层 `computeIfAbsent` 还没算完，内层 `isMetalOre` 又对同一张表 `put`，
+直接抛 `Recursive update`。0.3.3.68 之前没有外层缓存，所以一直没暴露。
+
+**修法**：热判定改用**独立的 `HEAT_CACHE`**。外层只写 `HEAT_CACHE`、
+内层只写 `METAL_CACHE`，两张表互不干涉。`clearCache()` 两张一起清。
+
+**为什么自测没抓到**：`gradle runClient` 只验证到「启动无报错」，
+而这条崩溃发生在**进入世界、球开始 tick 之后** —— 那一步需要人工操作。
+已补做一次全局静态排查：本项目其余 `computeIfAbsent` 用法都是安全的
+（要么操作的 map 与内部调用无关，要么是原版 API）。
+
+---
+## 0.3.3.69
+
+### 新增 · 球实体上限（作者指定）
+
+- **单个维度内同时存在的球实体上限 50 颗**
+- 超出上限时，**从最旧的开始消失**（按 `tickCount` 判定，越大代表存在越久）
+- 消失时**不产生任何掉落物** —— 用 `discard()` 而非 `kill()`，
+  后者会走 `hurt(genericKill)` 那条路并触发投射物的碎裂收尾
+- **各维度独立计算** —— 判定用的是「本维度内的球」，下界和主世界的上限互不影响
+- 每 20 刻（1 秒）检查一次，**只在服务端执行**
+
+> 设计说明：逐刻遍历整个维度的实体没有意义，而这个上限本身是「防堆积」用的 ——
+> 玩家在外面狂扔一通再传走，那些球会一直挂着 tick（飞行、静止、区块加载、回归寻路都占资源）。
+
+---
+## 0.3.3.68
+
+### 性能与健壮性（第二轮全量审计的剩余项）
+
+- **动态纹理缓存**：`ComboChargeBallRenderer` 的合成贴图缓存从 `HashMap` 改成 **LRU（上限 64 张）**，
+  并加入**失败负缓存**（读图失败不再每帧重跑一次 CPU 合成），资源包重载时整体作废
+- **热路径缓存**：`isHeatAbsorbing` / `isBreakableOre` 接入 `METAL_CACHE` ——
+  原先每刻对热表里每格方块的邻居都要查一遍熔炼配方
+- **`isMetalStorageBlock` 标签优先**：新增 `#more_balls:metal_storage_blocks`，
+  第三方模组的金属块塞进标签即可享受「吸热 / 冒粒子 / 踩烫，但不被烤爆」
+- **多重射击状态加保险丝**：`SHOT_INDEX` 是 ThreadLocal，`performShooting` 抛异常时出口不执行
+  → 残留导致之后**每颗球**都被当成附属弹（不可回收 + 落地即碎）。现在超过 1 秒未清即作废
+- **`clearCache()` 接上调用点**：服务端启动时清一次，避免上一局的数据包结论残留
+
+### 修正
+
+- **`entityScale` 初值** 从 `1.0` 改成 `0.0` —— 用 1.0 当种子会让所有**小于 1** 的来源被 `Math.max` 盖掉
+- **`TOUGH_FOREVER`(-1) 不再参与加法**：加法阶段用 `TOUGH_FOREVER_MARK` 替身，避免算出 -2
+- **组合球份数校验**：`parseIndexes` 限 4 段，`comboProfile` 只接受 2 或 4 份，异常时退化为第一份并告警
+- **`BallFragmentItem.getName`** 加 idx 上界，防渲染线程 `IndexOutOfBounds`
+- **点金概率不再被 `floor` 抹成 0**
+- **组合球不能再被切石机切**（会产出没有来源组件的裸半球）
+
+### 日志
+
+- 热路径上的 `matches` / `isFragment` / `display` / 合成贴图日志从 INFO 降为 DEBUG / 只报一次
+
+---
+## 组合球数值回调 · 弩外观重写 · JEI 插件（0.3.3.50 ~ 0.3.3.53）
 
 **① 组合球数值全部回调到上一版**（作者要求）
 

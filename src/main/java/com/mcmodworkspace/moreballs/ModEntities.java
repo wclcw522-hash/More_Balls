@@ -37,7 +37,7 @@ public final class ModEntities {
     public static final DeferredHolder<EntityType<?>, EntityType<BallEnderpearl>> BALL_ENDER_PEARL =
             ENTITIES.register("ball_ender_pearl", () -> EntityType.Builder
                     .<BallEnderpearl>of(BallEnderpearl::new, MobCategory.MISC)
-                    .sized(0.75F, 0.75F)
+                .sized(0.25F, 0.25F)
                     .clientTrackingRange(4)
                     .updateInterval(10)
                     .build(ResourceKey.create(Registries.ENTITY_TYPE,
@@ -47,7 +47,7 @@ public final class ModEntities {
     public static final DeferredHolder<EntityType<?>, EntityType<BallProjectile>> BALL =
             ENTITIES.register("ball", () -> EntityType.Builder
                     .<BallProjectile>of(BallProjectile::new, MobCategory.MISC)
-                    .sized(0.75F, 0.75F)
+                    .sized(0.25F, 0.25F)
                     .clientTrackingRange(4)
                     .updateInterval(10)
                     .build(ResourceKey.create(Registries.ENTITY_TYPE,

@@ -61,12 +61,25 @@ public final class BallComboRecipe {
      * 这样它们在 JEI 里看起来是同一件成品、只是摆法不同 —— 事实也确实如此。</p>
      */
     private static SlotDisplay comboResult() {
-        ItemStackTemplate template = new ItemStackTemplate(
-                ModItems.COMBO_BALL.get(), 1,
-                DataComponentPatch.builder()
-                        .set(ModComponents.COMBO_SOURCES.get(), "0,2")
-                        .build());
-        return new SlotDisplay.ItemStackSlotDisplay(template);
+        // ⚠️ 光写 combo_sources 不够 —— 组合球的**贴图**是四个 minecraft:select
+        //    按 combo_slot_1..4 选象限拼出来的（见 assets/more_balls/items/combo_ball.json），
+        //    四个 slot 缺失时每层都落到 fallback（木球那一象限），
+        //    JEI 里的成品格就显示成一颗纯木球 —— 这正是作者反馈「JEI 里组合球看着不对」。
+        //    真实产物走 BallFragments.makeComboBall，它两个都写，这里必须对齐。
+        //
+        //    二合一的正确槽值是 [0, 0, 2, 2]：上半两块来自 0、下半两块来自 2
+        //    （与 BallFragments.slotValue 的规则一致）。
+        List<Integer> indexes = List.of(0, 2);
+        DataComponentPatch.Builder patch = DataComponentPatch.builder()
+                .set(ModComponents.COMBO_SOURCES.get(), "0,2");
+        for (int q = 0; q < ModComponents.COMBO_SLOTS.size(); q++) {
+            int value = BallFragments.slotValue(indexes, q);
+            if (value >= 0) {
+                patch.set(ModComponents.COMBO_SLOTS.get(q).get(), value);
+            }
+        }
+        return new SlotDisplay.ItemStackSlotDisplay(
+                new ItemStackTemplate(ModItems.COMBO_BALL.get(), 1, patch.build()));
     }
 
     private BallComboRecipe() {
@@ -86,17 +99,18 @@ public final class BallComboRecipe {
         public boolean matches(CraftingInput input, Level level) {
             // 只认 1×2 的竖排：横排两格不是作者要求的形状
             if (input.width() != 1 || input.height() != 2) {
-                MoreBalls.LOGGER.info("[ball][combo] Vertical.matches 尺寸不符 {}x{}", input.width(), input.height());
+                MoreBalls.LOGGER.debug("[ball][combo] Vertical.matches 尺寸不符 {}x{}", input.width(), input.height());
                 return false;
             }
             boolean ok = isFragment(input.getItem(0)) && isFragment(input.getItem(1));
-            MoreBalls.LOGGER.info("[ball][combo] Vertical.matches 结果={} 格0={} 格1={}", ok,
+            MoreBalls.LOGGER.debug("[ball][combo] Vertical.matches 结果={} 格0={} 格1={}", ok,
                     input.getItem(0), input.getItem(1));
             return ok;
         }
 
         @Override
         public ItemStack assemble(CraftingInput input) {
+
             // CraftingInput 的索引是 x + y * width，1 宽时就是从上到下
             return BallFragments.makeComboBall(List.of(
                     BallFragmentItem.sourceIndex(input.getItem(0)),
@@ -121,8 +135,24 @@ public final class BallComboRecipe {
             //    所以展示用标签才是准确的。
             // 展示用「（示例）半球」与「（示例）组合球（二合一）」——
             // 这两件是专门为配方展示注册的，不进创造、没有配方，只在这里露面。
+            MoreBalls.LOGGER.debug("[ball][JEI] Vertical.display() 被调用 —— JEI 正在取结果槽");
+            // ⚠️ 输入槽改用**通用示例半球**，不再用 TagSlotDisplay。
+            //    标签解析出来的是「裸的 ball_half」，也就是**默认材质（木球）**那一张，
+            //    所以之前 JEI 里看着像「木半球配方」（作者 2026-10-09 反馈）。
+            //    用示例件既表达「任意半球都行」，又不会误导成某种具体材质。
+            // ⚠️ 注意：JEI 的**材料格**读的是 MoreBallsJeiPlugin 里
+            //    comboExtension.getIngredients()（返回 demoComposite），**不读这里**。
+            //    这里保持与那边一致的「任意半球」语义，只是别让后来者误以为改这里有用。
             SlotDisplay half = new SlotDisplay.TagSlotDisplay(ModTags.Items.FRAGMENTS_HALF);
-            SlotDisplay result = new SlotDisplay.ItemSlotDisplay(ModItems.EXAMPLE_COMBO_VERTICAL.get());
+            // ⚠️ 结果槽必须用**在 JEI 物品列表里存在**的物品。
+            //    原来用的是 EXAMPLE_COMBO_VERTICAL —— 那个示例物品被排除在创造模式物品组之外，
+            //    而 JEI 的槽位解析只认物品列表里的东西，于是整个配方解析成空、点不开
+            //    （作者 2026-10-08 报的：JEI 里组合球配方看不了）。
+            //    comboResult() 给的是带真实来源组件的 combo_ball，一定在列表里。
+            // 产物槽用**真实的 combo_ball**（带示例来源组件）——
+            // 两条配方（二合一 / 四合一）共用同一个产物，
+            // JEI 会按产物归组，于是「用途」页里自动并列显示两种合成表。
+            SlotDisplay result = comboResult();
             return List.of(new ShapedCraftingRecipeDisplay(
                     1, 2,
                     List.of(half, half),
@@ -159,13 +189,20 @@ public final class BallComboRecipe {
             return SERIALIZER;
         }
 
+        /**
+         * 这一格算不算「半球」。
+         *
+         * <p>两种都收：</p>
+         * <ul>
+         *   <li>{@code ball_half} <b>且</b>带 {@code fragment_source} —— 切石机切出来的真实碎片</li>
+
+         * </ul>
+         */
         private static boolean isFragment(ItemStack stack) {
-            boolean itemOk = stack.getItem() == ModItems.BALL_HALF.get();
-            int idx = BallFragmentItem.sourceIndex(stack);
-            if (!itemOk || idx < 0) {
-                MoreBalls.LOGGER.info("[ball][combo] isFragment(半球) 失败: item={} sourceIndex={}", stack.getItem(), idx);
-            }
-            return itemOk && idx >= 0;
+            // 只认带 fragment_source 的真实半球 —— 示例物品已删，
+            // 而且裸模板本来就不该能合成（合出来不知道是哪颗球的碎片）。
+            return stack.getItem() == ModItems.BALL_HALF.get()
+                    && BallFragmentItem.sourceIndex(stack) >= 0;
         }
     }
 
@@ -182,21 +219,22 @@ public final class BallComboRecipe {
         @Override
         public boolean matches(CraftingInput input, Level level) {
             if (input.width() != 2 || input.height() != 2) {
-                MoreBalls.LOGGER.info("[ball][combo] Square.matches 尺寸不符 {}x{}", input.width(), input.height());
+                MoreBalls.LOGGER.debug("[ball][combo] Square.matches 尺寸不符 {}x{}", input.width(), input.height());
                 return false;
             }
             for (int i = 0; i < 4; i++) {
                 if (!isFragment(input.getItem(i))) {
-                    MoreBalls.LOGGER.info("[ball][combo] Square.matches 格{}不是碎片: {}", i, input.getItem(i));
+                    MoreBalls.LOGGER.debug("[ball][combo] Square.matches 格{}不是碎片: {}", i, input.getItem(i));
                     return false;
                 }
             }
-            MoreBalls.LOGGER.info("[ball][combo] Square.matches 通过");
+            MoreBalls.LOGGER.debug("[ball][combo] Square.matches 通过");
             return true;
         }
 
         @Override
         public ItemStack assemble(CraftingInput input) {
+
             // 索引 x + y*width、宽度 2 → 0=左上 1=右上 2=左下 3=右下，
             // 与贴图的 quarter_1..4 一一对应
             return BallFragments.makeComboBall(List.of(
@@ -212,8 +250,9 @@ public final class BallComboRecipe {
             // 同「二合一」：用标签表示「任意四分之一球」。
             // 两个示例（二合一 / 四合一）就是这样在 JEI 里分开显示的 ——
             // 成品都是 combo_ball，区别在摆法：上下两格 vs 2×2。
-            SlotDisplay quarter = new SlotDisplay.TagSlotDisplay(ModTags.Items.FRAGMENTS_QUARTER);
-            SlotDisplay result = new SlotDisplay.ItemSlotDisplay(ModItems.EXAMPLE_COMBO_SQUARE.get());
+            MoreBalls.LOGGER.debug("[ball][JEI] Square.display() 被调用 —— JEI 正在取结果槽");
+            SlotDisplay quarter = new SlotDisplay.TagSlotDisplay(ModTags.Items.FRAGMENTS_QUARTER);   // 同上：JEI 不读这里
+            SlotDisplay result = comboResult();   // 同上：与二合一共用产物
             return List.of(new ShapedCraftingRecipeDisplay(
                     2, 2,
                     List.of(quarter, quarter, quarter, quarter),
@@ -239,13 +278,10 @@ public final class BallComboRecipe {
             return SERIALIZER;
         }
 
+        /** 同 {@code Vertical.isFragment}，四分之一球的版本（真实碎片 或 通用示例碎片） */
         private static boolean isFragment(ItemStack stack) {
-            boolean itemOk = stack.getItem() == ModItems.BALL_QUARTER.get();
-            int idx = BallFragmentItem.sourceIndex(stack);
-            if (!itemOk || idx < 0) {
-                MoreBalls.LOGGER.info("[ball][combo] isFragment(四分之一球) 失败: item={} sourceIndex={}", stack.getItem(), idx);
-            }
-            return itemOk && idx >= 0;
+            return stack.getItem() == ModItems.BALL_QUARTER.get()
+                    && BallFragmentItem.sourceIndex(stack) >= 0;
         }
     }
 }

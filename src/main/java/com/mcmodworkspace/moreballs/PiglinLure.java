@@ -1,6 +1,7 @@
 package com.mcmodworkspace.moreballs;
 
 import com.mcmodworkspace.moreballs.entity.BallProjectile;
+import net.minecraft.world.entity.ai.Brain;
 import net.minecraft.advancements.AdvancementHolder;
 import net.minecraft.resources.Identifier;
 import net.minecraft.server.level.ServerLevel;
@@ -44,6 +45,33 @@ public final class PiglinLure {
 
     /** 吸引半径（格）—— 作者说明的是「所有猪灵」，实际给一个够大的范围，免得满世界寻路 */
     public static final double LURE_RADIUS = 32.0D;
+
+    /**
+     * 被金球吸引时，每隔多少刻清一次猪灵的攻击目标。
+     *
+     * <p>每刻都清会和猪脑打架 —— 它每刻重新发现玩家、重新记恨，
+     * 于是仇恨在「有 / 无」之间抖，看起来就是抽搐（作者 2026-10-08 报的）。
+     * 降频之后既不会分心去打别人，也不会抖。</p>
+     */
+    public static final int ANGER_CLEAR_INTERVAL = 10;
+
+    /**
+     * 单次「欣赏金球」的时长（刻），对齐原版 {@code PiglinAi.admireGoldItem} 的 119 刻。
+     *
+     * <p>写成这个记忆之后，猪脑的 activity 会切到 ADMIRE_ITEM ——
+     * 那一档里没有战斗行为、也没有「重新选目标」，于是 FIGHT 与抽搐都停了。</p>
+     */
+    public static final long ADMIRE_DURATION = 119L;
+
+    /**
+     * 【金光闪闪】窗口期内，多久重设一次 ADMIRING_ITEM（刻）。
+     *
+     * <p>不能每刻 —— 原版这条 activity 自带音效，每次重新进入都会播，
+     * 每刻重设就等于每秒叫 20 声（作者 2026-10-09 反馈「特别的吵」）。</p>
+     */
+    public static final int ADMIRE_REFRESH_INTERVAL = 20;
+    /** 被吸引时多久重设一次导航（刻） */
+    public static final int LURE_NAV_INTERVAL = 5;
 
     /** 被吸引时的行走速度（略快于闲逛，看得出它们很急） */
     private static final double LURE_SPEED = 1.2D;
@@ -90,10 +118,32 @@ public final class PiglinLure {
     /**
      * 金球躺在地上时的每一刻调用：把附近的猪灵全喊过来。
      *
-     * <p>「直到金球被捡起为止不会因为任何原因转移目标」——
-     * 靠的就是每刻覆写它们的攻击目标与寻路终点。</p>
+     * <h2>为什么不擦 ATTACK_TARGET</h2>
+     * <p>原来这里每刻（后来改成每 10 刻）扫掉猪脑的 {@code ATTACK_TARGET}，想让它「专心朝球走」。
+     * 但那是在跟原版机制正面对撞 —— 猪脑的 {@code StartAttacking} 每刻检查
+     * 「{@code ATTACK_TARGET} 不存在就重新选一个」，而它对玩家的判据
+     * （玩家没穿金装备）几乎永远成立。于是每 10 刻完成一次
+     * 「重新锁定玩家 → 被我们擦掉 → 再锁定」的循环，表现就是猪灵原地抽搐
+     * （作者 2026-10-08 报的）。同时 FIGHT activity 里那条
+     * {@code SetWalkTargetFromAttackTargetIfTargetOutOfReach} 每刻把导航终点钉回玩家，
+     * 我们那句 {@code moveTo(球)} 根本轮不到执行。</p>
+     *
+     * <h2>正确做法：压住「选目标」这件事本身</h2>
+     * <p>给猪灵写上 {@code ADMIRING_ITEM} 记忆即可。原版的 activity 优先级是
+     * {@code [ADMIRE_ITEM, FIGHT, AVOID, CELEBRATE, RIDE, IDLE]}，
+     * 而 {@code ADMIRE_ITEM} 的行为表里<b>没有任何战斗行为、也没有 StartAttacking</b> ——
+     * 一旦它生效，FIGHT 与「重新选目标」整段都不跑，寻路也交给我们的 {@code moveTo}。
+     * 这正是原版「猪灵被金锭吸引」用的机制，不新增 Goal、不碰 Mixin。</p>
      */
     public static void lure(ServerLevel level, Vec3 pos) {
+        // ⚠️ 不能隔刻做。
+        //
+        // 原版 PiglinAi 的 ADMIRE_ITEM activity 里挂着 StopAdmiringIfItemTooFarAway，
+        // 它的实现是「最近可见的『喜爱的物品』(只认 ItemEntity) 不在 9 格内 → 擦掉
+        // ADMIRING_ITEM」；我们的球是投射物实体、永远进不了那个 sensor，
+        // 所以它**每刻都会把记忆擦掉**。
+        // 于是只有「每刻重新设一次」才能把 activity 稳在 ADMIRE_ITEM ——
+        // 隔刻设的话会变成「设 → 被擦 → 设 → 被擦」的一刻一跳（作者报的抽搐的加强版）。
         List<AbstractPiglin> piglins = level.getEntitiesOfClass(AbstractPiglin.class,
                 new net.minecraft.world.phys.AABB(pos, pos).inflate(LURE_RADIUS),
                 piglin -> piglin.isAlive() && !piglin.isBaby());
@@ -101,14 +151,39 @@ public final class PiglinLure {
             return;
         }
 
+        boolean clearAnger = level.getGameTime() % ANGER_CLEAR_INTERVAL == 0L;
         for (AbstractPiglin piglin : piglins) {
-            // 不让它因为别的事分心 —— 作者的要求是「任何原因都不转移目标」。
-            // eraseMemory 对没有的记忆也无害，不必先判断。
-            piglin.getBrain().eraseMemory(MemoryModuleType.ATTACK_TARGET);
-            piglin.getBrain().eraseMemory(MemoryModuleType.WALK_TARGET);
-            piglin.setTarget(null);
+            Brain<?> brain = piglin.getBrain();
 
-            if (piglin.getNavigation().isDone()) {
+            // ① 压住战斗意图（每 20 刻刷新一次，见下面为什么不能每刻刷）。
+            //
+            // ⚠️ 原版 ADMIRE_ITEM 这条 activity 自己挂着播 PIGLIN_ADMIRING_ITEM 的音效，
+            //    而 Brain 每次**重新进入** activity 都会再播一次。
+            //    先前是每刻重设 → 每刻都算「重新进入」→ 附近的猪灵每秒叫 20 声，
+            //    作者反馈「被吸引之后反复发出叫声特别的吵」。
+            //    改成 20 刻一次：既能压住与 Brain 的抢写（行为表本身不会在这一秒内翻盘），
+            //    叫声也降到一秒一次、且是这一群猪灵在同一刻齐叫，听感上是一声。
+            if (level.getGameTime() % ADMIRE_REFRESH_INTERVAL == 0L) {
+                brain.setMemoryWithExpiry(MemoryModuleType.ADMIRING_ITEM, true, ADMIRE_DURATION);
+            }
+
+            // ② 每刻清掉攻击意图 —— 这就是作者要的「直接取消仇恨」。
+            //
+            //    作者反馈「被吸引还是有攻击意图，拿弩的猪灵会正常攻击」：
+            //    远程攻击走的是 charge/attack 那套，ADMIRE_ITEM 压不住它，
+            //    因为它并不经过 FIGHT 的近战分支。真正决定「能不能攻击」的是
+            //    brain 里的 ATTACK_TARGET —— 只要它每刻都是空的，
+            //    远程与近战就都找不到可打的目标。
+            //    注意**不要**调 setTarget：AbstractPiglin 覆写了 getTarget() 读脑里的
+            //    ATTACK_TARGET，而 Mob.setTarget 只写自己的字段，对猪灵系是纯空操作。
+            brain.eraseMemory(MemoryModuleType.ATTACK_TARGET);
+            if (clearAnger) {
+                brain.eraseMemory(MemoryModuleType.ANGRY_AT);
+                brain.eraseMemory(MemoryModuleType.HURT_BY);
+            }
+
+            // ③ 导航按固定周期重设 —— isDone() 每次都重算路径，卡墙时会逐刻全量寻路
+            if (piglin.tickCount % LURE_NAV_INTERVAL == 0 && piglin.getNavigation().isDone()) {
                 piglin.getNavigation().moveTo(pos.x, pos.y, pos.z, LURE_SPEED);
             }
         }

@@ -53,6 +53,8 @@ public final class BallIntegrationCheck {
     @net.neoforged.bus.api.SubscribeEvent
     public static void onServerAboutToStart(
             net.neoforged.neoforge.event.server.ServerAboutToStartEvent event) {
+        // 服务端起步时先把缓存清一遍 —— 上一局的数据包可能已经换过了
+        onDatapackReload();
         run();
     }
 
@@ -71,10 +73,25 @@ public final class BallIntegrationCheck {
             "snowball_iron_nugget",
             "snowball_gold_nugget",
             "snowball_copper_nugget",
+            // 原版的雪球与末影珍珠：本模组只让它们「顺便能被弩装填」，
+            // 不参与切割、也不参与组合球 —— 它们没有九宫格碎片，切不出东西来。
+            // （作者 2026-10-09：这两条之前漏了，导致每次启动都刷一条自检 WARN。）
+            "snowball",
+            "ender_pearl",
             // 组合球自己是产物，不是部件
             "combo_ball");
 
-    /** 跑一遍自检并把结果写进日志。在 {@code FMLCommonSetupEvent} 里调用。 */
+        /**
+     * 数据包重载后必须清缓存。
+     *
+     * <p>{@code BallProspecting.METAL_CACHE} 缓存的是「这个方块算不算金属矿/储存块」，
+     * 而那个结论依赖**熔炼配方**（{@code heatProduct} 要查 RecipeManager）。
+     * 数据包把配方改掉之后，旧结论就成了错答案，且会一直用到下次重启。</p>
+     */
+    public static void onDatapackReload() {
+        BallProspecting.clearCache();
+    }
+/** 跑一遍自检并把结果写进日志。在 {@code FMLCommonSetupEvent} 里调用。 */
     public static void run() {
         List<Item> sources = BallFragments.sources();
 

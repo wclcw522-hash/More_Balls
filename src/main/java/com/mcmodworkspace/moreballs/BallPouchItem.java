@@ -118,8 +118,13 @@ public class BallPouchItem extends Item {
     /**
      * 只往<b>转运段</b>塞 —— 作者指定的拾取去向里，中转槽是明确的一站。
      *
-     * <p>不检查球是不是用过的：这是「玩家/回收流程要求放中转槽」的语义，
-     * 界面上的槽位限制管的是手动拖拽，两者不冲突。</p>
+     * <p>不检查球是不是用过的：这是「玩家/回收流程要求放中转槽」的语义。</p>
+     *
+     * <p>⚠️ <b>写入同样受该等级容量约束</b>（{@code tier(pouch).transitSlots()}）。
+     * 早先这里写着「界面上的槽位限制管的是手动拖拽，两者不冲突」，那是错的 ——
+     * 数据层每段被 {@code fitTo} 无条件补齐到 27 格，写入端不截断就会把球
+     * 塞进界面根本显示不出来的格子，而调用方看到「塞进去了」又把实体 discard，
+     * 球就人间蒸发（作者 2026-10-09 报的）。容量检查在写入端，见 {@link #cappedSegment}。</p>
      *
      * @return true 表示全部塞进去了
      */
@@ -128,10 +133,18 @@ public class BallPouchItem extends Item {
             return false;
         }
         BallPouchContents current = contents(pouch);
-        List<ItemStack> segment = new ArrayList<>(current.transit());
+        // ⚠️ 必须按**该等级真正的容量**截断。
+        //
+        // 数据层的每段被 BallPouchContents.fitTo 无条件补齐到 27 格，
+        // 而 tier(...).transitSlots() 真正的容量（9 / 12 / … / 27）**只有界面和 tooltip 在用** ——
+        // 写入路径一次都没碰过。于是满袋时球会被塞进第 10~27 格：
+        // 界面把那些格子涂成不可见的灰格，实体又被 discard，看起来就是「球消失了」。
+        List<ItemStack> segment = cappedSegment(current.transit(), tier(pouch).transitSlots());
         boolean changed = fillInto(segment, ball);
         if (changed) {
-            setContents(pouch, new BallPouchContents(current.ammo(), segment));
+            // 另一段也裁一遍 —— 顺带清掉旧存档里已经存在的越界幽灵球
+            setContents(pouch, new BallPouchContents(
+                    cappedSegment(current.ammo(), tier(pouch).ammoSlots()), segment));
         }
         return ball.isEmpty();
     }
@@ -142,14 +155,40 @@ public class BallPouchItem extends Item {
             return false;
         }
         BallPouchContents current = contents(pouch);
-        List<ItemStack> segment = new ArrayList<>(current.ammo());
+        // 同 insertToTransit：写入前按该等级容量截断
+        List<ItemStack> segment = cappedSegment(current.ammo(), tier(pouch).ammoSlots());
         boolean changed = fillInto(segment, ball);
         if (changed) {
-            setContents(pouch, new BallPouchContents(segment, current.transit()));
+            setContents(pouch, new BallPouchContents(
+                    segment, cappedSegment(current.transit(), tier(pouch).transitSlots())));
         }
         return ball.isEmpty();
     }
 
+    /**
+     * 取这一段的**可用前缀** —— 超出该等级容量的格子一律清空。
+     *
+     * <p>数据层每段固定 27 格（{@code BallPouchContents.FIXED_SEGMENT_SIZE}），
+     * 但该等级真正可用的只有 {@code tier.slots()} 格。写入前必须剪掉越界部分，
+     * 否则球会落到界面上「不存在」的格子里去 —— 那正是「球被吸走却消失了」。</p>
+     *
+     * <p>顺带把旧存档里已经存在的越界内容也清掉（它们本来就是幽灵球）。</p>
+     */
+    private static List<ItemStack> cappedSegment(List<ItemStack> segment, int slots) {
+        // ⚠️ 长度必须**等于容量**，不能取 max。
+        //
+        // 上一版写的是 Math.max(slots, FIXED_SEGMENT_SIZE) —— slots ≤ 27 恒成立，
+        // 于是长度恒为 27，等于**根本没截断**；更糟的是循环把 9~26 格清成空，
+        // 而 fillInto 的「找空格」正好命中这些空格，把球写进界面根本不存在的格子，
+        // 再把 ball.setCount(0)、返回 true，调用方据此 discard 实体 —— 球就这么没了。
+        // 换句话说：那个 max 不但没拦住，还亲手给溢出球腾出了落点。
+        int size = Math.min(Math.max(slots, 0), BallPouchContents.FIXED_SEGMENT_SIZE);
+        List<ItemStack> out = new ArrayList<>(size);
+        for (int i = 0; i < size; i++) {
+            out.add(i < segment.size() ? segment.get(i) : ItemStack.EMPTY);
+        }
+        return out;
+    }
     /** 把球填进这一段：先叠到同类堆上，再占空格 */
     private static boolean fillInto(List<ItemStack> segment, ItemStack ball) {
         boolean changed = false;
@@ -233,7 +272,9 @@ public class BallPouchItem extends Item {
         List<ItemStack> segment = new ArrayList<>(current.transit());
         ItemStack taken = takeSameKindFrom(segment, wanted);
         if (!taken.isEmpty()) {
-            setContents(pouch, new BallPouchContents(current.ammo(), segment));
+            // 另一段也裁一遍 —— 顺带清掉旧存档里已经存在的越界幽灵球
+            setContents(pouch, new BallPouchContents(
+                    cappedSegment(current.ammo(), tier(pouch).ammoSlots()), segment));
         }
         return taken;
     }
@@ -244,7 +285,8 @@ public class BallPouchItem extends Item {
         List<ItemStack> segment = new ArrayList<>(current.ammo());
         ItemStack taken = takeSameKindFrom(segment, wanted);
         if (!taken.isEmpty()) {
-            setContents(pouch, new BallPouchContents(segment, current.transit()));
+            setContents(pouch, new BallPouchContents(
+                    segment, cappedSegment(current.transit(), tier(pouch).transitSlots())));
         }
         return taken;
     }
@@ -265,7 +307,9 @@ public class BallPouchItem extends Item {
         if (transitIndex >= 0) {
             List<ItemStack> segment = new ArrayList<>(current.transit());
             ItemStack taken = segment.remove(transitIndex);
-            setContents(pouch, new BallPouchContents(current.ammo(), segment));
+            // 另一段也裁一遍 —— 顺带清掉旧存档里已经存在的越界幽灵球
+            setContents(pouch, new BallPouchContents(
+                    cappedSegment(current.ammo(), tier(pouch).ammoSlots()), segment));
             return taken;
         }
 
@@ -273,7 +317,8 @@ public class BallPouchItem extends Item {
         if (ammoIndex >= 0) {
             List<ItemStack> segment = new ArrayList<>(current.ammo());
             ItemStack taken = segment.remove(ammoIndex);
-            setContents(pouch, new BallPouchContents(segment, current.transit()));
+            setContents(pouch, new BallPouchContents(
+                    segment, cappedSegment(current.transit(), tier(pouch).transitSlots())));
             return taken;
         }
 

@@ -1,6 +1,9 @@
 package com.mcmodworkspace.moreballs;
 
 import java.util.List;
+import net.minecraft.world.item.enchantment.EnchantmentHelper;
+import net.minecraft.world.item.enchantment.Enchantment;
+import net.minecraft.resources.ResourceKey;
 
 import net.minecraft.core.registries.Registries;
 import net.minecraft.network.chat.Component;
@@ -57,20 +60,9 @@ public final class ModCreativeTabs {
      * <p>这两件都是「模板 + 组件」：裸物品只是模板，既没有来源、也拼不出贴图。
      * 所以这里摆出**带组件的示例**，用来看词条、对照配方。</p>
      */
-    public static final DeferredHolder<CreativeModeTab, CreativeModeTab> FRAGMENTS_TAB =
-            TABS.register("fragments", () -> CreativeModeTab.builder()
-                    .title(Component.translatable("itemGroup.more_balls.fragments"))
-                    .icon(() -> BallFragments.makeFragment(ModItems.BALL_HALF.get(), 2))
-                    .displayItems((parameters, output) -> {
-                        int kinds = BallFragments.SHORT_ID.size();
-                        for (int i = 0; i < kinds; i++) {
-                            output.accept(BallFragments.makeFragment(ModItems.BALL_HALF.get(), i));
-                        }
-                        for (int i = 0; i < kinds; i++) {
-                            output.accept(BallFragments.makeFragment(ModItems.BALL_QUARTER.get(), i));
-                        }
-                    })
-                    .build());
+    // ⚠️ 「半成品」这个独立分类已移除（作者 2026-10-09）——
+    //    里面摆的是 8 种材质的半球与四分之一球，属于刷屏内容，且碎片
+    //    本身只是「模板 + 组件」，没有单独开分类的必要。
 
     /**
      * 「按某个标签填充内容」的通用写法。
@@ -122,23 +114,24 @@ public final class ModCreativeTabs {
                             output.accept(item);
                         });
 
-                        // ===== 半球 / 四分之一球的「示例实例」（作者指定）=====
+                        // ⚠️ **半球 / 四分之一球的示例实例已移除**（作者 2026-10-09 指定）：
+                        //    之前这里摆了 8 种材质的半球 + 8 种四分之一球，太刷屏。
+                        //    碎片本身是「模板 + 组件」，玩家拿部件合出实物即可，
+                        //    要看长什么样去 JEI 的配方页。
                         //
-                        // 这两件是「模板 + 组件」（参考匠魂的做法）：
-                        // 裸物品只是模板，既没有来源、也拼不出贴图。
-                        // 所以这里摆出**带组件的示例**，用来查看词条、对照配方。
-                        // 上面的裸物品也保留 —— 它们是「该物品存在」的凭据。
-                        //
-                        // ⚠️ **组合球的示例不摆**（作者 2026-10-07 指定）：
-                        //    它只应出现在 JEI 的配方页里。创造模式列一堆
-                        //    「铁-金球」「木-圆石球」既刷屏又没意义 ——
-                        //    玩家要哪一颗，自己拿部件合就是了。
-                        int kinds = BallFragments.SHORT_ID.size();
-                        for (int i = 0; i < kinds; i++) {
-                            output.accept(BallFragments.makeFragment(ModItems.BALL_HALF.get(), i));
-                        }
-                        for (int i = 0; i < kinds; i++) {
-                            output.accept(BallFragments.makeFragment(ModItems.BALL_QUARTER.get(), i));
+                        // ===== 本模组添加的附魔书（作者 2026-10-09 指定）=====
+                        // 原版附魔书靠 stored_enchantments 组件承载附魔，
+                        // 这里逐个包成 ItemStack，让玩家在本分类里直接拿到它们。
+                        var enchLookup = parameters.holders().lookupOrThrow(
+                                net.minecraft.core.registries.Registries.ENCHANTMENT);
+                        for (ResourceKey<Enchantment> ench : ModEnchantments.ALL) {
+                            ItemStack book = new ItemStack(Items.ENCHANTED_BOOK);
+                            // 附魔书靠 stored_enchantments 组件承载附魔 ——
+                            // ItemStack.enchant 需要 Holder<Enchantment>，从 lookup 里取
+                            enchLookup.get(ench).ifPresent(holder -> {
+                                book.enchant(holder, 1);
+                                output.accept(book);
+                            });
                         }
                     })
                     .build());

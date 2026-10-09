@@ -1,6 +1,10 @@
 package com.mcmodworkspace.moreballs.client;
 
 import com.mcmodworkspace.moreballs.BallBehavior;
+import net.minecraft.util.profiling.ProfilerFiller;
+import net.minecraft.server.packs.resources.SimplePreparableReloadListener;
+import net.minecraft.server.packs.resources.ResourceManager;
+import net.neoforged.neoforge.client.event.AddClientReloadListenersEvent;
 import net.neoforged.neoforge.client.event.RegisterSpecialModelRendererEvent;
 import com.mcmodworkspace.moreballs.BallCharge;
 import com.mcmodworkspace.moreballs.ModEntities;
@@ -39,6 +43,31 @@ public final class MoreBallsClient {
     private static final int CHARGE_TEXT_COLOR = 0xFFFFC04D;
 
     private MoreBallsClient() {
+    }
+
+    /**
+     * 资源包重载时清掉按贴图算出来的缓存。
+     *
+     * <p>弩上那套组合球贴图是「读底图 + 逐像素叠象限」在 CPU 上现合成的，
+     * 资源包一换，底图与象限贴图都变了，旧结果全错 —— 不清就会一直显示旧资源包的图。</p>
+     */
+    public static void registerReloadListeners(AddClientReloadListenersEvent event) {
+        event.addListener(
+                Identifier.fromNamespaceAndPath(MoreBalls.MOD_ID, "combo_charge_cache"),
+                new ComboChargeReload());
+    }
+
+    private static final class ComboChargeReload extends SimplePreparableReloadListener<Void> {
+
+        @Override
+        protected Void prepare(ResourceManager manager, ProfilerFiller profiler) {
+            return null;
+        }
+
+        @Override
+        protected void apply(Void unused, ResourceManager manager, ProfilerFiller profiler) {
+            ComboChargeBallRenderer.clearCache();
+        }
     }
 
     /** 球的投射物复用原版 ThrownItemRenderer：按实体携带的物品堆渲染，无需写渲染代码 */

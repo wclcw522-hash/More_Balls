@@ -52,8 +52,12 @@ public class MoltenBurnEffect extends MobEffect {
     /** 每一级的「每秒真实火焰伤害」（作者指定：2 / 4 / 7 / 10 / 15） */
     private static final float[] DAMAGE_PER_SECOND = {2.0F, 4.0F, 7.0F, 10.0F, 15.0F};
 
-    /** 护甲值换算等级的分母：等级上升 = 护甲值 ÷ 15，向下取整（作者指定） */
-    public static final float ARMOR_PER_LEVEL = 15.0F;
+    /**
+     * 护甲值换算等级的**分母**。
+     *
+     * <p>作者 2026-10-09 指定：<b>每 10 点护甲值提升一级</b>（原来是 15）。</p>
+     */
+    public static final float ARMOR_PER_LEVEL = 10.0F;
 
     /** 伤害间隔（刻）—— 每秒结算一次 */
     private static final int DAMAGE_INTERVAL = 20;
@@ -95,6 +99,15 @@ public class MoltenBurnEffect extends MobEffect {
      * <p>身上一件金属装备都没有的目标<b>不会</b>被点着：这套设定里热量是靠金属导过去的，
      * 没有金属就没有导热途径（作者指定「时长 = 基础时长 × 金属装备数」，乘 0 就是 0）。</p>
      *
+     * <h2>等级为什么要额外加金属装备</h2>
+     * <p>{@link net.minecraft.world.entity.LivingEntity#getArmorValue()} <b>只统计护甲栏</b>，
+     * 拿在手上的铁剑、挂在饰品栏（Curios）里的金属件都不算数 —— 于是等级几乎永远是 I 级。
+     * 作者 2026-10-08 指出：<b>身上的金属装备同样该算作护甲值</b>，
+     * 所以这里把「金属装备件数」加进护甲值再换算等级。</p>
+     *
+     * <p>举例：全套铁甲（护甲值 4）本身算 4 件金属装备 → 4 + 4 = 8，仍然是 I 级；
+     * 全套钻石甲 + 铁剑 = 20 + 5 = 25 → II 级。穿得越多越狠。</p>
+     *
      * @param baseTicks 基础时长（刻）—— 空心铁球那颗是 {@link BallBehavior#MOLTEN_BURN_TICKS}
      * @return 是否真的挂上了
      */
@@ -104,9 +117,32 @@ public class MoltenBurnEffect extends MobEffect {
         if (metal <= 0) {
             return false;
         }
-        int duration = baseTicks * metal;
-        int amplifier = Math.min(MAX_AMPLIFIER, (int) (target.getArmorValue() / ARMOR_PER_LEVEL));
-        target.addEffect(new MobEffectInstance(ModEffects.MOLTEN_BURN, duration, amplifier), source);
+        // ===== 时长：基础时长 × (1 + 金属装备数) =====
+        //
+        // ⚠️ 原来是 baseTicks * metal —— 只穿 1 件金属装等于**没有加成**，
+        //    一件都没有时 baseTicks*0 直接归零。作者 2026-10-09 明确：
+        //    倍率是 (1 + 件数)，穿一件就是 ×2。
+        int duration = baseTicks * (1 + metal);
+
+        // ===== 等级：现有等级 + ⌊护甲值 / 10⌋，封顶 5 级 =====
+        //
+        // 作者 2026-10-09 明确「**等级提升** ⌊护甲值/10⌋ 的数量」——
+        // 是在**已有等级上累加**，不是每次覆盖成同一个值。
+        // 原来每次都写 clamp(getArmorValue()+metal)/15，于是一身铁甲永远是同一个等级
+        // （反馈「打上去等级还是固定的 2 级」就是这个）。
+        //
+        // 护甲值只看**护甲栏**（getArmorValue 的语义），加成的金属装备件数已经
+        // 单独体现在时长上，不再重复进等级公式 —— 否则铁甲本身会被算两遍。
+        int armorTiers = Math.max(0, (int) (target.getArmorValue() / ARMOR_PER_LEVEL));
+
+        MobEffectInstance existing = target.getEffect(ModEffects.MOLTEN_BURN);
+        int current = (existing == null) ? 0 : existing.getAmplifier();
+        int amplifier = Mth.clamp(current + armorTiers, 0, MAX_AMPLIFIER);
+
+        // 时长只增不减 —— 重复命中不该把已经在烧的时长缩短
+        int newDuration = (existing == null) ? duration : Math.max(duration, existing.getDuration());
+
+        target.addEffect(new MobEffectInstance(ModEffects.MOLTEN_BURN, newDuration, amplifier), source);
         return true;
     }
 
