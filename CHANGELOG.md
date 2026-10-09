@@ -5,7 +5,67 @@
 > 26.3 线已冻结（那边 Curios 与 NeoForge 不兼容，饰品功能没法测）。
 > 26.3 线的历史见 `[26.3更多球]_More_Balls\CHANGELOG.md`。
 
-### 0.3.3.82
+### 0.3.3.84
+
+### 修复：二合一组合球在弩上「只剩一层」
+
+**根因**：素材包里躺着 **16 张从没被引用过的贴图** ——
+
+```
+charge_piece_N_half_top.png      ← 上半球
+charge_piece_N_half_bottom.png   ← 下半球
+```
+
+而 `BallFragments.slotValue` 的语义是明确的：二合一球的两块**各占一整个半圆**
+（象限 0/1 归第一块、2/3 归第二块）。但渲染器一律按**象限**取图 ——
+于是二合一的上半块只贴了左上四分之一、下半块只贴了左下四分之一，
+在弩上看着就是「只剩一层」（只有半张图）。
+
+**修法**：`bake()` 按「二合一 / 四合一」分流取图：
+
+```java
+boolean twoPart = slots[0] == slots[1] && slots[2] == slots[3]
+        && slots[0] != NO_PIECE && slots[2] != NO_PIECE;
+if (twoPart && slots[0] != slots[2]) {
+    // 二合一：两块各占一整半，用那两张半球贴图
+    overlay(canvas, readTexture(halfTexture(slots[0], true)));    // half_top
+    overlay(canvas, readTexture(halfTexture(slots[2], false)));   // half_bottom
+} else {
+    // 四合一（或同种球合成）：逐象限拼
+    for (int q = 0; q < 4; q++) { ... pieceTexture(slots[q], q + 1) ... }
+}
+```
+
+新增 `halfTexture(source, top)`，那 16 张死文件终于有了用处。
+
+**顺带**：合成日志补了「只画底图 / 已叠象限或半球」的标注，排查时一眼能看出走没走到叠图那一步。
+
+### 状态说明
+
+- **本地与游戏内**：`0.3.3.84`，正常启用（`ChargedBall.SILENCED = false`）
+- **GitHub 上的 0.3.3.82**：仍是「静默版」（那把弩看起来和普通弩一样），未回退
+
+---
+## 0.3.3.83
+
+### 本地恢复正常（解除 0.3.3.82 的静默）
+
+`ChargedBall.SILENCED` 从 `true` 改回 `false` —— 装填组合球时重新走那条专属贴图分支。
+
+**GitHub 上的 0.3.3.82 是「静默版」**（那把弩看起来和普通弩一样），
+本地与游戏里装的是这个恢复版。
+
+**恢复前做的完整性核对**（四项修复都还在）：
+
+| 项 | 位置 |
+|---|---|
+| 正面绕序改为 `FaceInfo.SOUTH` + 双面渲染 | `ComboChargeBallRenderer` L70/73（`PLANE_Z_FRONT=8.5` / `PLANE_Z_BACK=7.4`） |
+| `extractArgument` 先从句子里拆出球 | 同行 L149 `BallAmmo.chargedBallStack(stack)` |
+| `BallAmmo.chargedBallStack` | L92，走 `charged.itemCopies()` |
+| `getExtents` 报完整立方体 | L401-407 |
+
+---
+## 0.3.3.82
 
 ### 暂时静默「装填组合球的专属弩贴图」
 

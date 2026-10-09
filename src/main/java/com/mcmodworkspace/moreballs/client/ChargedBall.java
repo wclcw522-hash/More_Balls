@@ -49,7 +49,7 @@ public record ChargedBall() implements SelectItemModelProperty<String> {
      * {@code crossbow.json} 的 combo case、{@code ComboChargeBallRenderer}、
      * {@code BallAmmo.chargedBallStack} 全都原样保留着。</p>
      */
-    public static final boolean SILENCED = true;
+    public static final boolean SILENCED = false;   // 0.3.3.82 曾在 GitHub 上短暂置为 true（静默版），本地已恢复正常
 
     /** 没装球（或装的不是球） */
     public static final String NONE = "none";

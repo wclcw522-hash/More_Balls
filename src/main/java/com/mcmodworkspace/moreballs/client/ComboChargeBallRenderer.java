@@ -85,8 +85,26 @@ public class ComboChargeBallRenderer implements SpecialModelRenderer<int[]> {
     /** 底图：满弦的空弩 */
     private static final Identifier BASE_TEXTURE = resource("textures/item/charge_base_crossbow.png");
 
+    /** 四分之一的象限贴图（q = 1..4，左上 / 右上 / 左下 / 右下） */
     private static Identifier pieceTexture(int source, int quadrant) {
         return resource("textures/item/charge_piece_" + source + "_" + quadrant + ".png");
+    }
+
+    /**
+     * <b>二分之一的半球贴图</b>（{@code half_top} / {@code half_bottom}）。
+     *
+     * <p>二合一球的两块各占<b>一整个半圆</b>（见 {@code BallFragments.slotValue}：
+     * 二合一时象限 0/1 归第一块、2/3 归第二块）。所以它该贴的是一整张半球图，
+     * 而不是拼两个象限 —— 素材包里那 16 张 {@code charge_piece_N_half_*.png}
+     * 就是为此准备的，但<b>之前代码一次都没引用过</b>，
+     * 于是二合一球在弩上只显示「半个半圆」，看起来像是只剩一层
+     * （作者反馈的「弩的贴图只剩一层」）。</p>
+     *
+     * @param top true = 上半、false = 下半
+     */
+    private static Identifier halfTexture(int source, boolean top) {
+        return resource("textures/item/charge_piece_" + source + "_half_"
+                + (top ? "top" : "bottom") + ".png");
     }
 
     /**
@@ -320,16 +338,35 @@ public class ComboChargeBallRenderer implements SpecialModelRenderer<int[]> {
         }
 
         if (slots != null) {
-            for (int q = 0; q < 4; q++) {
-                if (slots[q] == NO_PIECE) {
-                    continue;
+            // 二合一还是四合一？判据是「上半两象限的来源是不是同一个」——
+            // 二合一时 0/1 同源、2/3 同源；四合一时四格互不相同（同种球会例外，见下）。
+            boolean twoPart = slots[0] == slots[1] && slots[2] == slots[3]
+                    && slots[0] != NO_PIECE && slots[2] != NO_PIECE;
+            if (twoPart && slots[0] != slots[2]) {
+                // ===== 二合一：两块各占一整个半圆，用整张半球贴图 =====
+                NativeImage topPiece = readTexture(halfTexture(slots[0], true));
+                if (topPiece != null) {
+                    overlay(canvas, topPiece);
+                    topPiece.close();
                 }
-                NativeImage piece = readTexture(pieceTexture(slots[q], q + 1));
-                if (piece == null) {
-                    continue;
+                NativeImage bottomPiece = readTexture(halfTexture(slots[2], false));
+                if (bottomPiece != null) {
+                    overlay(canvas, bottomPiece);
+                    bottomPiece.close();
                 }
-                overlay(canvas, piece);
-                piece.close();
+            } else {
+                // ===== 四合一（或同种球合成）：逐象限拼 =====
+                for (int q = 0; q < 4; q++) {
+                    if (slots[q] == NO_PIECE) {
+                        continue;
+                    }
+                    NativeImage piece = readTexture(pieceTexture(slots[q], q + 1));
+                    if (piece == null) {
+                        continue;
+                    }
+                    overlay(canvas, piece);
+                    piece.close();
+                }
             }
         }
 
@@ -338,7 +375,8 @@ public class ComboChargeBallRenderer implements SpecialModelRenderer<int[]> {
                 + "_" + COMPOSED.size());
         String label = "more_balls combo charge " + Arrays.toString(slots);
         Minecraft.getInstance().getTextureManager().register(id, new DynamicTexture(() -> label, canvas));
-        MoreBalls.LOGGER.info("[ball][弩] ④ 合成装填贴图 {} <- slots={}", id, Arrays.toString(slots));
+        MoreBalls.LOGGER.info("[ball][弩] ④ 合成装填贴图 {} <- slots={}（{}）", id, Arrays.toString(slots),
+                (slots == null) ? "只画底图" : "已叠象限/半球");
         return id;
     }
 
