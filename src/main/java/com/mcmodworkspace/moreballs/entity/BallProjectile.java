@@ -5,7 +5,6 @@ import net.minecraft.world.entity.Pose;
 import net.minecraft.world.entity.EntityDimensions;
 import net.minecraft.world.phys.AABB;
 import net.minecraft.world.entity.monster.Enemy;
-import com.mcmodworkspace.moreballs.ModProfiler;
 import com.mcmodworkspace.moreballs.BallBehavior;
 import com.mcmodworkspace.moreballs.BallFragments;
 import com.mcmodworkspace.moreballs.BallPouchHelper;
@@ -829,26 +828,12 @@ public class BallProjectile extends ThrowableItemProjectile {
 
     @Override
     public void tick() {
-        long _tTick = System.nanoTime();
-        ballTickBody();
-        ModProfiler.hit("ball.tick(整体)", _tTick);
-    }
-
-    /** 真正的实现（上面是加了计时的壳） */
-    private void ballTickBody() {
-        long _tPre = System.nanoTime();
         ballTickPre();
-        ModProfiler.hit("ball.tick.前段(super之前)", _tPre);
 
-        // 单独给父类 tick 计时 —— 物理、移动、碰撞检测都在里面，
-        // 而且**这段不是我写的**，之前所有诊断都漏掉了它。
-        long _tSuper = System.nanoTime();
+        // 父类 tick —— 物理、移动、碰撞检测都在里面
         super.tick();
-        ModProfiler.hit("ball.super.tick", _tSuper);
 
-        long _tPost = System.nanoTime();
         ballTickPost();
-        ModProfiler.hit("ball.tick.后段(super之后)", _tPost);
     }
 
     /** tick 的前半段：上限检查、回归开关、票据 */
@@ -866,9 +851,7 @@ public class BallProjectile extends ThrowableItemProjectile {
             long capNow = capLevel.getGameTime();
             if (capNow % BALL_CAP_CHECK_INTERVAL == 0L && capNow != ballCapLastCheckTick) {
                 ballCapLastCheckTick = capNow;
-                long _tCap = System.nanoTime();
                 enforceBallCap(capLevel);
-                ModProfiler.hit("ball.前段.enforceBallCap", _tCap);
             }
         }
 
@@ -878,7 +861,6 @@ public class BallProjectile extends ThrowableItemProjectile {
         // noPhysics、并且每刻重设 noGravity —— 说明这些开关在父类 tick 过程里会被动到。
         // 我之前的写法全在事后设，于是「这一 tick 里跑的物理」用的还是旧值，
         // 球照样被方块卡住。前后都压住才算真的一样。
-        long _tHb = System.nanoTime();
         if (this.homingBack) {
             this.noPhysics = true;
             // ⚠️ 只在值真的变化时调用 —— setNoGravity 是同步数据，
@@ -887,7 +869,7 @@ public class BallProjectile extends ThrowableItemProjectile {
                 this.setNoGravity(true);
             }
         }
-        ModProfiler.hit("ball.前段.homingBack开关", _tHb);
+
 
         // 【区块加载】带空气动力球的球<b>从落地那刻就得挂上</b>，不能等回归启动再挂。
         //
@@ -898,9 +880,7 @@ public class BallProjectile extends ThrowableItemProjectile {
         //
         // 判据是 returnToOwner（= 武器带空气动力球附魔），普通球不参与，不浪费加载。
         if (this.returnToOwner && this.level() instanceof ServerLevel ticketLevel) {
-            long _tTicket = System.nanoTime();
             this.updateLoadTicket(ticketLevel);
-            ModProfiler.hit("ball.前段.区块票据", _tTicket);
         }
 
         // 记下这一 tick 开始时的状态，super.tick() 之后要用它补位移
@@ -948,7 +928,7 @@ public class BallProjectile extends ThrowableItemProjectile {
         //    不需要这些扫描。）
         boolean idle = this.isSettled();
         if (!idle && this.profile().hasSense()) {
-            long _t = System.nanoTime(); this.prospectingTick(); prof("prospecting", System.nanoTime() - _t);
+            this.prospectingTick();
         }
 
         // 【智慧】—— 紫水晶球：发射后扫描 10 格内无遮挡可直达的敌对（或仇恨中的中立）
@@ -1012,7 +992,7 @@ public class BallProjectile extends ThrowableItemProjectile {
 
         // 【熔融】状态的外观：进了熔融的球周身冒火（环绕 + 拖尾）
         if (!this.isSettled()) {
-            long _t = System.nanoTime(); this.moltenParticlesTick(); prof("particles", System.nanoTime() - _t);
+            this.moltenParticlesTick();
         }
 
         if (!this.isTough()) {
@@ -1020,7 +1000,7 @@ public class BallProjectile extends ThrowableItemProjectile {
         }
 
         if (this.isRolling()) {
-            long _t = System.nanoTime(); this.rollTick(); prof("roll", System.nanoTime() - _t);
+            this.rollTick();
         }
         // 球间碰撞无论是否在滚动都要检测 —— 滚动的球撞上静止的球一样该传递动能。
         //
@@ -1032,14 +1012,14 @@ public class BallProjectile extends ThrowableItemProjectile {
         //    被别的球撞动的那个 —— 曾经试过「静止就跳过」，结果是
         //    「停着的球怎么撞都不动」。这条不能按静止裁剪，只能靠间隔限流。
         if (this.level().getGameTime() % BALL_COLLIDE_INTERVAL == 0L) {
-            long _t = System.nanoTime(); this.collideWithNearbyBalls(); prof("collide", System.nanoTime() - _t);
+            this.collideWithNearbyBalls();
         }
         // 「磁吸」：飞行中把身边的金属拽向自己（空心铁球）
         // 磁吸扫描会遍历附近实体 —— 每 5 刻一次足够（它只是「把附近的金属拽过来」）
         if (!this.isSettled()
                 && this.level() instanceof ServerLevel serverLevel
                 && this.level().getGameTime() % MAGNET_SCAN_INTERVAL == 0L) {
-            long _t = System.nanoTime(); this.magnetTick(serverLevel); prof("magnet", System.nanoTime() - _t);
+            this.magnetTick(serverLevel);
         }
 
         if (this.impulseTicks > 0) {
@@ -1907,28 +1887,6 @@ public class BallProjectile extends ThrowableItemProjectile {
 
     /** 球撞球的处理冷却（刻）—— 防止贴在一起的球每 tick 重复触发 */
     private static final int COLLIDE_COOLDOWN_TICKS = 8;
-
-    /**
-     * 【性能诊断】各阶段的纳秒累加器。
-     *
-     * <p>球一多就卡，但静态看代码猜不出哪一步是大头 —— 加这个直接测。
-     * 累计到 1000 次采样后打一次日志，然后清零。</p>
-     */
-    static final java.util.Map<String, long[]> PROFILE = new java.util.concurrent.ConcurrentHashMap<>();
-    private static final java.util.concurrent.atomic.AtomicLong PROFILE_SAMPLES =
-            new java.util.concurrent.atomic.AtomicLong();
-
-    private static void prof(String stage, long nanos) {
-        PROFILE.computeIfAbsent(stage, k -> new long[1])[0] += nanos;
-        if (PROFILE_SAMPLES.incrementAndGet() % 300L == 0L) {
-            StringBuilder sb = new StringBuilder("[ball][性能] 各阶段累计耗时（每 300 次采样）：");
-            PROFILE.entrySet().stream()
-                    .sorted((x, y) -> Long.compare(y.getValue()[0], x.getValue()[0]))
-                    .forEach(e -> sb.append(String.format(" %s=%.1fms", e.getKey(), e.getValue()[0] / 1_000_000.0)));
-            MoreBalls.LOGGER.info(sb.toString());
-            PROFILE.values().forEach(v -> v[0] = 0L);
-        }
-    }
 
     /** 球撞球的检测间隔（刻）—— 每 tick 做是 O(n²)，球一多就卡 */
     private static final int BALL_COLLIDE_INTERVAL = 4;
