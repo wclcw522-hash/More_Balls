@@ -73,6 +73,10 @@ public final class BallMobAI {
     public static final float PILLAGER_AMMO_CHANCE = 0.20F;
 
     /** 顺手捡起脚边球的范围（格）—— 作者指定 1.5 */
+    /** 捡球相关诊断的打点计数（只打前几次，避免刷屏） */
+    private static final java.util.concurrent.atomic.AtomicInteger BALL_PICKUP_DIAG =
+            new java.util.concurrent.atomic.AtomicInteger(0);
+
     public static final double PICKUP_RADIUS = 1.5D;
 
     /**
@@ -236,6 +240,12 @@ public final class BallMobAI {
         }
         // 捡球同样得先有手 —— 没手的怪连球都拿不住，更别提扔
         if (!hasHands(mob)) {
+            // 诊断：作者反馈「不能拿球的怪也会向球移动」—— 如果这里被拦住的怪
+            // 却在日志里出现，说明有别的路径绕过了本方法（那时再顺着日志去查）。
+            if (BALL_PICKUP_DIAG.getAndIncrement() < 5) {
+                MoreBalls.LOGGER.info("[ball][捡球] {} 没有手，拒绝捡球 —— 走到这里说明它至少进了 tryPickUpBall",
+                        mob.getType().toShortString());
+            }
             return;
         }
 
@@ -294,6 +304,12 @@ public final class BallMobAI {
         if (!far.isEmpty()) {
             BallProjectile candidate = far.get(0);
             if (mob.distanceTo(candidate) < distanceToTarget / 2.0D) {
+                if (BALL_PICKUP_DIAG.getAndIncrement() < 5) {
+                    MoreBalls.LOGGER.info("[ball][捡球] {} 决定走向球：球距 {} < 目标距 {} / 2",
+                            mob.getType().toShortString(),
+                            String.format("%.1f", mob.distanceTo(candidate)),
+                            String.format("%.1f", distanceToTarget));
+                }
                 mob.getNavigation().moveTo(candidate, SEEK_SPEED);
             }
             return;
