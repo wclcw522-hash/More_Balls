@@ -17,7 +17,6 @@ Copyright (c) 2026 More Balls contributors
   建议在整合包说明里标注来源
 - **查看、学习、参考**本项目代码
 - **提交 issue 与 pull request**
-- 在**不进行分发**前提下的修改
 
 ### 需要事先获得许可
 

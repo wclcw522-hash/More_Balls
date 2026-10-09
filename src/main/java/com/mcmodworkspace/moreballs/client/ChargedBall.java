@@ -1,6 +1,7 @@
 package com.mcmodworkspace.moreballs.client;
 
 import com.mcmodworkspace.moreballs.BallAmmo;
+import com.mcmodworkspace.moreballs.ModItems;
 import com.mojang.serialization.Codec;
 import com.mojang.serialization.MapCodec;
 import net.minecraft.client.multiplayer.ClientLevel;
@@ -31,6 +32,25 @@ import net.minecraft.world.item.ItemStack;
  */
 public record ChargedBall() implements SelectItemModelProperty<String> {
 
+    /**
+     * <b>⚠️ 暂时静默「装填组合球的专属弩贴图」这个功能（作者 2026-10-09 指定）。</b>
+     *
+     * <p>为 {@code true} 时，装填的是组合球也一律按「没装球」上报 ——
+     * 于是物品模型的 select 匹配不到 {@code more_balls:combo_ball} 那个分支，
+     * 自动落到 fallback（完整的原版弩逻辑），外观与普通弩一致。</p>
+     *
+     * <h2>为什么要静默</h2>
+     * <p>那条分支用的是 {@code minecraft:special} + 自绘几何（见
+     * {@code ComboChargeBallRenderer}），渲染结果一直不稳定。在修好之前先让它在游戏里
+     * <b>完全看不出存在</b>，比留一个半成品好。</p>
+     *
+     * <h2>恢复方法</h2>
+     * <p>把这里改回 {@code false} 即可 —— <b>其余代码一个字都不用动</b>：
+     * {@code crossbow.json} 的 combo case、{@code ComboChargeBallRenderer}、
+     * {@code BallAmmo.chargedBallStack} 全都原样保留着。</p>
+     */
+    public static final boolean SILENCED = true;
+
     /** 没装球（或装的不是球） */
     public static final String NONE = "none";
 
@@ -43,6 +63,11 @@ public record ChargedBall() implements SelectItemModelProperty<String> {
                       ItemDisplayContext context) {
         Item ball = BallAmmo.chargedBallItem(stack);
         if (ball == null) {
+            return NONE;
+        }
+        // 静默期间：组合球也按「没装球」上报 —— 见 SILENCED 的说明。
+        // 其它球不受影响，照旧返回各自的 id，走它们自己的静态贴图分支。
+        if (SILENCED && ball == ModItems.COMBO_BALL.get()) {
             return NONE;
         }
         return BuiltInRegistries.ITEM.getKey(ball).toString();

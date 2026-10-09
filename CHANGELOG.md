@@ -5,7 +5,39 @@
 > 26.3 线已冻结（那边 Curios 与 NeoForge 不兼容，饰品功能没法测）。
 > 26.3 线的历史见 `[26.3更多球]_More_Balls\CHANGELOG.md`。
 
-### 0.3.3.81
+### 0.3.3.82
+
+### 暂时静默「装填组合球的专属弩贴图」
+
+那条分支用的是 `minecraft:special` + 自绘几何（`ComboChargeBallRenderer`），
+渲染结果一直不稳定。在修好之前先让它在游戏里**完全看不出存在**。
+
+**做法（最小改动，不动资源、不动渲染器）**：
+
+`client/ChargedBall.java` 新增开关 `SILENCED = true`，`get()` 里多一个分支 ——
+装填的是组合球时**按「没装球」上报**（返回 `"none"`）。
+于是物品模型的 `select` 匹配不到 `more_balls:combo_ball` 那个 case，
+自动落到 fallback（完整的原版弩逻辑），**外观与普通弩一致**。
+
+**保留的东西**（恢复时一个字都不用重写）：
+
+- `assets/minecraft/items/crossbow.json` 的 combo case
+- `client/ComboChargeBallRenderer.java` 整个类
+- `BallAmmo.chargedBallStack()`
+
+**恢复方法**：把 `ChargedBall.SILENCED` 改回 `false` 即可。
+
+其它球（木球等）不受影响 —— 静默分支只判 `combo_ball`。
+
+### 新增文档：COMPATIBILITY.md
+
+补记了「本模组修改了原版弩的弹药判定，可能与其它同类模组存在冲突」，
+包含已知冲突形态、技术实现说明（只用 `@Inject` + `RETURN`、全程 `require = 0`、
+不用 `@Redirect`/`@Overwrite`）、以及第三方依赖的处理方式（一律 `compileOnly` + 运行时判断）。
+README 末尾加了指向该文件的提示。
+
+---
+## 0.3.3.81
 
 ### 收尾：清掉遗留的三项
 
