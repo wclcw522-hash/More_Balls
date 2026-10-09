@@ -347,9 +347,9 @@ public class ComboChargeBallRenderer implements SpecialModelRenderer<int[]> {
         return (img.getPixel(x, y) >> 24) != 0;
     }
 
-    /** 侧壁 UV 诊断只打一次 */
-    private static final java.util.concurrent.atomic.AtomicBoolean SIDE_DIAG =
-            new java.util.concurrent.atomic.AtomicBoolean(false);
+    /** 侧壁诊断计数（只打前几次） */
+    private static final java.util.concurrent.atomic.AtomicInteger SIDE_DIAG =
+            new java.util.concurrent.atomic.AtomicInteger(0);
 
     private static void drawSideFaces(PoseStack poseStack, SubmitNodeCollector collector,
                                       Identifier texture, NativeImage img, int light, int overlay) {
@@ -362,12 +362,23 @@ public class ComboChargeBallRenderer implements SpecialModelRenderer<int[]> {
         RenderType type = RenderTypes.itemCutout(texture);
         float z0 = PLANE_Z_BACK;
         float z1 = PLANE_Z_FRONT;
-        // 诊断（只打一次）：确认侧壁采的 UV 是「该像素自己那一格」
-        if (SIDE_DIAG.compareAndSet(false, true)) {
-            MoreBalls.LOGGER.info("[ball][弩] 侧壁采样诊断：图 {}x{}，z {}..{}，"
-                            + "上/下边 UV = u(px+0.25..px+0.75)/16、v(py+0.5)/16；"
-                            + "左/右边 UV = u(px+0.5)/16、v(py+0.25..py+0.75)/16",
-                    img.getWidth(), img.getHeight(), z0, z1);
+        // 诊断（前 3 次）：把合成图的不透明像素分布与「每条边画了几个四边形」都打出来，
+        // 用来定位「底面缺失 / 侧面缺 60%」到底是像素被判成透明，还是边没生成。
+        if (SIDE_DIAG.getAndIncrement() < 3) {
+            int opaque = 0;
+            StringBuilder rows = new StringBuilder();
+            for (int y = 0; y < img.getHeight(); y++) {
+                int c = 0;
+                for (int x = 0; x < img.getWidth(); x++) {
+                    if (isOpaque(img, x, y)) {
+                        c++;
+                    }
+                }
+                opaque += c;
+                rows.append(c).append(' ');
+            }
+            MoreBalls.LOGGER.info("[ball][弩] 合成图不透明像素 {} / {}，逐行：{}", opaque,
+                    img.getWidth() * img.getHeight(), rows.toString().trim());
         }
         collector.submitCustomGeometry(poseStack, type, (pose, buffer) -> {
             // ⚠️ **必须合并连续的边**，不能逐像素画。
@@ -484,7 +495,7 @@ public class ComboChargeBallRenderer implements SpecialModelRenderer<int[]> {
                     }
                 }
             }
-            if (SIDE_DIAG.compareAndSet(false, true)) {
+            if (SIDE_DIAG.get() <= 3) {
                 MoreBalls.LOGGER.info("[ball][弩] 侧壁四边形计数：上={} 下={} 左={} 右={}（总顶点 {}）",
                         nTop, nBottom, nLeft, nRight, (nTop + nBottom + nLeft + nRight) * 4);
             }

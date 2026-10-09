@@ -826,7 +826,11 @@ public class BallProjectile extends ThrowableItemProjectile {
         // 球照样被方块卡住。前后都压住才算真的一样。
         if (this.homingBack) {
             this.noPhysics = true;
-            this.setNoGravity(true);
+            // ⚠️ 只在值真的变化时调用 —— setNoGravity 是同步数据，
+            //    值没变也会触发实体同步，每 tick 调就是「卡一下闪现一下」。
+            if (!this.isNoGravity()) {
+                this.setNoGravity(true);
+            }
         }
 
         // 【区块加载】带空气动力球的球<b>从落地那刻就得挂上</b>，不能等回归启动再挂。
@@ -944,8 +948,15 @@ public class BallProjectile extends ThrowableItemProjectile {
         if (this.isRolling()) {
             this.rollTick();
         }
-        // 球间碰撞无论是否在滚动都要检测 —— 滚动的球撞上静止的球一样该传递动能、一样消耗耐久
-        this.collideWithNearbyBalls();
+        // 球间碰撞无论是否在滚动都要检测 —— 滚动的球撞上静止的球一样该传递动能。
+        //
+        // ⚠️ **必须限流**：这段每 tick 对每个球做一次 getEntitiesOfClass，
+        //    球的数量一多就是 O(n²)。作者实测「十来个球就特别卡、球越多越严重」。
+        //    球速上限约 1.5 格/刻，而这段本身用「上一刻→这一刻的线段」做连续检测，
+        //    把间隔放到 4 刻（最大相对位移 6 格）仍然接得住 —— 线段判定不会漏。
+        if (this.level().getGameTime() % BALL_COLLIDE_INTERVAL == 0L) {
+            this.collideWithNearbyBalls();
+        }
         // 「磁吸」：飞行中把身边的金属拽向自己（空心铁球）
         if (this.level() instanceof ServerLevel serverLevel) {
             this.magnetTick(serverLevel);
@@ -1185,9 +1196,13 @@ public class BallProjectile extends ThrowableItemProjectile {
         Vec3 from = new Vec3(this.xo, this.yo, this.zo);
         Vec3 move = this.position().subtract(from);
 
+        // ⚠️ 搜索半径**设上限**：原来直接拿 `move.length()` 去膨胀包围盒，
+        //    被爆炸打飞的球一 tick 能移动好几格，查询范围随之膨胀、开销陡增。
+        //    超过 MAX_COLLIDE_REACH 之后就交给下几次检测（间隔 4 刻）覆盖。
+        double reach = Math.min(MAX_COLLIDE_REACH, Math.max(0.5D, move.length() + CONTACT_DISTANCE));
         List<BallProjectile> others = this.level().getEntitiesOfClass(
                 BallProjectile.class,
-                this.getBoundingBox().inflate(Math.max(0.5D, move.length() + CONTACT_DISTANCE)),
+                this.getBoundingBox().inflate(reach),
                 other -> other != this && other.isAlive());
 
         for (BallProjectile other : others) {
@@ -1788,7 +1803,13 @@ public class BallProjectile extends ThrowableItemProjectile {
 
     /** 【智慧】是否已经锁定过 */
     /** 球撞球的处理冷却（刻）—— 防止贴在一起的球每 tick 重复触发 */
-    private static final int COLLIDE_COOLDOWN_TICKS = 10;
+    private static final int COLLIDE_COOLDOWN_TICKS = 8;
+
+    /** 球撞球的检测间隔（刻）—— 每 tick 做是 O(n²)，球一多就卡 */
+    private static final int BALL_COLLIDE_INTERVAL = 4;
+
+    /** 单次球撞球检测的搜索半径上限（格） */
+    private static final double MAX_COLLIDE_REACH = 3.0D;
 
     /** 本球上一次被别的球撞到的游戏刻 */
     private long lastBallCollideTick = Long.MIN_VALUE / 2;

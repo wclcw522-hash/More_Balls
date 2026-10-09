@@ -278,13 +278,28 @@ public final class BallMobAI {
         if (mob.tickCount % SEEK_SCAN_INTERVAL != 0) {
             return;
         }
+
+        // 【作者 2026-10-09 指定】要不要为了捡球放弃打人？
+        //
+        //   算两个距离：怪 → 球、怪 → 当前的攻击目标。
+        //   **只有当球明显更近（球距 < 玩家距 / 2）时**才走过去捡；
+        //   否则放弃捡球，用原来的方式继续追打目标 ——
+        //   不然怪物会为了一个远处的球把玩家晾在一边。
+        LivingEntity combatTarget = mob.getTarget();
+        double distanceToTarget = (combatTarget != null && combatTarget.isAlive())
+                ? mob.distanceTo(combatTarget)
+                : Double.MAX_VALUE;
+
         List<BallProjectile> far = findBalls(mob, SEEK_RADIUS);
         if (!far.isEmpty()) {
-            mob.getNavigation().moveTo(far.get(0), SEEK_SPEED);
+            BallProjectile candidate = far.get(0);
+            if (mob.distanceTo(candidate) < distanceToTarget / 2.0D) {
+                mob.getNavigation().moveTo(candidate, SEEK_SPEED);
+            }
             return;
         }
         ItemEntity droppedFar = findDroppedBall(mob, SEEK_RADIUS);
-        if (droppedFar != null) {
+        if (droppedFar != null && mob.distanceTo(droppedFar) < distanceToTarget / 2.0D) {
             mob.getNavigation().moveTo(droppedFar, SEEK_SPEED);
         }
     }
