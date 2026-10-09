@@ -5,7 +5,37 @@
 > 26.3 线已冻结（那边 Curios 与 NeoForge 不兼容，饰品功能没法测）。
 > 26.3 线的历史见 `[26.3更多球]_More_Balls\CHANGELOG.md`。
 
-### 0.3.3.97
+### 0.3.3.98
+
+### 苦力怕死亡清除头顶球 —— 根因：靠包围盒找图标
+
+**原来两处都依赖苦力怕的包围盒**：
+
+```java
+// findHeadIcon / removeHeadIcon 都是这个套路
+creeper.level().getEntitiesOfClass(Display.ItemDisplay.class,
+        creeper.getBoundingBox().inflate(2.0D))     // ← 死亡后包围盒不可靠
+```
+
+**苦力怕一死**，包围盒就靠不住了（死亡动画会改尺寸，之后实体被移除），
+于是「就近找」找不到图标 —— 死亡事件里那个 `removeHeadIcon` 就成了空转。
+
+**修法：改成按 UUID 精确认领。**
+
+- 图标出生时多打一个标签 `more_balls:head_of:<苦力怕UUID>`
+- `findHeadIcon` / `removeHeadIcon` **优先按这个标签精确匹配**
+- 查找半径从 2 格放宽到 64 格（走标签，范围大也不会认错别人的图标）
+- **两路并进**：旧的「就近找」保留作兜底，覆盖「图标是旧版本建的、没有 owner 标签」的情况
+
+`ensureHeadIcon` 也跟着改了 —— 否则它会「找不到 → 新建一个」，造成重复图标。
+
+### 附带说明
+
+`findHeadIcon` 的可见性在上一版已从 `private` 放宽到包内，
+本轮又给它加了 UUID 优先路径。三处（建 / 找 / 删）现在用的是同一套认领规则。
+
+---
+## 0.3.3.97
 
 ### 补做遍历，揪出两个自己写出来的 bug
 
