@@ -879,7 +879,14 @@ public class BallProjectile extends ThrowableItemProjectile {
         //
         // 判据是底层词条 BallProfile#hasSense()，不再硬编码具体物品 ——
         // 以后任何球加上 .withSense(n) 就自动具备这套能力。
-        if (this.profile().hasSense()) {
+        // 【作者 2026-10-09 指定】**静止后停止一切扫描/加热/判定**。
+        //
+        //    球一旦停下就没什么可做的了 —— 不需要再扫矿物、扫生物、算热量、
+        //    检测球间碰撞。球多的时候这些「静止球的无用功」是卡顿的主要来源。
+        //    （落定后的球只剩「等空气动力球回收」一件事，那个由 homingToOwner 管，
+        //    不需要这些扫描。）
+        boolean idle = this.isSettled();
+        if (!idle && this.profile().hasSense()) {
             this.prospectingTick();
         }
 
@@ -908,7 +915,7 @@ public class BallProjectile extends ThrowableItemProjectile {
             if (this.wisdomHitGrace > 0) {
                 this.wisdomHitGrace--;
             }
-            if (this.wisdomUsesLeft > 0) {
+            if (!this.isSettled() && this.wisdomUsesLeft > 0) {
                 if (this.wisdomRelockCooldown-- <= 0) {
                     this.wisdomRelockCooldown = WISDOM_RELOCK_INTERVAL;
                     this.tryWisdomLock();
@@ -943,7 +950,9 @@ public class BallProjectile extends ThrowableItemProjectile {
         }
 
         // 【熔融】状态的外观：进了熔融的球周身冒火（环绕 + 拖尾）
-        this.moltenParticlesTick();
+        if (!this.isSettled()) {
+            this.moltenParticlesTick();
+        }
 
         if (!this.isTough()) {
             return;
@@ -958,12 +967,16 @@ public class BallProjectile extends ThrowableItemProjectile {
         //    球的数量一多就是 O(n²)。作者实测「十来个球就特别卡、球越多越严重」。
         //    球速上限约 1.5 格/刻，而这段本身用「上一刻→这一刻的线段」做连续检测，
         //    把间隔放到 4 刻（最大相对位移 6 格）仍然接得住 —— 线段判定不会漏。
+        // ⚠️ **静止的球也必须参与**（作者 2026-10-09 明确）：停在地上的球正是需要
+        //    被别的球撞动的那个 —— 曾经试过「静止就跳过」，结果是
+        //    「停着的球怎么撞都不动」。这条不能按静止裁剪，只能靠间隔限流。
         if (this.level().getGameTime() % BALL_COLLIDE_INTERVAL == 0L) {
             this.collideWithNearbyBalls();
         }
         // 「磁吸」：飞行中把身边的金属拽向自己（空心铁球）
         // 磁吸扫描会遍历附近实体 —— 每 5 刻一次足够（它只是「把附近的金属拽过来」）
-        if (this.level() instanceof ServerLevel serverLevel
+        if (!this.isSettled()
+                && this.level() instanceof ServerLevel serverLevel
                 && this.level().getGameTime() % MAGNET_SCAN_INTERVAL == 0L) {
             this.magnetTick(serverLevel);
         }

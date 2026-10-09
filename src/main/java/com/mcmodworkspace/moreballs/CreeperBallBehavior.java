@@ -89,6 +89,21 @@ public final class CreeperBallBehavior {
     /** 头顶图标实体的标记，便于每刻找回自己那一个 */
     private static final String HEAD_ICON_TAG = "more_balls:creeper_head_icon";
 
+    /**
+     * 苦力怕 UUID → 它的头顶图标实体 id。
+     *
+     * <p>⚠️ 用记录代替「每 tick 扫 64 格找图标」—— 那个扫描有两个毛病：
+     * 一是贵（128³ 的实体查询），二是**区块边界上会漏**，漏了就新建一个，
+     * 于是头顶的球一闪一闪、还留下残影（作者 2026-10-09 反馈）。</p>
+     */
+    private static final java.util.Map<java.util.UUID, Integer> HEAD_ICON_IDS =
+            java.util.Collections.synchronizedMap(new java.util.LinkedHashMap<>(64, 0.75F, true) {
+                @Override
+                protected boolean removeEldestEntry(java.util.Map.Entry<java.util.UUID, Integer> eldest) {
+                    return size() > 256;
+                }
+            });
+
     /** 图标标签的前缀，后面接苦力怕的 UUID */
     private static final String HEAD_ICON_OWNER_PREFIX = "more_balls:head_of:";
 
@@ -533,12 +548,14 @@ public final class CreeperBallBehavior {
         if (!(creeper.level() instanceof ServerLevel level)) {
             return;
         }
-        Display.ItemDisplay icon = findHeadIcon(creeper);
+        // 先从记录表里拿；拿到就验证还活着、还是不是它
+        Display.ItemDisplay icon = headIconFromRecord(creeper);
         if (icon == null) {
             // 26.x 把原版 EntityType 拆成了 EntityTypes（类型）与 EntityTypeIds（id），
             // 常量在 EntityTypes 上，不在 EntityType
             icon = new Display.ItemDisplay(EntityTypes.ITEM_DISPLAY, level);
             icon.addTag(HEAD_ICON_TAG);
+            HEAD_ICON_IDS.put(creeper.getUUID(), icon.getId());
             // ⚠️ 记下它属于哪只苦力怕 —— 死亡时才能**精确**收掉。
             //    只靠「包围盒就近找」是不行的：苦力怕一死包围盒就不可靠了
             //    （死亡动画会改尺寸，之后实体被移除），于是图标留在原地
@@ -556,6 +573,23 @@ public final class CreeperBallBehavior {
                 creeper.getZ());
     }
 
+    /** 从记录表里取这只苦力怕的图标；已经没了就返回 null 并清掉记录 */
+    private static Display.ItemDisplay headIconFromRecord(Creeper creeper) {
+        Integer id = HEAD_ICON_IDS.get(creeper.getUUID());
+        if (id == null) {
+            return null;
+        }
+        if (!(creeper.level() instanceof ServerLevel level)) {
+            return null;
+        }
+        net.minecraft.world.entity.Entity e = level.getEntity(id);
+        if (e instanceof Display.ItemDisplay display && display.isAlive()) {
+            return display;
+        }
+        HEAD_ICON_IDS.remove(creeper.getUUID());
+        return null;
+    }
+
     /** 属于这只苦力怕的图标标签 —— 用 UUID 精确认领，不依赖包围盒 */
     private static String ownerTag(Creeper creeper) {
         return HEAD_ICON_OWNER_PREFIX + creeper.getUUID();
@@ -566,11 +600,18 @@ public final class CreeperBallBehavior {
         // ⚠️ 两路并进：
         //   1. 按 **UUID 标签精确删** —— 不依赖包围盒，死亡后依然有效
         //   2. 老的「就近删」保留作兜底 —— 覆盖「图标是旧版本建的、没有 owner 标签」的情况
+        // ① 走记录表 —— 精确、便宜
+        Display.ItemDisplay recorded = headIconFromRecord(creeper);
+        if (recorded != null) {
+            recorded.discard();
+        }
+        HEAD_ICON_IDS.remove(creeper.getUUID());
+
+        // ② 兜底：按标签在小范围内找一遍（覆盖「记录表丢了但图标还在」的情况）
         String tag = ownerTag(creeper);
         if (creeper.level() instanceof ServerLevel level) {
-            // 全维度扫一遍带该 UUID 标签的图标（这类实体极少，开销可忽略）
             for (Display.ItemDisplay icon : level.getEntitiesOfClass(
-                    Display.ItemDisplay.class, creeper.getBoundingBox().inflate(64.0D))) {
+                    Display.ItemDisplay.class, creeper.getBoundingBox().inflate(8.0D))) {
                 if (icon.entityTags().contains(tag)) {
                     icon.discard();
                 }

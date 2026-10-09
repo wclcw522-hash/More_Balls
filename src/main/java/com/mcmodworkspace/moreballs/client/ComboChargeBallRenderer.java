@@ -388,16 +388,46 @@ public class ComboChargeBallRenderer implements SpecialModelRenderer<int[]> {
      * <p>四个顶点按 {@code (x0/y0/x1/y1)} 与 {@code (u, v)} 组合出来，
      * 法线用调用方给的面朝向（用于光照计算）。</p>
      */
+    /**
+     * 提交一个四边形 —— **正反两遍**。
+     *
+     * <h2>为什么双面</h2>
+     * <p>{@code RenderTypes.itemCutout} 的管线开着背面剔除。上一版只提交一遍，
+     * 绕序对的那几面能看见、反的那几面被整个剔掉 —— 现象就是
+     * 「每个像素只有三面有贴图，左/右/内面是空的」（作者 2026-10-09 反馈）。</p>
+     *
+     * <p>与其逐面去推导绕序（六个面六个朝向，很容易再错），不如**每个面都画两遍**：
+     * 总顶点数翻倍（3168 → 6336），但这点量对现代显卡可以忽略，
+     * 而「少面」这类问题从根上消失。</p>
+     */
+    private static void quadDouble(VertexConsumer buffer, PoseStack.Pose pose,
+                                   float ax, float ay, float az,
+                                   float bx, float by, float bz,
+                                   float cx, float cy, float cz,
+                                   float dx, float dy, float dz,
+                                   float u, float v,
+                                   float nx, float ny, float nz,
+                                   int light, int overlay) {
+        // 正面
+        vertexRaw(buffer, pose, ax, ay, az, u, v, nx, ny, nz, light, overlay);
+        vertexRaw(buffer, pose, bx, by, bz, u, v, nx, ny, nz, light, overlay);
+        vertexRaw(buffer, pose, cx, cy, cz, u, v, nx, ny, nz, light, overlay);
+        vertexRaw(buffer, pose, dx, dy, dz, u, v, nx, ny, nz, light, overlay);
+        // 反面（顶点倒序）
+        vertexRaw(buffer, pose, dx, dy, dz, u, v, -nx, -ny, -nz, light, overlay);
+        vertexRaw(buffer, pose, cx, cy, cz, u, v, -nx, -ny, -nz, light, overlay);
+        vertexRaw(buffer, pose, bx, by, bz, u, v, -nx, -ny, -nz, light, overlay);
+        vertexRaw(buffer, pose, ax, ay, az, u, v, -nx, -ny, -nz, light, overlay);
+    }
+
     /** 正/背面：xy 平面上的矩形，z 从 zNear 到 zFar */
     private static void quadXY(VertexConsumer buffer, PoseStack.Pose pose,
                                float x0, float y0, float x1, float y1,
                                float zNear, float zFar,
                                float u, float v, float nx, float ny, float nz,
                                int light, int overlay) {
-        vertexRaw(buffer, pose, x0, y0, zNear, u, v, nx, ny, nz, light, overlay);
-        vertexRaw(buffer, pose, x1, y0, zFar, u, v, nx, ny, nz, light, overlay);
-        vertexRaw(buffer, pose, x1, y1, zFar, u, v, nx, ny, nz, light, overlay);
-        vertexRaw(buffer, pose, x0, y1, zNear, u, v, nx, ny, nz, light, overlay);
+        quadDouble(buffer, pose, x0, y0, zNear, x1, y0, zFar, x1, y1, zFar, x0, y1, zNear,
+                u, v, nx, ny, nz, light, overlay);
     }
 
     /** 上/下面：xz 平面上的矩形，y 固定 */
@@ -406,10 +436,8 @@ public class ComboChargeBallRenderer implements SpecialModelRenderer<int[]> {
                                float zNear, float zFar,
                                float u, float v, float nx, float ny, float nz,
                                int light, int overlay) {
-        vertexRaw(buffer, pose, x0, y, zNear, u, v, nx, ny, nz, light, overlay);
-        vertexRaw(buffer, pose, x1, y, zNear, u, v, nx, ny, nz, light, overlay);
-        vertexRaw(buffer, pose, x1, y, zFar, u, v, nx, ny, nz, light, overlay);
-        vertexRaw(buffer, pose, x0, y, zFar, u, v, nx, ny, nz, light, overlay);
+        quadDouble(buffer, pose, x0, y, zNear, x1, y, zNear, x1, y, zFar, x0, y, zFar,
+                u, v, nx, ny, nz, light, overlay);
     }
 
     /** 左/右面：yz 平面上的矩形，x 固定 */
@@ -418,10 +446,8 @@ public class ComboChargeBallRenderer implements SpecialModelRenderer<int[]> {
                                float zNear, float zFar,
                                float u, float v, float nx, float ny, float nz,
                                int light, int overlay) {
-        vertexRaw(buffer, pose, x, y0, zNear, u, v, nx, ny, nz, light, overlay);
-        vertexRaw(buffer, pose, x, y0, zFar, u, v, nx, ny, nz, light, overlay);
-        vertexRaw(buffer, pose, x, y1, zFar, u, v, nx, ny, nz, light, overlay);
-        vertexRaw(buffer, pose, x, y1, zNear, u, v, nx, ny, nz, light, overlay);
+        quadDouble(buffer, pose, x, y0, zNear, x, y0, zFar, x, y1, zFar, x, y1, zNear,
+                u, v, nx, ny, nz, light, overlay);
     }
 
     private static void quad(VertexConsumer buffer, PoseStack.Pose pose,
