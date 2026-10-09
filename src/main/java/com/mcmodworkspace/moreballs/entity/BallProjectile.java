@@ -878,10 +878,12 @@ public class BallProjectile extends ThrowableItemProjectile {
             if (this.wisdomUsesLeft < 0) {
                 this.wisdomUsesLeft = this.profile().wisdom();
             }
-            if (this.wisdomUsesLeft > 0) {
-                // 【智慧x】**次数未耗尽期间**：不受重力影响。
-                // 这样被反弹回来之后它还会自己拐回去追，直到把「机会」用完
-                // （作者 2026-10-09 指定：被反弹后无视重力，用完最后一次才正常掉落）。
+            // 【智慧x】的三段式重力（作者 2026-10-09 修正）：
+            //   第一次命中**之前** —— 照常受重力（正常弹道，扔出去该抛就该抛）
+            //   命中一次之后、次数未耗尽 —— **无视重力**，锁定目标追过去
+            //   最后一次机会消耗完 —— **恢复重力**，正常掉落在原地静止
+            boolean tracking = this.wisdomUsesLeft > 0 && this.wisdomUsesLeft < this.profile().wisdom();
+            if (tracking) {
                 if (!this.isNoGravity()) {
                     this.setNoGravity(true);
                 }
@@ -889,8 +891,8 @@ public class BallProjectile extends ThrowableItemProjectile {
                     this.wisdomRelockCooldown = WISDOM_RELOCK_INTERVAL;
                     this.tryWisdomLock();
                 }
-            } else if (this.isNoGravity()) {
-                // 次数耗尽：把重力还回来，让它正常掉落
+            } else if (this.isNoGravity() && this.wisdomUsesLeft <= 0) {
+                // 次数耗尽：把重力还回来
                 this.setNoGravity(this.wisdomGravityBefore);
             }
         }
@@ -1365,6 +1367,8 @@ public class BallProjectile extends ThrowableItemProjectile {
 
         // 出手后的 0.1 秒内不结算伤害：防止贴脸投掷、反弹回来把自己打死
         if (this.tickCount < SPAWN_GRACE_TICKS) {
+            MoreBalls.LOGGER.info("[ball][伤害] 早退：出手宽限期内（tick={} < {}），目标={}",
+                    this.tickCount, SPAWN_GRACE_TICKS, hitResult.getEntity().getName().getString());
             return;
         }
         Entity entity = hitResult.getEntity();
@@ -1372,6 +1376,7 @@ public class BallProjectile extends ThrowableItemProjectile {
         // 会打架的怪物有可能把球接下来（按难度掷概率），接着蓄力扔回来 ——
         // 接住了就整颗球归它，命中伤害自然不结算
         if (entity instanceof Mob mob && BallMobAI.tryCatchBall(mob, this)) {
+            MoreBalls.LOGGER.info("[ball][伤害] 早退：{} 接住了球（Mob 接球），不结算伤害", mob.getName().getString());
             return;
         }
 
@@ -1388,6 +1393,13 @@ public class BallProjectile extends ThrowableItemProjectile {
                 && entity instanceof LivingEntity other
                 && other != this.getOwner()
                 && isSameSide(this.getOwner(), other)) {
+            MoreBalls.LOGGER.info("[ball][伤害] 早退：{}（kindness={}）判定为「同阵营」被弹开，不结算伤害。"
+                            + " 发射者={} 是敌对={}，目标={} 是敌对={}",
+                    other.getName().getString(), this.profile().kindness(),
+                    String.valueOf(this.getOwner()),
+                    this.getOwner() instanceof net.minecraft.world.entity.monster.Enemy,
+                    other.getName().getString(),
+                    other instanceof net.minecraft.world.entity.monster.Enemy);
             this.bounceOffEntity(other);
             this.friendlyBounced = true;   // 见 onHit：别让二次 bounceBack 覆盖它
             return;

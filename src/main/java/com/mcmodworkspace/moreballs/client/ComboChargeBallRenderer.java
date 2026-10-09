@@ -330,6 +330,10 @@ public class ComboChargeBallRenderer implements SpecialModelRenderer<int[]> {
      * {@link #PLANE_Z_BACK} 跨到 {@link #PLANE_Z_FRONT}，UV 取该像素的那一条边
      * （用 {@code 0.1 / 0.9} 落在像素内部，避免采到相邻像素）。</p>
      */
+    /** 侧壁 UV 诊断只打一次 */
+    private static final java.util.concurrent.atomic.AtomicBoolean SIDE_DIAG =
+            new java.util.concurrent.atomic.AtomicBoolean(false);
+
     private static void drawSideFaces(PoseStack poseStack, SubmitNodeCollector collector,
                                       Identifier texture, NativeImage img, int light, int overlay) {
         // ⚠️ 这里**不能**自己去 readTexture(texture)：那张图是注册在 TextureManager 的
@@ -341,6 +345,13 @@ public class ComboChargeBallRenderer implements SpecialModelRenderer<int[]> {
         RenderType type = RenderTypes.itemCutout(texture);
         float z0 = PLANE_Z_BACK;
         float z1 = PLANE_Z_FRONT;
+        // 诊断（只打一次）：确认侧壁采的 UV 是「该像素自己那一格」
+        if (SIDE_DIAG.compareAndSet(false, true)) {
+            MoreBalls.LOGGER.info("[ball][弩] 侧壁采样诊断：图 {}x{}，z {}..{}，"
+                            + "上/下边 UV = u(px+0.25..px+0.75)/16、v(py+0.5)/16；"
+                            + "左/右边 UV = u(px+0.5)/16、v(py+0.25..py+0.75)/16",
+                    img.getWidth(), img.getHeight(), z0, z1);
+        }
         collector.submitCustomGeometry(poseStack, type, (pose, buffer) -> {
             // ⚠️ **必须合并连续的边**，不能逐像素画。
             //
