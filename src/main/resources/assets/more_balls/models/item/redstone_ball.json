@@ -1,4 +1,4 @@
 {
   "parent": "minecraft:item/generated",
-  "textures": { "layer0": "more_balls:item/copper_ball" }
+  "textures": { "layer0": "more_balls:item/redstone_ball" }
 }
