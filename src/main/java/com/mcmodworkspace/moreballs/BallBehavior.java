@@ -185,7 +185,7 @@ public final class BallBehavior {
             NOT_TOUGH, DEFAULT_BOUNCE, DEFAULT_CHARGE_LEVELS, DEFAULT_RARITY,
             DEFAULT_SOUND, List.of(), NOT_SENSE, NOT_MELT, NOT_MOLTEN, NOT_MAGNET, null, 1.0F, NOT_TRANSMUTE, false,
             // 2.6.0 新增的五个词条：智慧 / 善良 / 导电 / 引雷阈值 / 电击
-            false, false, false, NOT_THUNDER, false,
+            0, false, false, NOT_THUNDER, false,
             false);   // glint（【金光闪闪】）—— 金球在 override 里单独特判
 
     /**
@@ -344,12 +344,12 @@ public final class BallBehavior {
         // 破碎 60% 掉 1–2 紫水晶
         override(ModItems.AMETHYST_BALL.get(), DEFAULT
                 .withDamage(5.0F)
-                .withToughness(15)
+                .withToughness(10)
                 .withWeight(5)
                 .withChargeLevels(4)
                 .withBounce(7)
                 .withRarity(5)
-                .withWisdom(true)
+                .withWisdom(5)
                 .withKindness(true)
                 // 碰撞音为紫水晶块破坏音（作者指定）
                 .withSoundType(SoundType.AMETHYST)
@@ -575,7 +575,7 @@ public final class BallBehavior {
             float entityScale,
             float transmuteChance,
             boolean magnetic,
-            boolean wisdom,
+            int wisdom,
             boolean kindness,
             boolean conduction,
             int thunderThreshold,
@@ -808,9 +808,9 @@ public final class BallBehavior {
          * 【智慧】—— 发射后扫描周围 10 格内<b>没有方块遮挡、可以直接抵达</b>的敌对生物
          * （或正处于仇恨中的中立生物），找到最近的立刻锁定，把速度改成朝它飞。
          *
-         * <p>不写就是 {@code false}。</p>
+         * <p>不写就是 {@code 0}（没有这个性质）。</p>
          */
-        public BallProfile withWisdom(boolean value) {
+        public BallProfile withWisdom(int value) {
             return new BallProfile(damage, cooldownTicks, velocity, inaccuracy, weight, toughness,
                     bounce, chargeLevels, rarity, sound, drops, sense, meltThreshold, moltenThreshold, magnetRadius,
                     morphBlock, entityScale, transmuteChance, magnetic, value, kindness, conduction, thunderThreshold, shockDamage, glint);

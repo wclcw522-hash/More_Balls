@@ -868,7 +868,7 @@ public class BallProjectile extends ThrowableItemProjectile {
         // 而且搜索窗口只有前 40 刻。结果：怪物扔回来的球出手时方向已经对着目标，
         // 那一次锁定几乎不改变弹道，之后再也不会拐弯 —— 表现就是「智慧不生效」。
         // 改成周期性重锁：持续跟踪目标，直到球失效。
-        if (this.profile().wisdom() && this.wisdomRelockCooldown-- <= 0) {
+        if (this.profile().wisdom() > 0 && this.wisdomRelockCooldown-- <= 0) {
             this.wisdomRelockCooldown = WISDOM_RELOCK_INTERVAL;
             this.tryWisdomLock();
         }

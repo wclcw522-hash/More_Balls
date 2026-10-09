@@ -157,11 +157,11 @@ public final class BallFragments {
     public record Fragment(double toughness, double sense, double melt, double molten,
                            double magnet, double transmute,
                            boolean morph, boolean magnetic, boolean glint,
-                           boolean wisdom, boolean kindness, boolean conduction,
+                           int wisdom, boolean kindness, boolean conduction,
                            boolean thunder, boolean shock) {
 
         public static final Fragment EMPTY =
-                new Fragment(0, 0, 0, 0, 0, 0, false, false, false, false, false, false, false, false);
+                new Fragment(0, 0, 0, 0, 0, 0, false, false, false, 0, false, false, false, false);
 
         /** 按分数缩放一份词条（半球 0.5、四分之一 0.25） */
         public Fragment scaled(double factor) {
@@ -177,7 +177,7 @@ public final class BallFragments {
                     melt + other.melt, molten + other.molten,
                     magnet + other.magnet, transmute + other.transmute,
                     morph || other.morph, magnetic || other.magnetic, glint || other.glint,
-                    wisdom || other.wisdom, kindness || other.kindness,
+                    wisdom + other.wisdom, kindness || other.kindness,
                     conduction || other.conduction, thunder || other.thunder,
                     shock || other.shock);
         }
@@ -264,7 +264,7 @@ public final class BallFragments {
         int morphs = (a.morph() ? 1 : 0) + (b.morph() ? 1 : 0) + (c.morph() ? 1 : 0) + (d.morph() ? 1 : 0);
         int magnets = (a.magnetic() ? 1 : 0) + (b.magnetic() ? 1 : 0) + (c.magnetic() ? 1 : 0) + (d.magnetic() ? 1 : 0);
         int glints = (a.glint() ? 1 : 0) + (b.glint() ? 1 : 0) + (c.glint() ? 1 : 0) + (d.glint() ? 1 : 0);
-        int wisdoms = (a.wisdom() ? 1 : 0) + (b.wisdom() ? 1 : 0) + (c.wisdom() ? 1 : 0) + (d.wisdom() ? 1 : 0);
+        int wisdoms = (a.wisdom() > 0 ? 1 : 0) + (b.wisdom() > 0 ? 1 : 0) + (c.wisdom() > 0 ? 1 : 0) + (d.wisdom() > 0 ? 1 : 0);
         int kindnesses = (a.kindness() ? 1 : 0) + (b.kindness() ? 1 : 0) + (c.kindness() ? 1 : 0) + (d.kindness() ? 1 : 0);
         int conductions = (a.conduction() ? 1 : 0) + (b.conduction() ? 1 : 0) + (c.conduction() ? 1 : 0) + (d.conduction() ? 1 : 0);
         int thunders = (a.thunder() ? 1 : 0) + (b.thunder() ? 1 : 0) + (c.thunder() ? 1 : 0) + (d.thunder() ? 1 : 0);
@@ -276,7 +276,8 @@ public final class BallFragments {
                 morphs >= QUAD_TRAIT_THRESHOLD,
                 magnets >= QUAD_TRAIT_THRESHOLD,
                 glints >= QUAD_TRAIT_THRESHOLD,
-                wisdoms >= QUAD_TRAIT_THRESHOLD,
+                // 【智慧N】是**带数值**的词条：分量够（≥2 份）才保留，保留时给四份之和
+                (wisdoms >= QUAD_TRAIT_THRESHOLD) ? (int) Math.max(1, Math.round(sum.wisdom())) : 0,
                 kindnesses >= QUAD_TRAIT_THRESHOLD,
                 conductions >= QUAD_TRAIT_THRESHOLD,
                 thunders >= QUAD_TRAIT_THRESHOLD,

@@ -186,9 +186,10 @@ public final class BallTooltip {
         // ===== 2.6.0 新增的五个词条 =====
 
         // 【智慧】—— 紫水晶球：发射后扫描并锁定最近的敌对目标
-        if (profile.wisdom()) {
-            out.add(Entry.of(line("tooltip.more_balls.entry.wisdom"), Kind.TRAIT,
-                    line("tooltip.more_balls.desc.wisdom")));
+        // 【智慧N】—— N 是可追踪的次数（没写就是 1）
+        if (profile.wisdom() > 0) {
+            out.add(Entry.of(Component.translatable("tooltip.more_balls.entry.wisdom", profile.wisdom()),
+                    Kind.TRAIT, line("tooltip.more_balls.desc.wisdom")));
         }
 
         // 【善良】—— 不伤害友好与中立生物，碰到就反弹

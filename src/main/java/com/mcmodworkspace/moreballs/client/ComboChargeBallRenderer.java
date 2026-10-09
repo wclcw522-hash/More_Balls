@@ -342,51 +342,108 @@ public class ComboChargeBallRenderer implements SpecialModelRenderer<int[]> {
         float z0 = PLANE_Z_BACK;
         float z1 = PLANE_Z_FRONT;
         collector.submitCustomGeometry(poseStack, type, (pose, buffer) -> {
-            for (int py = 0; py < 16; py++) {
-                for (int px = 0; px < 16; px++) {
-                    if (img.getLuminanceOrAlpha(px, py) == 0) {
-                        continue;
-                    }
-                    float x0 = px;
-                    float x1 = px + 1.0F;
-                    float y0 = py;
-                    float y1 = py + 1.0F;
-                    // ⚠️ UV 必须落在像素**内部**，不能取像素边界。
-                    //    取边界（px/16）时采样会跨到相邻像素，而轮廓上的像素边缘往往半透明
-                    //    → 采到透明处 → 侧壁出现一条条黑缝（作者反馈「侧面只有很稀疏的黑线条」）。
-                    //    往内缩到像素的 25% / 75% 处即可稳定采到自己这个像素。
-                    float u0 = (px + 0.25F) / 16.0F;
-                    float u1 = (px + 0.75F) / 16.0F;
-                    float v0 = (py + 0.25F) / 16.0F;
-                    float v1 = (py + 0.75F) / 16.0F;
+            // ⚠️ **必须合并连续的边**，不能逐像素画。
+            //
+            //    逐像素画时顶点数最多 256×4 边×4 顶点 = 4096 —— 超过
+            //    submitCustomGeometry 的缓冲区容量，几何会整个错乱
+            //    （作者 2026-10-09 截图：一屏彩色大方块）。
+            //    原版 bakeSideFaces 就是按「一段连续的外露边合并成一个四边形」来做的。
+            //    合并后最多 16×4 = 64 个四边形 = 256 个顶点，稳稳够用。
 
-                    // 上边（y = py）外露 → 朝 -Y 的侧壁
-                    if (py == 0 || img.getLuminanceOrAlpha(px, py - 1) == 0) {
-                        vertexRaw(buffer, pose, x0, y0, z1, u0, v0, 0, -1, 0, light, overlay);
-                        vertexRaw(buffer, pose, x0, y0, z0, u0, v0, 0, -1, 0, light, overlay);
-                        vertexRaw(buffer, pose, x1, y0, z0, u1, v0, 0, -1, 0, light, overlay);
-                        vertexRaw(buffer, pose, x1, y0, z1, u1, v0, 0, -1, 0, light, overlay);
+            // ---- 水平方向：每一行里，把连续外露的「上边」合并 ----
+            for (int py = 0; py < 16; py++) {
+                int start = -1;
+                for (int px = 0; px <= 16; px++) {
+                    boolean exposed = px < 16
+                            && img.getLuminanceOrAlpha(px, py) != 0
+                            && (py == 0 || img.getLuminanceOrAlpha(px, py - 1) == 0);
+                    if (exposed && start < 0) {
+                        start = px;
+                    } else if (!exposed && start >= 0) {
+                        // [start, px) 这一段的上边全部外露 —— 一个长条搞定
+                        float xa = start;
+                        float xb = px;
+                        float y = py;
+                        float ua = (start + 0.25F) / 16.0F;
+                        float ub = (px - 1 + 0.75F) / 16.0F;
+                        float v = (py + 0.5F) / 16.0F;
+                        vertexRaw(buffer, pose, xa, y, z1, ua, v, 0, -1, 0, light, overlay);
+                        vertexRaw(buffer, pose, xa, y, z0, ua, v, 0, -1, 0, light, overlay);
+                        vertexRaw(buffer, pose, xb, y, z0, ub, v, 0, -1, 0, light, overlay);
+                        vertexRaw(buffer, pose, xb, y, z1, ub, v, 0, -1, 0, light, overlay);
+                        start = -1;
                     }
-                    // 下边（y = py+1）外露 → 朝 +Y
-                    if (py == 15 || img.getLuminanceOrAlpha(px, py + 1) == 0) {
-                        vertexRaw(buffer, pose, x0, y1, z0, u0, v1, 0, 1, 0, light, overlay);
-                        vertexRaw(buffer, pose, x0, y1, z1, u0, v1, 0, 1, 0, light, overlay);
-                        vertexRaw(buffer, pose, x1, y1, z1, u1, v1, 0, 1, 0, light, overlay);
-                        vertexRaw(buffer, pose, x1, y1, z0, u1, v1, 0, 1, 0, light, overlay);
+                }
+            }
+            // ---- 每一行里，把连续外露的「下边」合并 ----
+            for (int py = 0; py < 16; py++) {
+                int start = -1;
+                for (int px = 0; px <= 16; px++) {
+                    boolean exposed = px < 16
+                            && img.getLuminanceOrAlpha(px, py) != 0
+                            && (py == 15 || img.getLuminanceOrAlpha(px, py + 1) == 0);
+                    if (exposed && start < 0) {
+                        start = px;
+                    } else if (!exposed && start >= 0) {
+                        float xa = start;
+                        float xb = px;
+                        float y = py + 1.0F;
+                        float ua = (start + 0.25F) / 16.0F;
+                        float ub = (px - 1 + 0.75F) / 16.0F;
+                        float v = (py + 0.5F) / 16.0F;
+                        vertexRaw(buffer, pose, xa, y, z0, ua, v, 0, 1, 0, light, overlay);
+                        vertexRaw(buffer, pose, xa, y, z1, ua, v, 0, 1, 0, light, overlay);
+                        vertexRaw(buffer, pose, xb, y, z1, ub, v, 0, 1, 0, light, overlay);
+                        vertexRaw(buffer, pose, xb, y, z0, ub, v, 0, 1, 0, light, overlay);
+                        start = -1;
                     }
-                    // 左边（x = px）外露 → 朝 -X
-                    if (px == 0 || img.getLuminanceOrAlpha(px - 1, py) == 0) {
-                        vertexRaw(buffer, pose, x0, y1, z1, u0, v1, -1, 0, 0, light, overlay);
-                        vertexRaw(buffer, pose, x0, y0, z1, u0, v0, -1, 0, 0, light, overlay);
-                        vertexRaw(buffer, pose, x0, y0, z0, u0, v0, -1, 0, 0, light, overlay);
-                        vertexRaw(buffer, pose, x0, y1, z0, u0, v1, -1, 0, 0, light, overlay);
+                }
+            }
+            // ---- 垂直方向：每一列里，把连续外露的「左边」合并 ----
+            for (int px = 0; px < 16; px++) {
+                int start = -1;
+                for (int py = 0; py <= 16; py++) {
+                    boolean exposed = py < 16
+                            && img.getLuminanceOrAlpha(px, py) != 0
+                            && (px == 0 || img.getLuminanceOrAlpha(px - 1, py) == 0);
+                    if (exposed && start < 0) {
+                        start = py;
+                    } else if (!exposed && start >= 0) {
+                        float ya = start;
+                        float yb = py;
+                        float x = px;
+                        float va = (start + 0.25F) / 16.0F;
+                        float vb = (py - 1 + 0.75F) / 16.0F;
+                        float u = (px + 0.5F) / 16.0F;
+                        vertexRaw(buffer, pose, x, yb, z1, u, vb, -1, 0, 0, light, overlay);
+                        vertexRaw(buffer, pose, x, ya, z1, u, va, -1, 0, 0, light, overlay);
+                        vertexRaw(buffer, pose, x, ya, z0, u, va, -1, 0, 0, light, overlay);
+                        vertexRaw(buffer, pose, x, yb, z0, u, vb, -1, 0, 0, light, overlay);
+                        start = -1;
                     }
-                    // 右边（x = px+1）外露 → 朝 +X
-                    if (px == 15 || img.getLuminanceOrAlpha(px + 1, py) == 0) {
-                        vertexRaw(buffer, pose, x1, y0, z0, u1, v0, 1, 0, 0, light, overlay);
-                        vertexRaw(buffer, pose, x1, y0, z1, u1, v0, 1, 0, 0, light, overlay);
-                        vertexRaw(buffer, pose, x1, y1, z1, u1, v1, 1, 0, 0, light, overlay);
-                        vertexRaw(buffer, pose, x1, y1, z0, u1, v1, 1, 0, 0, light, overlay);
+                }
+            }
+            // ---- 每一列里，把连续外露的「右边」合并 ----
+            for (int px = 0; px < 16; px++) {
+                int start = -1;
+                for (int py = 0; py <= 16; py++) {
+                    boolean exposed = py < 16
+                            && img.getLuminanceOrAlpha(px, py) != 0
+                            && (px == 15 || img.getLuminanceOrAlpha(px + 1, py) == 0);
+                    if (exposed && start < 0) {
+                        start = py;
+                    } else if (!exposed && start >= 0) {
+                        float ya = start;
+                        float yb = py;
+                        float x = px + 1.0F;
+                        float va = (start + 0.25F) / 16.0F;
+                        float vb = (py - 1 + 0.75F) / 16.0F;
+                        float u = (px + 0.5F) / 16.0F;
+                        vertexRaw(buffer, pose, x, ya, z0, u, va, 1, 0, 0, light, overlay);
+                        vertexRaw(buffer, pose, x, ya, z1, u, va, 1, 0, 0, light, overlay);
+                        vertexRaw(buffer, pose, x, yb, z1, u, vb, 1, 0, 0, light, overlay);
+                        vertexRaw(buffer, pose, x, yb, z0, u, vb, 1, 0, 0, light, overlay);
+                        start = -1;
                     }
                 }
             }
