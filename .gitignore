@@ -48,3 +48,12 @@ TODO.local.md
 .claude/
 CLAUDE.local.md
 .cursorrules
+
+# ---------- AI 助手的内部规程 ----------
+# 这些文件只对本项目的 AI 助手有意义（编写规范、踩坑记录、个人工作流约定），
+# 不属于这个模组本身 —— 不进公开仓库，本地保留即可。
+AGENTS.md
+CLAUDE.md
+.claude/
+.cursor/
+.cursorrules
