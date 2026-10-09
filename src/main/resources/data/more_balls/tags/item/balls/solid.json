@@ -7,6 +7,8 @@
     "more_balls:gold_ball",
     "more_balls:amethyst_ball",
     "more_balls:copper_ball",
+      "more_balls:redstone_ball",
+      "more_balls:diamond_ball",
     "more_balls:combo_ball"
   ]
 }

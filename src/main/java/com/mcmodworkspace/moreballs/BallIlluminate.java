@@ -15,6 +15,7 @@ import net.minecraft.world.entity.npc.villager.AbstractVillager;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.level.ClipContext;
 import net.minecraft.world.phys.AABB;
+import net.minecraft.world.phys.shapes.CollisionContext;
 import net.minecraft.world.phys.BlockHitResult;
 import net.minecraft.world.phys.HitResult;
 import net.minecraft.world.phys.Vec3;
@@ -214,8 +215,12 @@ public final class BallIlluminate {
      */
     private static double findGroundY(ServerLevel level, Vec3 from) {
         Vec3 to = from.add(0.0D, -MAX_GROUND_SEARCH, 0.0D);
+        // ⚠️ 最后一个参数是 **CollisionContext**，不是 Entity。
+        //    那个收 Entity 的重载内部会走 `CollisionContext.of(entity)`，
+        //    传 null 就是 Objects.requireNonNull 直接 NPE（作者 2026-10-10 实测崩服）。
+        //    「只想知道地面高度」用空上下文即可。
         BlockHitResult hit = level.clip(new ClipContext(
-                from, to, ClipContext.Block.COLLIDER, ClipContext.Fluid.NONE, (Entity) null));
+                from, to, ClipContext.Block.COLLIDER, ClipContext.Fluid.NONE, CollisionContext.empty()));
         if (hit.getType() == HitResult.Type.MISS) {
             return Double.NaN;
         }

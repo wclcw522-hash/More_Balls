@@ -8,6 +8,8 @@ import net.minecraft.world.effect.MobEffectCategory;
 import net.minecraft.world.effect.MobEffectInstance;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.phys.Vec3;
+import net.minecraft.util.RandomSource;
+import net.minecraft.world.entity.Mob;
 import net.neoforged.bus.api.SubscribeEvent;
 import net.neoforged.fml.common.EventBusSubscriber;
 import net.neoforged.neoforge.event.entity.living.MobEffectEvent;
@@ -143,32 +145,64 @@ public class ShockEffect extends MobEffect {
      * 也立刻扭一下（不然要等满一个间隔才看得出反应）。</p>
      */
     public static void applyShock(LivingEntity mob) {
-        // ===== ① 运动方向 =====
-        Vec3 velocity = mob.getDeltaMovement();
-        if (velocity.lengthSqr() > 1.0E-6D) {
-            // 绕 Y 轴随机旋转一个角度。注意 Vec3#yRot 收的是**弧度**（内部走 Mth.cos/sin）
-            float radians = (mob.getRandom().nextFloat() - 0.5F) * 2.0F * (float) Math.PI;
-            mob.setDeltaMovement(velocity.yRot(radians));
-            // 改了速度要标脏，否则客户端还按旧速度插值，看起来是「瞬移」而不是「转向」
-            mob.hurtMarked = true;
-        }
-
-        // ===== ② 视角方向 =====
         if (mob instanceof ServerPlayer player) {
-            float yaw = player.getYRot() + (player.getRandom().nextFloat() - 0.5F) * YAW_SWING;
-            float pitch = Mth.clamp(
-                    player.getXRot() + (player.getRandom().nextFloat() - 0.5F) * PITCH_SWING,
-                    -90.0F, 90.0F);
-            player.setYRot(yaw);
-            player.setXRot(pitch);
-            // 服务端改朝向必须发包，客户端才会真的扭头。
-            // 坐标原样传回去，所以只会转视角、不会把人挪走。
-            player.connection.teleport(player.getX(), player.getY(), player.getZ(), yaw, pitch);
+            applyToPlayer(player);
+        } else if (mob instanceof Mob creature) {
+            applyToMob(creature);
         } else {
-            // 非玩家生物：没有客户端视角，扭身体朝向即可（同时带上头部朝向，看着更自然）
+            // 连 Mob 都不是（盔甲架那类），只能扭一下朝向
             float yaw = mob.getYRot() + (mob.getRandom().nextFloat() - 0.5F) * YAW_SWING;
             mob.setYRot(yaw);
             mob.setYHeadRot(yaw);
         }
+    }
+
+    /** 玩家：改速度 + 发包强制扭视角 */
+    private static void applyToPlayer(ServerPlayer player) {
+        Vec3 velocity = player.getDeltaMovement();
+        if (velocity.lengthSqr() > 1.0E-6D) {
+            // 绕 Y 轴随机旋转一个角度。注意 Vec3#yRot 收的是**弧度**（内部走 Mth.cos/sin）
+            float radians = (player.getRandom().nextFloat() - 0.5F) * 2.0F * (float) Math.PI;
+            player.setDeltaMovement(velocity.yRot(radians));
+            // 改了速度要标脏，否则客户端还按旧速度插值，看起来是「瞬移」而不是「转向」
+            player.hurtMarked = true;
+        }
+
+        float yaw = player.getYRot() + (player.getRandom().nextFloat() - 0.5F) * YAW_SWING;
+        float pitch = Mth.clamp(
+                player.getXRot() + (player.getRandom().nextFloat() - 0.5F) * PITCH_SWING,
+                -90.0F, 90.0F);
+        player.setYRot(yaw);
+        player.setXRot(pitch);
+        // 服务端改朝向必须发包，客户端才会真的扭头。
+        // 坐标原样传回去，所以只会转视角、不会把人挪走。
+        player.connection.teleport(player.getX(), player.getY(), player.getZ(), yaw, pitch);
+    }
+
+    /**
+     * 非玩家生物：**必须在 AI 那一层下手**。
+     *
+     * <p>⚠️ 这里是作者 2026-10-10 反馈「【震荡】对非玩家生物无效」的根因所在：
+     * 生物的位移是 AI 驱动的 —— 无论 {@code setDeltaMovement} 还是 {@code push}，
+     * 下一刻 {@code MoveControl} 都会重新算一遍并覆盖掉，改速度等于白改。</p>
+     *
+     * <p>正确做法是改它的<b>行走目标</b>：把「想去的点」随机挪到另一个方向，
+     * {@code MoveControl} 下一 tick 就会照着这个新目标走 —— 表现上就是真的朝歪方向迈步。
+     * 同时把身体和头的朝向也扭过去，视觉上才「晕」。</p>
+     */
+    private static void applyToMob(Mob creature) {
+        RandomSource random = creature.getRandom();
+        double angle = random.nextDouble() * Math.PI * 2.0D;
+        double distance = 3.0D;
+        creature.getMoveControl().setWantedPosition(
+                creature.getX() + Math.cos(angle) * distance,
+                creature.getY(),
+                creature.getZ() + Math.sin(angle) * distance,
+                0.6D);
+
+        float yaw = (float) Math.toDegrees(angle);
+        creature.setYRot(yaw);
+        creature.setYHeadRot(yaw);
+        creature.yBodyRot = yaw;
     }
 }

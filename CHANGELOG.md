@@ -5,7 +5,59 @@
 > 26.3 线已冻结（那边 Curios 与 NeoForge 不兼容，饰品功能没法测）。
 > 26.3 线的历史见 `[26.3更多球]_More_Balls\CHANGELOG.md`。
 
-### 0.3.4.5
+### 0.3.4.6
+
+作者报了三个问题，其中一个是崩服。
+
+### ① 【照明】探到生物就崩服（严重）
+
+崩溃报告：
+
+```
+java.lang.NullPointerException: Ticking entity
+  at CollisionContext.of(CollisionContext.java:25)
+  at ClipContext.<init>(ClipContext.java:29)
+  at BallIlluminate.findGroundY(BallIlluminate.java:217)
+```
+
+**根因是我传错了参数**：`ClipContext` 的最后一个参数是 **`CollisionContext`**，
+而我写成了 `(Entity) null` —— 那个收 `Entity` 的重载内部会走
+`CollisionContext.of(entity)`，传 null 立刻 `requireNonNull` 炸掉。
+
+**修**：改用 `CollisionContext.empty()` —— 「只想知道地面高度」用空上下文就够。
+
+### ② 【震荡】对非玩家生物仍然无效
+
+`applyEffectTick` 移到 `EntityTickEvent.Post` 之后**还是没用**，因为真正的原因更深一层：
+
+**生物的位移是 AI 驱动的** —— 无论 `setDeltaMovement` 还是 `push`，
+下一刻 `MoveControl` 都会重算并覆盖掉。改速度对生物等于白改
+（玩家不受影响，因为玩家速度由客户端驱动）。
+
+**修**：`applyShock` 拆成三段，生物走 **`MoveControl.setWantedPosition`** ——
+在 **AI 那一层**把它的「想去的点」随机挪到另一个方向，
+`MoveControl` 下一 tick 就会照这个目标走，表现上才是真的朝歪方向迈步。
+朝向（`yRot` / `yHeadRot` / `yBodyRot`）也跟着扭。
+
+### ③ 红石球与钻石球切不动
+
+**症状**：切石机里放不进去。
+
+**根因**：切割配方的材料是 `#more_balls:balls/cuttable`，而那只是个**汇总标签**：
+
+```json
+{ "values": [ "#more_balls:balls/solid", "#more_balls:balls/hollow" ] }
+```
+
+真正决定「能不能切」的是**子分类** `balls/solid` / `balls/hollow` ——
+而 `solid.json` 里根本没有红石球和钻石球（我加新球时只补了总标签 `#balls`）。
+
+**修**：`solid.json` 补上这两颗；雪球系那边也把 `redstone_snowball` 补进 `balls/snowball.json`。
+
+**这是加新球清单里的第 10 处**，已写进 `AGENTS.md`。
+
+---
+## 0.3.4.5
 
 作者一次报了 7 个问题，逐个查修。
 
