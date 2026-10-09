@@ -205,7 +205,7 @@ public final class ModItems {
     /**
      * 空心铜球 —— 伤害 1、坚固 5、重量 2、弹射 3，带【感应2】。
      *
-     * <p><b>【引雷300】</b>：热量攒到 300 就释放一次雷电（4–9 道闪电）并清空自身热量。</p>
+     * <p><b>【引雷200】</b>：热量攒到 200 就释放一次雷电（4–9 道闪电）并清空自身热量。</p>
      */
     public static final DeferredItem<Item> HOLLOW_COPPER_BALL = ITEMS.registerItem(
             "hollow_copper_ball",

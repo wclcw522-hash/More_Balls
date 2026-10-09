@@ -22,7 +22,7 @@ import net.minecraft.world.phys.Vec3;
 import com.mcmodworkspace.moreballs.entity.BallProjectile;
 
 /**
- * 【引雷300】—— 空心铜球的热量攒够阈值后释放一次雷电。
+ * 【引雷200】—— 空心铜球的热量攒够阈值后释放一次雷电。
  *
  * <h2>规格（作者 2026-10-07 指定）</h2>
  * <ul>

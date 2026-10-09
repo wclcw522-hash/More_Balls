@@ -5,7 +5,42 @@
 > 26.3 线已冻结（那边 Curios 与 NeoForge 不兼容，饰品功能没法测）。
 > 26.3 线的历史见 `[26.3更多球]_More_Balls\CHANGELOG.md`。
 
-### 0.3.3.118
+### 0.3.3.119
+
+### 词条阈值调整（作者指定）
+
+| 球 | 词条 | 原值 | 现值 |
+|---|---|---|---|
+| **空心铁球** | 【熔融】 | 500 | **300** |
+| **空心铜球** | 【引雷】 | 300 | **200** |
+
+改动落在两个常量上：
+
+```java
+public static final int MOLTEN_THRESHOLD  = 300;   // 原 500
+public static final int THUNDER_THRESHOLD = 200;   // 原 300
+```
+
+**引用面已遍历确认**：这两个常量各只被对应的那一个球使用
+（`MOLTEN_THRESHOLD` 仅 `BallBehavior` 里的空心铁球，`THUNDER_THRESHOLD` 仅空心铜球），
+改动不会波及其它球。
+
+**tooltip 无需改动** —— 语言文件里用的是 `%1$s` 占位符，数字由代码传入：
+
+```json
+"tooltip.more_balls.entry.molten":  "【熔融%1$s】锟斤拷烫烫烫烫烫",
+"tooltip.more_balls.entry.thunder": "【引雷%1$s】左零右火，雷公助我！"
+```
+
+**顺带修正了两处过时注释**：
+
+- `BallBehavior` 里空心铁球的条目注释写的是「【熔融**1000**】」——
+  那是最初的值，2026-10-07 改 500 时没同步，现在一并纠正为 300。
+  同时在常量注释里补上了完整的数值演变记录（1000 → 500 → 300）。
+- `ModItems` 与 `BallThunder` 里描述空心铜球的「【引雷300】」「热量攒到 300」同步为 200。
+
+---
+## 0.3.3.118
 
 ### 卡顿真凶确认并修复：`enforceBallCap`
 
