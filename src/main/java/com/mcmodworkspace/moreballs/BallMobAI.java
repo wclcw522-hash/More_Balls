@@ -242,10 +242,7 @@ public final class BallMobAI {
         if (!hasHands(mob)) {
             // 诊断：作者反馈「不能拿球的怪也会向球移动」—— 如果这里被拦住的怪
             // 却在日志里出现，说明有别的路径绕过了本方法（那时再顺着日志去查）。
-            if (BALL_PICKUP_DIAG.getAndIncrement() < 5) {
-                MoreBalls.LOGGER.info("[ball][捡球] {} 没有手，拒绝捡球 —— 走到这里说明它至少进了 tryPickUpBall",
-                        mob.getType().toShortString());
-            }
+            MoreBalls.LOGGER.debug("[ball][捡球] {} 没有手，拒绝捡球", mob.getType().toShortString());
             return;
         }
 
@@ -295,21 +292,24 @@ public final class BallMobAI {
         //   **只有当球明显更近（球距 < 玩家距 / 2）时**才走过去捡；
         //   否则放弃捡球，用原来的方式继续追打目标 ——
         //   不然怪物会为了一个远处的球把玩家晾在一边。
+        // ⚠️ **没有攻击目标时直接放弃捡球**（作者 2026-10-09 实测抓到的 bug）。
+        //
+        //    原来用 `Double.MAX_VALUE` 兜底「没有目标」的距离，结果
+        //    `任何球距 < MAX_VALUE / 2` 恒成立 —— 没目标的怪 100% 会去捡球，
+        //    而且永远走不到头（日志里的 `目标距 1.797e308 / 2` 就是这个）。
+        //
+        //    作者的原意是「球比玩家近一半才优先捡球」—— 那前提是**确实有个玩家在追**。
+        //    没有目标就没有比较对象，该照原方式闲逛/索敌，不要被球牵着走。
         LivingEntity combatTarget = mob.getTarget();
-        double distanceToTarget = (combatTarget != null && combatTarget.isAlive())
-                ? mob.distanceTo(combatTarget)
-                : Double.MAX_VALUE;
+        if (combatTarget == null || !combatTarget.isAlive()) {
+            return;
+        }
+        double distanceToTarget = mob.distanceTo(combatTarget);
 
         List<BallProjectile> far = findBalls(mob, SEEK_RADIUS);
         if (!far.isEmpty()) {
             BallProjectile candidate = far.get(0);
             if (mob.distanceTo(candidate) < distanceToTarget / 2.0D) {
-                if (BALL_PICKUP_DIAG.getAndIncrement() < 5) {
-                    MoreBalls.LOGGER.info("[ball][捡球] {} 决定走向球：球距 {} < 目标距 {} / 2",
-                            mob.getType().toShortString(),
-                            String.format("%.1f", mob.distanceTo(candidate)),
-                            String.format("%.1f", distanceToTarget));
-                }
                 mob.getNavigation().moveTo(candidate, SEEK_SPEED);
             }
             return;

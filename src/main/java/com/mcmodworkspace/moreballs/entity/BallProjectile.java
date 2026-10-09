@@ -329,7 +329,8 @@ public class BallProjectile extends ThrowableItemProjectile {
 
         // 诊断日志：这条链上有好几个量（基础伤害、出手速度、击中速度），
         // 光看画面分不清是哪一环不对 —— 打出来一看就知道。
-        MoreBalls.LOGGER.info("[ball] 命中伤害 {} = 基础 {} × 速度比 {}（击中速度 {} / 出手速度 {}）",
+        // 降级为 debug —— 这条每次命中都打，实测一局刷了 24 条 INFO（作者反馈刷屏）
+        MoreBalls.LOGGER.debug("[ball] 命中伤害 {} = 基础 {} × 速度比 {}（击中速度 {} / 出手速度 {}）",
                 result, this.damage, ratio, hitSpeed, base);
         return result;
     }
