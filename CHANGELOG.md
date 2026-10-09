@@ -5,7 +5,63 @@
 > 26.3 线已冻结（那边 Curios 与 NeoForge 不兼容，饰品功能没法测）。
 > 26.3 线的历史见 `[26.3更多球]_More_Balls\CHANGELOG.md`。
 
-### 0.3.3.92
+### 0.3.3.93
+
+### ① 苦力怕扔球不伤害玩家 —— 真因：**球的主人丢了**
+
+日志给出的关键一行：
+
+```
+早退：wclcw（kindness=true）判定为「同阵营」被弹开，不结算伤害。
+     发射者=null 是敌对=false，目标=wclcw 是敌对=false
+```
+
+**`发射者=null`。** 持球苦力怕扔完球当场自爆 → `discard()` → 球的主人 UUID 查不到了。
+于是：
+
+```java
+boolean ownerHostile = null instanceof Enemy;   // false
+boolean targetHostile = false;                  // 玩家不是 Enemy
+return ownerHostile == targetHostile;           // false == false → true → 「同阵营」→ 弹开
+```
+
+**无主之球把所有人都当自己人，谁都不打。**
+
+**修法**：`kindness` 判定加前置条件 `this.getOwner() != null` ——
+**主人已经消失时无从判断「是不是自己人」，那就不弹开、照常结算伤害。**
+
+### ② 【智慧】追踪与重力解耦
+
+上一版把「追踪」和「无重力」绑成了一件事，导致**第一次命中之前连追踪都不做**。
+
+**这两件事必须分开**：
+
+| 行为 | 规则 |
+|---|---|
+| **追踪** | 只要还有次数就做 —— **包括第一次出手的飞行途中** |
+| **重力** | 第一次命中**之前**照常受重力；命中一次后无重力；次数耗尽恢复 |
+
+```java
+if (this.wisdomUsesLeft > 0) { ...追踪... }                       // 追踪独立
+boolean tracked = this.wisdomUsesLeft < this.profile().wisdom();   // 已命中过
+if (tracked && this.wisdomUsesLeft > 0) setNoGravity(true);
+else                                   还原重力;
+```
+
+### ③ 怪物投掷起点抬高
+
+原来 `origin` 用 `mob.getY()` —— **脚底**。怪站在一格深的洞里时球贴地起手，**直接撞在坑壁上出不去**。
+
+改成**身体中部**（`getY() + getBbHeight() * 2/3`），与瞄准点用同一套参照。
+
+### ④ 弩侧壁 UV —— 仍未结案，加了计数诊断
+
+作者反馈「侧面是正面被拉长贴上去的」。代码上侧壁取的是该像素自己那一格的 UV，
+理论上该是拉伸像素而不是正面。**已加四边形计数日志**（上/下/左/右各画了几个），
+下次渲染时能看出是「四条边都画了但 UV 错」还是「某几条边根本没提交」。
+
+---
+## 0.3.3.92
 
 ### 【智慧x】重力改为三段式（作者修正）
 

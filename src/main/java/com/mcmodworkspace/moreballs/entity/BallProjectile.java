@@ -877,22 +877,30 @@ public class BallProjectile extends ThrowableItemProjectile {
             // 首次初始化剩余次数
             if (this.wisdomUsesLeft < 0) {
                 this.wisdomUsesLeft = this.profile().wisdom();
+                this.wisdomGravityBefore = this.isNoGravity();   // 记下原始重力状态
             }
             // 【智慧x】的三段式重力（作者 2026-10-09 修正）：
             //   第一次命中**之前** —— 照常受重力（正常弹道，扔出去该抛就该抛）
             //   命中一次之后、次数未耗尽 —— **无视重力**，锁定目标追过去
             //   最后一次机会消耗完 —— **恢复重力**，正常掉落在原地静止
-            boolean tracking = this.wisdomUsesLeft > 0 && this.wisdomUsesLeft < this.profile().wisdom();
-            if (tracking) {
-                if (!this.isNoGravity()) {
-                    this.setNoGravity(true);
-                }
+            // ⚠️ 「追踪」与「无重力」是**两件事**，不能绑在一起。
+            //    作者 2026-10-09 实测：绑在一起时第一次命中之前连追踪都不做了。
+            //
+            //   追踪：只要还有次数就一直做（包括第一次出手的飞行途中）
+            //   重力：第一次命中**之前**照常受重力；命中一次后改用无重力飞行；
+            //         次数耗尽后恢复重力，让它正常掉落静止
+            if (this.wisdomUsesLeft > 0) {
                 if (this.wisdomRelockCooldown-- <= 0) {
                     this.wisdomRelockCooldown = WISDOM_RELOCK_INTERVAL;
                     this.tryWisdomLock();
                 }
-            } else if (this.isNoGravity() && this.wisdomUsesLeft <= 0) {
-                // 次数耗尽：把重力还回来
+            }
+            boolean tracked = this.wisdomUsesLeft < this.profile().wisdom();   // 已经命中过至少一次
+            if (tracked && this.wisdomUsesLeft > 0) {
+                if (!this.isNoGravity()) {
+                    this.setNoGravity(true);
+                }
+            } else if (this.isNoGravity()) {
                 this.setNoGravity(this.wisdomGravityBefore);
             }
         }
@@ -1389,7 +1397,13 @@ public class BallProjectile extends ThrowableItemProjectile {
         // 阵营用原版的 {@link Enemy} 接口划分：僵尸 / 骷髅 / 苦力怕 / 掠夺者实现它，
         // 中立（猪 / 末影人）与友好（村民 / 铁傀儡）不实现 ——
         // 比按 MobCategory 分类更准，也自动涵盖其它模组添加的生物。
-        if (this.profile().kindness()
+        // ⚠️ 前提是**还知道发射者是谁**。发射者已经消失时（典型的：持球苦力怕扔完球
+        //    当场自爆，球的主人 UUID 查不到了）无从判断「是不是自己人」——
+        //    此时**不弹开、照常结算伤害**。
+        //    否则 owner 为 null 会让 isSameSide 恒返回 true，那颗球就谁都不打
+        //    （作者 2026-10-09 实测：苦力怕扔的紫水晶球打玩家不掉血）。
+        if (this.getOwner() != null
+                && this.profile().kindness()
                 && entity instanceof LivingEntity other
                 && other != this.getOwner()
                 && isSameSide(this.getOwner(), other)) {

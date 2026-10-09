@@ -361,6 +361,7 @@ public class ComboChargeBallRenderer implements SpecialModelRenderer<int[]> {
             //    原版 bakeSideFaces 就是按「一段连续的外露边合并成一个四边形」来做的。
             //    合并后最多 16×4 = 64 个四边形 = 256 个顶点，稳稳够用。
 
+            int nTop = 0, nBottom = 0, nLeft = 0, nRight = 0;
             // ---- 水平方向：每一行里，把连续外露的「上边」合并 ----
             for (int py = 0; py < 16; py++) {
                 int start = -1;
@@ -382,6 +383,7 @@ public class ComboChargeBallRenderer implements SpecialModelRenderer<int[]> {
                         vertexRaw(buffer, pose, xa, y, z0, ua, v, 0, -1, 0, light, overlay);
                         vertexRaw(buffer, pose, xb, y, z0, ub, v, 0, -1, 0, light, overlay);
                         vertexRaw(buffer, pose, xb, y, z1, ub, v, 0, -1, 0, light, overlay);
+                        nTop++;
                         start = -1;
                     }
                 }
@@ -406,6 +408,7 @@ public class ComboChargeBallRenderer implements SpecialModelRenderer<int[]> {
                         vertexRaw(buffer, pose, xa, y, z1, ua, v, 0, 1, 0, light, overlay);
                         vertexRaw(buffer, pose, xb, y, z1, ub, v, 0, 1, 0, light, overlay);
                         vertexRaw(buffer, pose, xb, y, z0, ub, v, 0, 1, 0, light, overlay);
+                        nBottom++;
                         start = -1;
                     }
                 }
@@ -430,6 +433,7 @@ public class ComboChargeBallRenderer implements SpecialModelRenderer<int[]> {
                         vertexRaw(buffer, pose, x, ya, z1, u, va, -1, 0, 0, light, overlay);
                         vertexRaw(buffer, pose, x, ya, z0, u, va, -1, 0, 0, light, overlay);
                         vertexRaw(buffer, pose, x, yb, z0, u, vb, -1, 0, 0, light, overlay);
+                        nLeft++;
                         start = -1;
                     }
                 }
@@ -454,9 +458,14 @@ public class ComboChargeBallRenderer implements SpecialModelRenderer<int[]> {
                         vertexRaw(buffer, pose, x, ya, z1, u, va, 1, 0, 0, light, overlay);
                         vertexRaw(buffer, pose, x, yb, z1, u, vb, 1, 0, 0, light, overlay);
                         vertexRaw(buffer, pose, x, yb, z0, u, vb, 1, 0, 0, light, overlay);
+                        nRight++;
                         start = -1;
                     }
                 }
+            }
+            if (SIDE_DIAG.compareAndSet(false, true)) {
+                MoreBalls.LOGGER.info("[ball][弩] 侧壁四边形计数：上={} 下={} 左={} 右={}（总顶点 {}）",
+                        nTop, nBottom, nLeft, nRight, (nTop + nBottom + nLeft + nRight) * 4);
             }
         });
     }

@@ -624,7 +624,12 @@ public final class BallMobAI {
         // ⚠️ 高度也必须落在这条线上 —— 只在水平方向前移、高度照眼睛算的话，
         //    球就脱离了连线；紧接着的爆炸推力沿「爆心 → 球」方向推，一偏就偏到底。
         //    整点都在线上，球才会被爆炸**沿着连线**朝目标送出去（作者要求的「拿爆炸当发射药」）。
-        Vec3 origin = new Vec3(mob.getX(), mob.getY(), mob.getZ());
+        // ⚠️ 起点取**身体中部**而不是脚底（作者 2026-10-09 反馈：怪站在一格深的洞里
+        //    扔球时球贴地起手，直接撞在坑壁上出不去）。
+        //    用身高的 2/3 处，与瞄准点的「上三分之一」保持同一套参照。
+        Vec3 origin = new Vec3(mob.getX(),
+                mob.getY() + mob.getBbHeight() * 2.0D / 3.0D,
+                mob.getZ());
         Vec3 forward;
         if (target != null) {
             Vec3 aim = new Vec3(target.getX(),
