@@ -70,7 +70,11 @@ public class ComboChargeBallRenderer implements SpecialModelRenderer<int[]> {
     private static final float PLANE_Z_FRONT = 8.5F;
 
     /** 背面的 z（略微靠后，避免与正面共面导致 z-fighting） */
-    private static final float PLANE_Z_BACK = 7.4F;
+    private static final float PLANE_Z_BACK = 7.5F;   // 照原版：from z=7.5F
+
+    /** 侧壁的 z 范围 —— 照原版 bakeSideFaces 的 from.z / to.z */
+    private static final float SIDE_Z_FROM = 7.5F;
+    private static final float SIDE_Z_TO = 8.5F;
 
     private static final float MIN = 0.0F;
     private static final float MAX = 16.0F;
@@ -318,27 +322,138 @@ public class ComboChargeBallRenderer implements SpecialModelRenderer<int[]> {
     /**
      * 给平面补<b>侧壁</b>，让它看起来是一块有厚度的挤出板而不是一片纸。
      *
-     * <h2>为什么必须自己画侧壁</h2>
-     * <p>{@code minecraft:special} <b>不渲染 base 的几何</b> —— 整把弩的外观全靠本渲染器提交。
-     * 原版 2D 物品走 {@code ItemModelGenerator.bakeExtrudedSprite()} + {@code bakeSideFaces()}，
-     * 会生成正反面<b>加四周侧壁</b>；而这里之前只提交了一个平面，
-     * 于是弩拿在手上是「薄薄一层」（作者 2026-10-09 反馈）。</p>
+     * <h2>实现完全照抄原版 {@code ItemModelGenerator.bakeSideFaces}</h2>
+     * <p>原版 2D 物品走 {@code bakeExtrudedSprite()} + {@code bakeSideFaces()}，
+     * 而 {@code minecraft:special} 不渲染 base 的几何 —— 所以这里把原版那段搬过来。</p>
      *
-     * <h2>做法</h2>
-     * <p>照原版 {@code bakeSideFaces} 的思路：扫一遍贴图，对每个<b>不透明</b>像素检查上下左右
-     * 四邻（越界视为透明），凡外露的那条边就生成一个四边形，{@code z} 从
-     * {@link #PLANE_Z_BACK} 跨到 {@link #PLANE_Z_FRONT}，UV 取该像素的那一条边
-     * （用 {@code 0.1 / 0.9} 落在像素内部，避免采到相邻像素）。</p>
+     * <p><b>照着抄的四个关键点</b>（之前自己瞎写，四处全错）：</p>
+     * <ol>
+     *   <li><b>逐像素一条边一个四边形</b>，不做合并 —— 合并之后 UV 没法沿边正确展开，
+     *       看起来就是「侧面被拉长」</li>
+     *   <li><b>y 用 {@code 16 - y}</b> 翻转（翻的是像素的<b>上边缘</b>）。
+     *       之前写 {@code 15 - py}，整体错开一格</li>
+     *   <li><b>UV 内缩 0.1</b>，且<b>垂直边的 v 要反向</b>（原版 if/else 那两行）</li>
+     *   <li><b>z 是 7.5 ~ 8.5</b>（之前写 7.4，底面因此缺一段）</li>
+     * </ol>
      */
+    private static void drawSideFaces(PoseStack poseStack, SubmitNodeCollector collector,
+                                      Identifier texture, NativeImage img, int light, int overlay) {
+        // ⚠️ 这里**不能**自己去 readTexture(texture)：那张图是注册在 TextureManager 的
+        //    动态纹理，ResourceManager 读不到（两套系统），readTexture 恒返回 null。
+        //    像素由 bake() 通过 COMPOSED_PIXELS 传进来。
+        if (img == null || img.isClosed()) {
+            return;
+        }
+        RenderType type = RenderTypes.itemCutout(texture);
+        float zFrom = SIDE_Z_FROM;
+        float zTo = SIDE_Z_TO;
+        int w = img.getWidth();
+        int h = img.getHeight();
+        collector.submitCustomGeometry(poseStack, type, (pose, buffer) -> {
+            int quads = 0;
+            for (int y = 0; y < h; y++) {
+                for (int x = 0; x < w; x++) {
+                    if (!isOpaque(img, x, y)) {
+                        continue;
+                    }
+                    for (SideDir dir : SideDir.values()) {
+                        // 该方向的邻居是透明（或越界）→ 这条边外露
+                        int nx = x + dir.stepX;
+                        int ny = y + dir.stepY;
+                        if (isOpaque(img, nx, ny)) {
+                            continue;
+                        }
+
+                        // ===== UV：照原版 u/v 的取法 =====
+                        float u0 = x + 0.1F;
+                        float u1 = x + 1.0F - 0.1F;
+                        float v0;
+                        float v1;
+                        if (dir.horizontal) {
+                            v0 = y + 0.1F;
+                            v1 = y + 1.0F - 0.1F;
+                        } else {
+                            v0 = y + 1.0F - 0.1F;
+                            v1 = y + 0.1F;
+                        }
+                        u0 /= w;
+                        u1 /= w;
+                        v0 /= h;
+                        v1 /= h;
+
+                        // ===== 端点：照原版 switch 那四段 =====
+                        float startX = x;
+                        float startY = y;
+                        float endX = x;
+                        float endY = y;
+                        switch (dir) {
+                            case UP -> endX++;
+                            case DOWN -> {
+                                endX++;
+                                startY++;
+                                endY++;
+                            }
+                            case LEFT -> endY++;
+                            case RIGHT -> {
+                                startX++;
+                                endX++;
+                                endY++;
+                            }
+                        }
+
+                        // ===== 换算到 3D：缩放 + y 翻转（16 - y） =====
+                        float xScale = 16.0F / w;
+                        float yScale = 16.0F / h;
+                        startX *= xScale;
+                        endX *= xScale;
+                        startY *= yScale;
+                        endY *= yScale;
+                        startY = 16.0F - startY;
+                        endY = 16.0F - endY;
+
+                        // ===== 按方向摆 from / to（照原版 switch） =====
+                        float fx0;
+                        float fy0;
+                        float fx1;
+                        float fy1;
+                        switch (dir) {
+                            case UP -> {
+                                fx0 = startX; fy0 = startY; fx1 = endX; fy1 = startY;
+                            }
+                            case DOWN -> {
+                                fx0 = startX; fy0 = endY; fx1 = endX; fy1 = endY;
+                            }
+                            case LEFT -> {
+                                fx0 = startX; fy0 = startY; fx1 = startX; fy1 = endY;
+                            }
+                            default -> {
+                                fx0 = endX; fy0 = startY; fx1 = endX; fy1 = endY;
+                            }
+                        }
+
+                        // ===== 四顶点（照原版 from/to 构成的矩形） =====
+                        //   from 与 to 在对角线上，另外两点由它们组合出来
+                        vertexRaw(buffer, pose, fx0, fy0, zFrom, u0, v0, dir.nx, dir.ny, 0, light, overlay);
+                        vertexRaw(buffer, pose, fx0, fy0, zTo, u0, v0, dir.nx, dir.ny, 0, light, overlay);
+                        vertexRaw(buffer, pose, fx1, fy1, zTo, u1, v1, dir.nx, dir.ny, 0, light, overlay);
+                        vertexRaw(buffer, pose, fx1, fy1, zFrom, u1, v1, dir.nx, dir.ny, 0, light, overlay);
+                        quads++;
+                    }
+                }
+            }
+            if (SIDE_DIAG.getAndIncrement() < 1) {
+                MoreBalls.LOGGER.info("[ball][弩] 侧壁四边形 {} 个（图 {}x{}，z {}~{}）",
+                        quads, w, h, zFrom, zTo);
+            }
+        });
+    }
+
     /**
      * 这个像素**是否不透明**。
      *
-     * <p>⚠️ 不能用 {@code getLuminanceOrAlpha} —— 它返回的是「亮度**或** alpha」，
+     * <p>⚠️ 不能用 {@code getLuminanceOrAlpha} —— 它返回「亮度<b>或</b> alpha」，
      * 对<b>深色像素</b>（弩的贴图里大量深棕与近黑）会返回 0，于是被判成「透明」跳过。
-     * 结果就是侧面有大片像素没有侧壁（作者 2026-10-09 反馈「约 60% 没有侧面、
-     * 右边空得特别多」）。这里只认 alpha 通道。</p>
-     *
-     * <p>越界一律算透明 —— 图边缘的像素向外就是空气，那一条边当然外露。</p>
+     * 这里只认 alpha 通道。越界一律算透明（图边缘向外就是空气，那条边当然外露）。</p>
      */
     private static boolean isOpaque(NativeImage img, int x, int y) {
         if (x < 0 || y < 0 || x >= img.getWidth() || y >= img.getHeight()) {
@@ -351,155 +466,26 @@ public class ComboChargeBallRenderer implements SpecialModelRenderer<int[]> {
     private static final java.util.concurrent.atomic.AtomicInteger SIDE_DIAG =
             new java.util.concurrent.atomic.AtomicInteger(0);
 
-    private static void drawSideFaces(PoseStack poseStack, SubmitNodeCollector collector,
-                                      Identifier texture, NativeImage img, int light, int overlay) {
-        // ⚠️ 这里**不能**自己去 readTexture(texture)：那张图是注册在 TextureManager 的
-        //    动态纹理，ResourceManager 读不到（两套系统），readTexture 恒返回 null ——
-        //    侧壁曾经因此一次都没画出来过。像素由 bake() 通过 COMPOSED_PIXELS 传进来。
-        if (img == null || img.isClosed()) {
-            return;
-        }
-        RenderType type = RenderTypes.itemCutout(texture);
-        float z0 = PLANE_Z_BACK;
-        float z1 = PLANE_Z_FRONT;
-        // 诊断（前 3 次）：把合成图的不透明像素分布与「每条边画了几个四边形」都打出来，
-        // 用来定位「底面缺失 / 侧面缺 60%」到底是像素被判成透明，还是边没生成。
-        if (SIDE_DIAG.getAndIncrement() < 3) {
-            int opaque = 0;
-            StringBuilder rows = new StringBuilder();
-            for (int y = 0; y < img.getHeight(); y++) {
-                int c = 0;
-                for (int x = 0; x < img.getWidth(); x++) {
-                    if (isOpaque(img, x, y)) {
-                        c++;
-                    }
-                }
-                opaque += c;
-                rows.append(c).append(' ');
-            }
-            MoreBalls.LOGGER.info("[ball][弩] 合成图不透明像素 {} / {}，逐行：{}", opaque,
-                    img.getWidth() * img.getHeight(), rows.toString().trim());
-        }
-        collector.submitCustomGeometry(poseStack, type, (pose, buffer) -> {
-            // ⚠️ **必须合并连续的边**，不能逐像素画。
-            //
-            //    逐像素画时顶点数最多 256×4 边×4 顶点 = 4096 —— 超过
-            //    submitCustomGeometry 的缓冲区容量，几何会整个错乱
-            //    （作者 2026-10-09 截图：一屏彩色大方块）。
-            //    原版 bakeSideFaces 就是按「一段连续的外露边合并成一个四边形」来做的。
-            //    合并后最多 16×4 = 64 个四边形 = 256 个顶点，稳稳够用。
+    /** 侧壁四方向 —— 照原版 SideDirection 的语义（水平 = 上下两条边） */
+    private enum SideDir {
+        UP(0, -1, true, 0, -1),
+        DOWN(0, 1, true, 0, 1),
+        LEFT(-1, 0, false, -1, 0),
+        RIGHT(1, 0, false, 1, 0);
 
-            int nTop = 0, nBottom = 0, nLeft = 0, nRight = 0;
-            // ---- 水平方向：每一行里，把连续外露的「上边」合并 ----
-            for (int py = 0; py < 16; py++) {
-                int start = -1;
-                for (int px = 0; px <= 16; px++) {
-                    boolean exposed = px < 16
-                            && isOpaque(img, px, py)
-                            && (py == 0 || !isOpaque(img, px, py - 1));
-                    if (exposed && start < 0) {
-                        start = px;
-                    } else if (!exposed && start >= 0) {
-                        // [start, px) 这一段的上边全部外露 —— 一个长条搞定
-                        float xa = start;
-                        float xb = px;
-                        // ⚠️ **y 必须翻转**：贴图的 py 是「从上往下数」，而 3D 的 y 是
-                        //    「从下往上数」。不翻的话整个侧壁上下颠倒 —— 内侧那排跑到外侧、
-                        //    下侧那排跑到上侧，看起来就是「贴图错位、缺边」
-                        //    （作者 2026-10-09 描述的三个现象）。
-                        float y = 15 - py;
-                        float ua = (start + 0.25F) / 16.0F;
-                        float ub = (px - 1 + 0.75F) / 16.0F;
-                        float v = (py + 0.5F) / 16.0F;
-                        vertexRaw(buffer, pose, xa, y, z1, ua, v, 0, -1, 0, light, overlay);
-                        vertexRaw(buffer, pose, xa, y, z0, ua, v, 0, -1, 0, light, overlay);
-                        vertexRaw(buffer, pose, xb, y, z0, ub, v, 0, -1, 0, light, overlay);
-                        vertexRaw(buffer, pose, xb, y, z1, ub, v, 0, -1, 0, light, overlay);
-                        nTop++;
-                        start = -1;
-                    }
-                }
-            }
-            // ---- 每一行里，把连续外露的「下边」合并 ----
-            for (int py = 0; py < 16; py++) {
-                int start = -1;
-                for (int px = 0; px <= 16; px++) {
-                    boolean exposed = px < 16
-                            && isOpaque(img, px, py)
-                            && (py == 15 || !isOpaque(img, px, py + 1));
-                    if (exposed && start < 0) {
-                        start = px;
-                    } else if (!exposed && start >= 0) {
-                        float xa = start;
-                        float xb = px;
-                        float y = 16 - py;   // 同上：翻转 y（下边的 3D 高度 = 16 - py）
-                        float ua = (start + 0.25F) / 16.0F;
-                        float ub = (px - 1 + 0.75F) / 16.0F;
-                        float v = (py + 0.5F) / 16.0F;
-                        vertexRaw(buffer, pose, xa, y, z0, ua, v, 0, 1, 0, light, overlay);
-                        vertexRaw(buffer, pose, xa, y, z1, ua, v, 0, 1, 0, light, overlay);
-                        vertexRaw(buffer, pose, xb, y, z1, ub, v, 0, 1, 0, light, overlay);
-                        vertexRaw(buffer, pose, xb, y, z0, ub, v, 0, 1, 0, light, overlay);
-                        nBottom++;
-                        start = -1;
-                    }
-                }
-            }
-            // ---- 垂直方向：每一列里，把连续外露的「左边」合并 ----
-            for (int px = 0; px < 16; px++) {
-                int start = -1;
-                for (int py = 0; py <= 16; py++) {
-                    boolean exposed = py < 16
-                            && isOpaque(img, px, py)
-                            && (px == 0 || !isOpaque(img, px - 1, py));
-                    if (exposed && start < 0) {
-                        start = py;
-                    } else if (!exposed && start >= 0) {
-                        float ya = 15 - start;   // 同上：翻转 y
-                        float yb = 15 - py + 1.0F;
-                        float x = px;
-                        float va = (start + 0.25F) / 16.0F;
-                        float vb = (py - 1 + 0.75F) / 16.0F;
-                        float u = (px + 0.5F) / 16.0F;
-                        vertexRaw(buffer, pose, x, yb, z1, u, vb, -1, 0, 0, light, overlay);
-                        vertexRaw(buffer, pose, x, ya, z1, u, va, -1, 0, 0, light, overlay);
-                        vertexRaw(buffer, pose, x, ya, z0, u, va, -1, 0, 0, light, overlay);
-                        vertexRaw(buffer, pose, x, yb, z0, u, vb, -1, 0, 0, light, overlay);
-                        nLeft++;
-                        start = -1;
-                    }
-                }
-            }
-            // ---- 每一列里，把连续外露的「右边」合并 ----
-            for (int px = 0; px < 16; px++) {
-                int start = -1;
-                for (int py = 0; py <= 16; py++) {
-                    boolean exposed = py < 16
-                            && isOpaque(img, px, py)
-                            && (px == 15 || !isOpaque(img, px + 1, py));
-                    if (exposed && start < 0) {
-                        start = py;
-                    } else if (!exposed && start >= 0) {
-                        float ya = 15 - start;   // 同上：翻转 y
-                        float yb = 15 - py + 1.0F;
-                        float x = px + 1.0F;
-                        float va = (start + 0.25F) / 16.0F;
-                        float vb = (py - 1 + 0.75F) / 16.0F;
-                        float u = (px + 0.5F) / 16.0F;
-                        vertexRaw(buffer, pose, x, ya, z0, u, va, 1, 0, 0, light, overlay);
-                        vertexRaw(buffer, pose, x, ya, z1, u, va, 1, 0, 0, light, overlay);
-                        vertexRaw(buffer, pose, x, yb, z1, u, vb, 1, 0, 0, light, overlay);
-                        vertexRaw(buffer, pose, x, yb, z0, u, vb, 1, 0, 0, light, overlay);
-                        nRight++;
-                        start = -1;
-                    }
-                }
-            }
-            if (SIDE_DIAG.get() <= 3) {
-                MoreBalls.LOGGER.info("[ball][弩] 侧壁四边形计数：上={} 下={} 左={} 右={}（总顶点 {}）",
-                        nTop, nBottom, nLeft, nRight, (nTop + nBottom + nLeft + nRight) * 4);
-            }
-        });
+        final int stepX;
+        final int stepY;
+        final boolean horizontal;
+        final float nx;
+        final float ny;
+
+        SideDir(int stepX, int stepY, boolean horizontal, float nx, float ny) {
+            this.stepX = stepX;
+            this.stepY = stepY;
+            this.horizontal = horizontal;
+            this.nx = nx;
+            this.ny = ny;
+        }
     }
 
     /** 带完整法线向量的顶点（侧壁用） */

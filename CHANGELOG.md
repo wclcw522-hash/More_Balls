@@ -5,7 +5,54 @@
 > 26.3 线已冻结（那边 Curios 与 NeoForge 不兼容，饰品功能没法测）。
 > 26.3 线的历史见 `[26.3更多球]_More_Balls\CHANGELOG.md`。
 
-### 0.3.3.101
+### 0.3.3.102
+
+### 弩侧壁：照抄原版实现（不再自己瞎写）
+
+前几轮我一直在自己琢磨侧壁的坐标，改了五六版都没对。这次**直接读原版源码** ——
+`minecraft-patched-26.2.0.88-sources.jar` 里的
+`net/minecraft/client/resources/model/cuboid/ItemModelGenerator.bakeSideFaces`。
+
+**对比之后发现我有 5 处差异，其中 4 处是硬伤：**
+
+| # | 原版 | 我之前写的 | 后果 |
+|---|---|---|---|
+| 1 | **逐像素一条边一个 quad** | 合并连续边 | **合并后 UV 无法沿边展开 → 侧面看着就是「正面被拉长」** |
+| 2 | `startY = 16.0F - startY` | `y = 15 - py` | **翻的是像素上边缘，我翻下边缘，整体错开一格** |
+| 3 | `from.z = 7.5F` | `7.4F` | **底面 z 不对** |
+| 4 | 垂直边的 `v0/v1` **反向** | 没反向 | **左/右两条边贴图上下颠倒** |
+| 5 | UV 内缩 `0.1F` | `0.25F` | 观感差异（次要） |
+
+**原版的关键代码**（照抄进 `drawSideFaces`）：
+
+```java
+float u0 = x + 0.1F;
+float u1 = x + 1.0F - 0.1F;
+if (sideDirection.isHorizontal()) {
+    v0 = y + 0.1F;  v1 = y + 1.0F - 0.1F;
+} else {
+    v0 = y + 1.0F - 0.1F;  v1 = y + 0.1F;      // ← 垂直边反向
+}
+switch (sideDirection) {
+    case UP:    endX++; break;
+    case DOWN:  endX++; startY++; endY++; break;
+    case LEFT:  endY++; break;
+    case RIGHT: startX++; endX++; endY++; break;
+}
+startY = 16.0F - startY;   endY = 16.0F - endY;
+```
+
+新增内部枚举 `SideDir`（UP/DOWN/LEFT/RIGHT），语义与原版 `SideDirection` 一致
+—— **水平的是 UP/DOWN 两条**，不是左右。
+
+### 教训
+
+**这几轮我把「自己琢磨」当成了默认手段，而环境里一直躺着权威实现。**
+以后遇到「原版也有的功能」，先去 `minecraft-patched-*-sources.jar` 里找对应实现，
+**照抄比自创可靠得多**。这条已写进 `AGENTS.md`。
+
+---
+## 0.3.3.101
 
 ### ① 「怪物一直走向球」—— 日志抓到真凶，是我写的
 
