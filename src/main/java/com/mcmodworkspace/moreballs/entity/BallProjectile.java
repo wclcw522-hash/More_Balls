@@ -841,7 +841,9 @@ public class BallProjectile extends ThrowableItemProjectile {
         // 而这个上限本身是「防堆积」用的，晚一秒清理完全够。
         // 只在服务端做：客户端的实体列表不完整，也轮不到它决定谁该消失。
         if (!this.level().isClientSide() && this.level().getGameTime() % BALL_CAP_CHECK_INTERVAL == 0L) {
+            long _tCap = System.nanoTime();
             enforceBallCap();
+            ModProfiler.hit("ball.前段.enforceBallCap", _tCap);
         }
 
         // 回归期间，<b>在 super.tick() 之前</b>先把恼鬼的开关压上。
@@ -850,6 +852,7 @@ public class BallProjectile extends ThrowableItemProjectile {
         // noPhysics、并且每刻重设 noGravity —— 说明这些开关在父类 tick 过程里会被动到。
         // 我之前的写法全在事后设，于是「这一 tick 里跑的物理」用的还是旧值，
         // 球照样被方块卡住。前后都压住才算真的一样。
+        long _tHb = System.nanoTime();
         if (this.homingBack) {
             this.noPhysics = true;
             // ⚠️ 只在值真的变化时调用 —— setNoGravity 是同步数据，
@@ -858,6 +861,7 @@ public class BallProjectile extends ThrowableItemProjectile {
                 this.setNoGravity(true);
             }
         }
+        ModProfiler.hit("ball.前段.homingBack开关", _tHb);
 
         // 【区块加载】带空气动力球的球<b>从落地那刻就得挂上</b>，不能等回归启动再挂。
         //
@@ -868,7 +872,9 @@ public class BallProjectile extends ThrowableItemProjectile {
         //
         // 判据是 returnToOwner（= 武器带空气动力球附魔），普通球不参与，不浪费加载。
         if (this.returnToOwner && this.level() instanceof ServerLevel ticketLevel) {
+            long _tTicket = System.nanoTime();
             this.updateLoadTicket(ticketLevel);
+            ModProfiler.hit("ball.前段.区块票据", _tTicket);
         }
 
         // 记下这一 tick 开始时的状态，super.tick() 之后要用它补位移

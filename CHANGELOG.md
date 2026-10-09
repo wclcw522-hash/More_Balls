@@ -5,7 +5,38 @@
 > 26.3 线已冻结（那边 Curios 与 NeoForge 不兼容，饰品功能没法测）。
 > 26.3 线的历史见 `[26.3更多球]_More_Balls\CHANGELOG.md`。
 
-### 0.3.3.116
+### 0.3.3.117
+
+### 真凶锁定在 `ballTickPre`（前段）
+
+```
+ball.tick(整体)=106.4ms
+ball.tick.前段(super之前)=106.0ms   ← ★★★ 就是这里
+ball.super.tick=0.4ms
+ball.tick.后段(super之后)=0.0ms
+```
+
+**前段里只有三件事**：
+
+```java
+if (!isClientSide() && gameTime % 20 == 0) enforceBallCap();   // ① 上限检查
+if (this.homingBack) { … }                                      // ② 回归开关
+if (this.returnToOwner && …) updateLoadTicket(…);               // ③ 区块票据
+```
+
+**最大嫌疑是 ①** —— `enforceBallCap()` 用的是 **`WHOLE_LEVEL_BOX`（整个维度）**，
+而它是**每个球各调一次**：25 个球 = 25 次全维度实体扫描。
+
+**本轮把前段再切成三份**，逐项计时，坐实是哪一个：
+
+| 计时键 | 内容 |
+|---|---|
+| `ball.前段.enforceBallCap` | 全维度实体扫描（嫌疑最大） |
+| `ball.前段.homingBack开关` | 两个布尔赋值 |
+| `ball.前段.区块票据` | 只在带【空气动力球】时有 |
+
+---
+## 0.3.3.116
 
 ### 定位到 `ball.tick` 内部，并且发现**它跑在渲染线程上**
 
