@@ -1853,8 +1853,8 @@ public class BallProjectile extends ThrowableItemProjectile {
 
     private static void prof(String stage, long nanos) {
         PROFILE.computeIfAbsent(stage, k -> new long[1])[0] += nanos;
-        if (PROFILE_SAMPLES.incrementAndGet() % 2000L == 0L) {
-            StringBuilder sb = new StringBuilder("[ball][性能] 各阶段累计耗时（每 2000 次采样）：");
+        if (PROFILE_SAMPLES.incrementAndGet() % 300L == 0L) {
+            StringBuilder sb = new StringBuilder("[ball][性能] 各阶段累计耗时（每 300 次采样）：");
             PROFILE.entrySet().stream()
                     .sorted((x, y) -> Long.compare(y.getValue()[0], x.getValue()[0]))
                     .forEach(e -> sb.append(String.format(" %s=%.1fms", e.getKey(), e.getValue()[0] / 1_000_000.0)));
