@@ -5,6 +5,7 @@ import net.minecraft.world.entity.Pose;
 import net.minecraft.world.entity.EntityDimensions;
 import net.minecraft.world.phys.AABB;
 import net.minecraft.world.entity.monster.Enemy;
+import com.mcmodworkspace.moreballs.ModProfiler;
 import com.mcmodworkspace.moreballs.BallBehavior;
 import com.mcmodworkspace.moreballs.BallFragments;
 import com.mcmodworkspace.moreballs.BallPouchHelper;
@@ -810,6 +811,13 @@ public class BallProjectile extends ThrowableItemProjectile {
 
     @Override
     public void tick() {
+        long _tTick = System.nanoTime();
+        ballTickBody();
+        ModProfiler.hit("ball.tick(整体)", _tTick);
+    }
+
+    /** 真正的实现（上面是加了计时的壳） */
+    private void ballTickBody() {
         // 【实体上限】本维度的球超过上限时，从最旧的开始清掉。
         //
         // 每 20 刻（1 秒）才查一次 —— 逐刻遍历整个维度的实体没意义，
@@ -850,7 +858,11 @@ public class BallProjectile extends ThrowableItemProjectile {
         Vec3 tickStartPos = this.position();
         Vec3 tickStartVel = this.getDeltaMovement();
 
+        // 单独给父类 tick 计时 —— 物理、移动、碰撞检测都在里面，
+        // 而且**这段不是我写的**，之前所有诊断都漏掉了它。
+        long _tSuper = System.nanoTime();
         super.tick();
+        ModProfiler.hit("ball.super.tick", _tSuper);
 
         // 【回归虚化】把被「钉住」的位移补回来。
         //
