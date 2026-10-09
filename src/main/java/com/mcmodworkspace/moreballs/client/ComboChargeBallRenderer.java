@@ -311,11 +311,25 @@ public class ComboChargeBallRenderer implements SpecialModelRenderer<int[]> {
             vertex(buffer, pose, MAX, MIN, 1.0F, 1.0F, PLANE_Z_FRONT, 1.0F, light, overlay);
             vertex(buffer, pose, MAX, MAX, 1.0F, 0.0F, PLANE_Z_FRONT, 1.0F, light, overlay);
 
-            // ---- 背面（-Z）：FaceInfo.NORTH 的绕序，UV 左右镜像 ----
-            vertex(buffer, pose, MAX, MAX, 0.0F, 0.0F, PLANE_Z_BACK, -1.0F, light, overlay);
-            vertex(buffer, pose, MAX, MIN, 0.0F, 1.0F, PLANE_Z_BACK, -1.0F, light, overlay);
-            vertex(buffer, pose, MIN, MIN, 1.0F, 1.0F, PLANE_Z_BACK, -1.0F, light, overlay);
-            vertex(buffer, pose, MIN, MAX, 1.0F, 0.0F, PLANE_Z_BACK, -1.0F, light, overlay);
+            // ---- 背面（-Z）：顶点倒序，但 **UV 与正面保持一致** ----
+            //
+            // ⚠️ 这里曾经把 UV 也左右镜像了，注释还写着「FaceInfo.NORTH 的绕序」——
+            //    那是**反了两次**：顶点已经倒过来，UV 再镜像一次就等于没镜像。
+            //
+            //    后果很具体：掉落物形态的弩**旋转 180° 后你看到的是背面**，
+            //    而背面的镜像把那次旋转又抵消掉了 → 「有种转了但又没转的诡异感」
+            //    （作者 2026-10-09 反馈）。
+            //
+            //    原版 2D 物品**只渲染正面**，所以从来没暴露这个问题；
+            //    我们为了保险画了双面，就得让背面看起来和正面一样。
+            //    （物理上「从背面看该镜像」是对的，但那是**同一件物品**的观感需求，
+            //      这里要的是「翻过来看还是它」——按观感优先。）
+            //    映射与正面**完全一致**：x=MIN → u=0、x=MAX → u=1；y=MAX → v=0、y=MIN → v=1。
+            //    只是顶点的遍历顺序倒过来（这样绕序与 NORTH 一致，法线朝向也对）。
+            vertex(buffer, pose, MAX, MAX, 1.0F, 0.0F, PLANE_Z_BACK, -1.0F, light, overlay);
+            vertex(buffer, pose, MAX, MIN, 1.0F, 1.0F, PLANE_Z_BACK, -1.0F, light, overlay);
+            vertex(buffer, pose, MIN, MIN, 0.0F, 1.0F, PLANE_Z_BACK, -1.0F, light, overlay);
+            vertex(buffer, pose, MIN, MAX, 0.0F, 0.0F, PLANE_Z_BACK, -1.0F, light, overlay);
         });
     }
 
