@@ -987,7 +987,7 @@ public class BallProjectile extends ThrowableItemProjectile {
         if (BallBehavior.isGoldShiny(this.getItem())
                 && this.level() instanceof ServerLevel goldLevel
                 && this.isGoldLuring(goldLevel.getGameTime())) {
-            PiglinLure.lure(goldLevel, this.position());
+            PiglinLure.lure(goldLevel, this);
         }
 
         // 【熔融】状态的外观：进了熔融的球周身冒火（环绕 + 拖尾）
@@ -1153,7 +1153,7 @@ public class BallProjectile extends ThrowableItemProjectile {
             // 每刻覆写它们的寻路终点与攻击目标，直到球被捡走（球没了这段自然停止）。
             if (BallBehavior.isGoldShiny(this.getItem())
                     && this.level() instanceof ServerLevel lureLevel) {
-                PiglinLure.lure(lureLevel, this.position());
+                PiglinLure.lure(lureLevel, this);
             }
         }
     }
@@ -2178,9 +2178,11 @@ public class BallProjectile extends ThrowableItemProjectile {
 
             this.nearbyEntities = serverLevel.getEntitiesOfClass(LivingEntity.class,
                     this.getBoundingBox().inflate(BallProspecting.RADIUS));
-            // 检测半径 15 只负责「提前看到」；偏转目标按热量积累速度竞争，
-            // 且只有进入偏转半径 7 的候选有资格（矿物与生物同一条赛道）
-            // 投掷者本人排除在外 —— 自己扔的球不该往自己身上拐
+            // 磁吸偏转的候选：只有进入 PULL_RADIUS 的才有资格（矿物与生物同一条赛道）。
+            // 投掷者本人排除在外 —— 自己扔的球不该往自己身上拐。
+            //
+            // ⚠️ 这里排除的只是「不给磁吸当目标」；**他的金属装备仍然算进球的积热**
+            //    （见下面「球自身热量」那一段，作者 2026-10-09 指定）。
             Entity owner = this.getOwner();
             List<LivingEntity> candidates = this.nearbyEntities.stream()
                     .filter(e -> e != owner)
@@ -2211,12 +2213,15 @@ public class BallProjectile extends ThrowableItemProjectile {
         //
         // 之前只算了方块那一半 —— 球擦着一身铁甲的玩家飞过去，球自己一点热都不积，
         // 那套「热是双向的」就只成立了一半。
+        //
+        // ⚠️ **掷出者本人的装备也算**（作者 2026-10-09 指定）：
+        //    他身上的盔甲会让这颗球按**正常效率**积热 —— 自己扔出去的球，
+        //    起飞那一段就能蹭到自己的一身甲，不必先飞到别人身边。
+        //    但**他自己不会被这颗球加热**（对称的那一半仍然排除他，
+        //    见 heatNearbyEntities 里的 `living == owner` 判断）。
+        //    原来这里是「两侧都排除掷出者」，所以自己扔的球永远蹭不到自己的装备。
         int heatFromEntities = 0;
-        Entity heatOwner = this.getOwner();
         for (LivingEntity nearby : this.nearbyEntities) {
-            if (nearby == heatOwner) {
-                continue;   // 作者自己不给球加热（和「球不烤作者」对称）
-            }
             heatFromEntities += BallProspecting.countMetalEquipment(nearby);
         }
 

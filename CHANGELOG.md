@@ -5,7 +5,111 @@
 > 26.3 线已冻结（那边 Curios 与 NeoForge 不兼容，饰品功能没法测）。
 > 26.3 线的历史见 `[26.3更多球]_More_Balls\CHANGELOG.md`。
 
-### 0.3.3.121
+### 0.3.3.123
+
+### 修 0.3.3.122 引入的启动崩溃
+
+**症状**：游戏启动直接崩，`Failed to wait for future Mod Construction, 1 errors found`，
+崩溃报告里是 `java.lang.ExceptionInInitializerError`。
+
+**根因**（是我自己引入的）：`PiglinLure` 里有一个静态字段在**类加载时**构造 `ItemStack`：
+
+```java
+private static final List<ItemStack> TRADE_POOL = List.of(
+        new ItemStack(Items.SPECTRAL_ARROW, 12), …);
+```
+
+这个类**以前只在运行时被调用**（那时注册表早就绪，所以一直没事）；
+而 0.3.3.122 给它加了 `@EventBusSubscriber` 之后，**FML 会在 mod 构造阶段就加载它** ——
+那时注册表还没就绪，`new ItemStack(...)` 直接把类初始化搞崩。
+
+**修法**：把那个列表改成**惰性构造的方法** `tradePool()`，用的时候现建。
+交易一次只调一次、产物也就 13 种，代价可以忽略。
+
+**教训**（已写进 AGENTS.md）：
+
+> 给一个类加 `@EventBusSubscriber` 之前，先检查它有没有
+> **静态字段在初始化时碰注册表**（`ItemStack` / `Item` / `Block` / `CreativeModeTab` …）——
+> 有的话必须先改成惰性，否则启动就崩。
+
+同时复查了本类其余静态字段：只有 `Map` 与基本类型常量，**没有**其它同类隐患。
+
+---
+## 0.3.3.122
+
+### ① 阈值：空心铁球【熔融120】、空心铜球【引雷120】
+
+```java
+public static final int MOLTEN_THRESHOLD  = 120;   // 500 → 300 → 120
+public static final int THUNDER_THRESHOLD = 120;   // 300 → 200 → 120
+```
+
+配合 0.3.3.121 的「掷出者自己的甲也算热源」，对战环境（双方一身铁甲 ≈ 10~12 件金属装备）
+飞 1.5 秒约 180 点热量 —— **现在能攒满**，不必先去找矿脉。
+
+### ② 【金光闪闪】修复：根因是原版传感器每刻都会擦掉 ADMIRING_ITEM
+
+作者报「吸引好像又失效了，猪灵反复抽搐、一直叫、还试图攻击我」。读原版源码后定位：
+
+```java
+// StopAdmiringIfItemTooFarAway（挂在 ADMIRE_ITEM 行为表里，每刻跑）
+Optional<ItemEntity> nearest = brain.get(NEAREST_VISIBLE_WANTED_ITEM);
+if (nearest.isPresent() && nearest.get().closerThan(body, 9)) return false;  // 不擦
+admiring.erase();                                                            // 擦掉
+```
+
+**`NEAREST_VISIBLE_WANTED_ITEM` 只可能由 `ItemEntity` 填上** ——
+我们的球是投射物，永远进不了那个传感器 → 它**每刻**擦掉 ADMIRING_ITEM；
+而 `StartAdmiringItemIfSeen` 挂在 CORE 里、每刻又设回来 → 两边拉锯。
+
+先前为了避免音效刷屏把刷新间隔改成 20 刻，**结果中间 19 刻 activity 已经切回 FIGHT/CORE**
+→ 猪灵又开始攻击、又开始抽搐。
+
+**修法（照原版机制补齐依赖，而不是正面对撞）**：在球的位置放一个**隐形金锭**当饵。
+
+| 饵的属性 | 目的 |
+|---|---|
+| 隐形 + 无重力 | 玩家看不见、悬在球的位置 |
+| `pickUpDelay` 拉满 | 玩家与漏斗都拿不走 |
+| 不设无限寿命 | 让原版 5 分钟过期逻辑当兜底 |
+
+有了饵之后原版那套机制**原封不动地跑起来**：
+`StartAdmiringItemIfSeen` 自己设记忆 → `StopAdmiringIfItemTooFarAway` 不擦 →
+`GoToWantedItem` 自己朝它走。activity 稳定 → **不抽搐、也不会反复「重新进入」而重复播音效**。
+
+同时把 `ADMIRE_REFRESH_INTERVAL` 从 20 改回 **1**（每刻刷新只是刷新过期时间，安全）。
+
+球消失时（被捡走 / 破碎）由 `EntityLeaveLevelEvent` 收掉饵，
+否则猪灵会「捡起金球之后还站在原地欣赏空气」。
+
+### ③ 蛮兵也要被吸引
+
+作者补充「蛮兵也得被吸引，这个原版是不会的」—— 查 `PiglinBruteAi` 确认：
+它只注册 **CORE / IDLE / FIGHT** 三个 activity，**根本没有 ADMIRE_ITEM**，
+也没有 `StartAdmiringItemIfSeen` —— **饵对蛮兵无效**。
+
+蛮兵靠另外两条：
+
+| 手段 | 作用 |
+|---|---|
+| 每刻 `eraseMemory(ATTACK_TARGET)` | FIGHT 靠 `ATTACK_TARGET` 激活；记忆为空就进不去 → 不攻击 |
+| 写 `WALK_TARGET` 记忆 | 让 Brain 自己走过去 |
+
+**原来的移动方式用错了**：写的是 `piglin.getNavigation().moveTo(...)`，
+而用 Brain 的生物，移动由 `MoveToTargetSink`（挂在 CORE）读 `WALK_TARGET` 来驱动 ——
+直接改导航只是「抢方向盘」，下一 tick 就被按记忆覆盖回去。
+**这就是蛮兵根本没被吸引的原因。** 改成写 `WALK_TARGET` 后，猪灵与蛮兵都走这条路。
+
+### ④ 文档
+
+- `docs/球与词条.md` 新增一节「【引雷】为什么不转化生物」：
+  它**不会**把猪变成僵尸猪灵、**不会**把村民变成女巫、**不会**把苦力怕变成高压苦力怕 ——
+  这些闪电只走视觉与伤害结算，伤害由模组自己接管（这样总伤才能控制在 60 点）。
+- `docs/热量系统.md` 按新阈值重写「积热速度的实测参考」：结论从「攒不满」翻转为「能攒满」。
+- README 同步两个阈值，并修正一处词条名（空心铁球是【磁吸】不是【磁性】，两者是不同词条）。
+
+---
+## 0.3.3.121
 
 ### ① 【引雷】索敌与伤害 —— 根因是「候选池被普通方块稀释」
 

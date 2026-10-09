@@ -78,8 +78,8 @@ public final class BallBehavior {
      */
     public static final int COPPER_SENSE_LEVEL = 2;
 
-    /** 【引雷】阈值 —— 空心铜球热量攒到这么多就放一次雷（作者指定 <b>200</b>；原为 300，2026-10-09 下调） */
-    public static final int THUNDER_THRESHOLD = 200;
+    /** 【引雷】阈值 —— 空心铜球热量攒到这么多就放一次雷（作者指定 <b>120</b>；300 → 200 → 120，2026-10-09 两次下调） */
+    public static final int THUNDER_THRESHOLD = 120;
 
     /**
      * 没有【引雷】—— 热量攒到多少都不会释放雷电（默认）。
@@ -119,15 +119,16 @@ public final class BallBehavior {
     public static final float NOT_TRANSMUTE = 0.0F;
 
     /**
-     * 空心铁球的【熔融】阈值（作者指定 <b>300</b>）。
+     * 空心铁球的【熔融】阈值（作者指定 <b>120</b>）。
      *
-     * <p>数值演变：<b>1000</b>（最初）→ <b>500</b>（2026-10-07）→ <b>300</b>（2026-10-09）。</p>
+     * <p>数值演变：<b>1000</b>（最初）→ <b>500</b>（2026-10-07）→ <b>300</b>
+     * → <b>120</b>（2026-10-09 最终）。</p>
      *
      * <p>1000 攒不到的原因：球自身热量是「每刻 + 生效范围 7 格内的金属矿格数」，
      * 而球飞不了那么久 —— 10 格矿要 5 秒、3 格矿要 16.7 秒，后者球早落地静止了。
-     * 作者 2026-10-07 改成 500；2026-10-09 再降到 300，让它更容易触发。</p>
+     * 一路下调到现在这个值，让它在自己扔出去的那一段（掷出者身上的甲也算热源）就能攒满。</p>
      */
-    public static final int MOLTEN_THRESHOLD = 300;
+    public static final int MOLTEN_THRESHOLD = 120;
 
     /**
      * 【熔融】击中目标时挂上的灼伤时长（刻）—— 作者指定 <b>1 秒</b>。
@@ -264,7 +265,7 @@ public final class BallBehavior {
                         new BallDrop(Items.IRON_INGOT, 1, 6, 0.60F),
                         new BallDrop(Items.IRON_BLOCK, 0, 1, 0.10F))));
 
-        // ===== 空心铁球：坚固 20、重量 3、弹射 4、伤害 1、带【感应】【磁性】【熔融300】 =====
+        // ===== 空心铁球：坚固 20、重量 3、弹射 4、伤害 1、带【感应】【磁吸】【熔融120】 =====
         // 铁砧敲击音（三声那个的单次敲击），音量 30%
         // 稀有度 0 = 不参与随机抽取（作者指定：空心铁球不出现在怪物携带 / 掠夺者弹药里）
         override(ModItems.HOLLOW_IRON_BALL.get(), DEFAULT
@@ -374,7 +375,7 @@ public final class BallBehavior {
                         new BallDrop(Items.COPPER_INGOT, 2, 4, 0.30F))));
 
         // 空心铜球：伤害 1、坚固 5、重量 2、弹射 3
-        // 【感应2】【引雷200】热量满 200 释放 4–9 道闪电并清空热量
+        // 【感应2】【引雷120】热量满 120 释放 4–9 道闪电并清空热量
         // 破碎 50% 掉 1–2 铜粒
         override(ModItems.HOLLOW_COPPER_BALL.get(), DEFAULT
                 .withDamage(1.0F)

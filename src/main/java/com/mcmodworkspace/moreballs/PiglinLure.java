@@ -8,9 +8,15 @@ import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.sounds.SoundEvents;
 import net.minecraft.sounds.SoundSource;
+import net.minecraft.world.entity.Entity;
+import net.neoforged.bus.api.SubscribeEvent;
+import net.neoforged.fml.common.EventBusSubscriber;
+import net.neoforged.neoforge.event.entity.EntityLeaveLevelEvent;
 import net.minecraft.world.entity.EquipmentSlot;
+import net.minecraft.world.entity.item.ItemEntity;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.entity.ai.memory.MemoryModuleType;
+import net.minecraft.world.entity.ai.memory.WalkTarget;
 import net.minecraft.world.entity.monster.piglin.AbstractPiglin;
 import net.minecraft.world.entity.monster.piglin.Piglin;
 import net.minecraft.world.item.ItemStack;
@@ -19,6 +25,9 @@ import net.minecraft.world.phys.Vec3;
 import org.jspecify.annotations.Nullable;
 
 import java.util.List;
+import java.util.Map;
+import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * 金球的【金光闪闪】—— 猪灵全套行为。
@@ -38,6 +47,7 @@ import java.util.List;
  * 所以这里自己维护一份等价的标准产物表（数值对齐原版）。
  * 特殊交易的<b>次数</b>按作者给出的权重抽，<b>产物</b>从表里随机取。
  */
+@EventBusSubscriber(modid = MoreBalls.MOD_ID)
 public final class PiglinLure {
 
     private PiglinLure() {
@@ -66,21 +76,50 @@ public final class PiglinLure {
     /**
      * 【金光闪闪】窗口期内，多久重设一次 ADMIRING_ITEM（刻）。
      *
-     * <p>不能每刻 —— 原版这条 activity 自带音效，每次重新进入都会播，
-     * 每刻重设就等于每秒叫 20 声（作者 2026-10-09 反馈「特别的吵」）。</p>
+     * <p><b>2026-10-09 改回「每刻」。</b></p>
+     *
+     * <p>先前为了避免音效刷屏改成了 20 刻 —— 那个改动解决了一半、制造了另一半：
+     * 见 {@link #ensureBait} 的说明，原版的传感器会**每刻**擦掉 ADMIRING_ITEM，
+     * 所以 20 刻的间隔意味着中间 19 刻 activity 已经切回 FIGHT / CORE ——
+     * 猪灵又开始攻击、又开始抽搐（作者报的「吸引好像又失效了」）。</p>
+     *
+     * <p>现在有了隐形金锭当饵，activity 会稳定停在 ADMIRE_ITEM、不会反复「重新进入」，
+     * 于是音效本来就不会重复播 —— 每刻重设只是刷新记忆的过期时间，是安全的。</p>
      */
-    public static final int ADMIRE_REFRESH_INTERVAL = 20;
+    public static final int ADMIRE_REFRESH_INTERVAL = 1;
+    /**
+     * 球 UUID → 它的「隐形金锭」实体 id。
+     *
+     * <p>见 {@link #ensureBait} 的说明 —— 那是让猪灵稳定停在 ADMIRE_ITEM 的关键。</p>
+     */
+    private static final Map<UUID, Integer> BAIT_IDS = new ConcurrentHashMap<>();
+
     /** 被吸引时多久重设一次导航（刻） */
     public static final int LURE_NAV_INTERVAL = 5;
 
     /** 被吸引时的行走速度（略快于闲逛，看得出它们很急） */
     private static final double LURE_SPEED = 1.2D;
 
+    /** 走到离球多近算「到了」（格）—— 太近会挤成一团，2 格刚好 */
+    private static final int LURE_CLOSE_ENOUGH = 2;
+
     /** 特殊交易次数分布（作者指定）：5 次 40 / 4 次 20 / 3 次 10 / 2 次 8 / 1 次 5 */
     private static final int[] TRADE_WEIGHTS = {40, 20, 10, 8, 5};
 
-    /** 特殊交易的产物池 —— 对齐原版猪灵交易的标准产出 */
-    private static final List<ItemStack> TRADE_POOL = List.of(
+    /**
+     * 特殊交易的产物池 —— 对齐原版猪灵交易的标准产出。
+     *
+     * <p>⚠️ <b>这里必须是「每次现构造」，不能提成 static final 字段</b>（2026-10-09 踩到的）。</p>
+     *
+     * <p>本类挂了 {@code @EventBusSubscriber}，于是 FML 会在 <b>mod 构造阶段</b>就加载它。
+     * 而 {@code new ItemStack(...)} 需要注册表已就绪 —— 在构造阶段还没有。
+     * 一旦把它写成静态字段，类初始化就会抛 {@code ExceptionInInitializerError}，
+     * 表现为启动直接崩在 {@code Failed to wait for future Mod Construction}。</p>
+     *
+     * <p>交易一次只调一次、产物也就 13 种，现构造的代价可以忽略。</p>
+     */
+    private static List<ItemStack> tradePool() {
+        return List.of(
             new ItemStack(Items.SPECTRAL_ARROW, 12),
             new ItemStack(Items.LEATHER, 3),
             new ItemStack(Items.SOUL_SAND, 8),
@@ -94,6 +133,7 @@ public final class PiglinLure {
             new ItemStack(Items.QUARTZ, 8),
             new ItemStack(Items.GLOWSTONE_DUST, 4),
             new ItemStack(Items.MAGMA_CREAM, 2));
+    }
 
     /** 金球撞击/落地的声音 —— 猪灵就是被这个吸引来的 */
     private static final float LURE_SOUND_VOLUME = 1.0F;
@@ -135,7 +175,12 @@ public final class PiglinLure {
      * 一旦它生效，FIGHT 与「重新选目标」整段都不跑，寻路也交给我们的 {@code moveTo}。
      * 这正是原版「猪灵被金锭吸引」用的机制，不新增 Goal、不碰 Mixin。</p>
      */
-    public static void lure(ServerLevel level, Vec3 pos) {
+    public static void lure(ServerLevel level, BallProjectile ball) {
+        Vec3 pos = ball.position();
+
+        // 先把「饵」摆好 —— 这是让 activity 稳定停在 ADMIRE_ITEM 的前提，见 ensureBait
+        ensureBait(level, ball);
+
         // ⚠️ 不能隔刻做。
         //
         // 原版 PiglinAi 的 ADMIRE_ITEM activity 里挂着 StopAdmiringIfItemTooFarAway，
@@ -155,14 +200,18 @@ public final class PiglinLure {
         for (AbstractPiglin piglin : piglins) {
             Brain<?> brain = piglin.getBrain();
 
-            // ① 压住战斗意图（每 20 刻刷新一次，见下面为什么不能每刻刷）。
+            // ① 压住战斗意图（**每刻**刷新）。
             //
-            // ⚠️ 原版 ADMIRE_ITEM 这条 activity 自己挂着播 PIGLIN_ADMIRING_ITEM 的音效，
-            //    而 Brain 每次**重新进入** activity 都会再播一次。
-            //    先前是每刻重设 → 每刻都算「重新进入」→ 附近的猪灵每秒叫 20 声，
-            //    作者反馈「被吸引之后反复发出叫声特别的吵」。
-            //    改成 20 刻一次：既能压住与 Brain 的抢写（行为表本身不会在这一秒内翻盘），
-            //    叫声也降到一秒一次、且是这一群猪灵在同一刻齐叫，听感上是一声。
+            // ⚠️ 2026-10-09 改回每刻。先前为了避免音效刷屏改成 20 刻，
+            //    那个改动解决了一半、制造了另一半（作者报的「吸引好像又失效了」）：
+            //    原版传感器每刻都会擦掉 ADMIRING_ITEM（见 ensureBait 的说明），
+            //    所以 20 刻的间隔意味着中间 19 刻 activity 已经切回 FIGHT / CORE ——
+            //    猪灵又开始攻击、又开始抽搐。
+            //    现在有了隐形金锭当饵，activity 稳定在 ADMIRE_ITEM、不会反复「重新进入」，
+            //    音效本来就不会重复播，每刻重设只是刷新记忆的过期时间。
+            //
+            //    这一条**对蛮兵无效**（PiglinBruteAi 根本没有 ADMIRE_ITEM 这个 activity），
+            //    蛮兵靠的是下面的 ② 与 ③。
             if (level.getGameTime() % ADMIRE_REFRESH_INTERVAL == 0L) {
                 brain.setMemoryWithExpiry(MemoryModuleType.ADMIRING_ITEM, true, ADMIRE_DURATION);
             }
@@ -182,9 +231,19 @@ public final class PiglinLure {
                 brain.eraseMemory(MemoryModuleType.HURT_BY);
             }
 
-            // ③ 导航按固定周期重设 —— isDone() 每次都重算路径，卡墙时会逐刻全量寻路
-            if (piglin.tickCount % LURE_NAV_INTERVAL == 0 && piglin.getNavigation().isDone()) {
-                piglin.getNavigation().moveTo(pos.x, pos.y, pos.z, LURE_SPEED);
+            // ③ 导航：**写 Brain 的 WALK_TARGET**，而不是直接驱动 Navigation。
+            //
+            // ⚠️ 2026-10-09 修：原来是 piglin.getNavigation().moveTo(...) ——
+            //    对用 Brain 的生物（猪灵、蛮兵）**基本没用**：
+            //    Brain 的 MoveToTargetSink（挂在 CORE）每刻读 WALK_TARGET 记忆来驱动导航，
+            //    我们直接改导航只是「抢方向盘」，下一 tick 就被它按记忆重新覆盖回去。
+            //    后果就是作者报的「蛮兵根本没被吸引」。
+            //
+            //    写 WALK_TARGET 才是正路：brain 自己会走过去，也不用每刻盯。
+            //    每 LURE_NAV_INTERVAL 刻重设一次，是防止到达后被 IDLE 的漫步行为改掉。
+            if (piglin.tickCount % LURE_NAV_INTERVAL == 0) {
+                brain.setMemory(MemoryModuleType.WALK_TARGET,
+                        new WalkTarget(pos, (float) LURE_SPEED, LURE_CLOSE_ENOUGH));
             }
         }
 
@@ -193,6 +252,96 @@ public final class PiglinLure {
             level.playSound(null, pos.x, pos.y, pos.z,
                     SoundEvents.EXPERIENCE_ORB_PICKUP, SoundSource.NEUTRAL,
                     LURE_SOUND_VOLUME, 0.8F);
+        }
+    }
+
+    /**
+     * 保证球的位置上有一个「<b>隐形金锭</b>」—— 猪灵的 sensor 只认 {@code ItemEntity}。
+     *
+     * <h2>为什么必须这么做</h2>
+     * <p>原版 {@code PiglinAi} 的 ADMIRE_ITEM 行为表里挂着 {@code StopAdmiringIfItemTooFarAway(9)}：</p>
+     * <pre>
+     * Optional&lt;ItemEntity&gt; nearest = brain.get(NEAREST_VISIBLE_WANTED_ITEM);
+     * if (nearest.isPresent() &amp;&amp; nearest.get().closerThan(body, 9)) return false;  // 不擦
+     * admiring.erase();                                                            // 擦掉
+     * </pre>
+     * <p>而 {@code NEAREST_VISIBLE_WANTED_ITEM} 这个记忆**只可能由 {@code ItemEntity} 填上** ——
+     * 我们的球是投射物，永远进不了那个传感器。于是它**每刻都把 ADMIRING_ITEM 擦掉**。</p>
+     *
+     * <p>擦掉之后 activity 就切回 FIGHT / CORE，而 {@code StartAdmiringItemIfSeen}
+     * 挂在 CORE 里、每刻又把它设回来 —— 两边拉锯。表现就是作者报的：
+     * <b>猪灵反复抽搐、一直叫、还试图攻击玩家</b>。</p>
+     *
+     * <h2>饵的作用</h2>
+     * <p>在球的位置放一个金锭，原版那套机制就<b>原封不动地跑起来</b>：</p>
+     * <ul>
+     *   <li>{@code StartAdmiringItemIfSeen}（CORE）看到它 → 自己设 ADMIRING_ITEM</li>
+     *   <li>{@code StopAdmiringIfItemTooFarAway} 发现 9 格内有它 → <b>不擦</b></li>
+     *   <li>{@code GoToWantedItem} 让它自己朝金锭走 —— 连导航都不用我们推</li>
+     * </ul>
+     * <p><b>蛮兵是例外</b>：{@code PiglinBruteAi} 只注册了 CORE / IDLE / FIGHT 三个 activity，
+     * <b>根本没有 ADMIRE_ITEM</b>，也没有 {@code StartAdmiringItemIfSeen} —— 饵对它无效。
+     * 蛮兵靠的是 {@code lure()} 里的另外两条：每刻擦掉 {@code ATTACK_TARGET}（它就不会进 FIGHT），
+     * 以及给它写 {@code WALK_TARGET}（Brain 自己会走过去）。</p>
+     * <p>activity 一旦稳定，就既不会抽搐、也不会反复「重新进入」而重复播音效。
+     * 这也是 AGENTS 里那条「原版也有的功能 → 照原版实现」的做法：不去正面对撞 Brain，
+     * 而是补齐它本来就依赖的那个条件。</p>
+     *
+     * <h2>饵的属性</h2>
+     * <ul>
+     *   <li><b>隐形</b> —— 玩家看不见</li>
+     *   <li><b>无重力</b> —— 悬在球的位置，不落地</li>
+     *   <li><b>不可拾取</b>（{@code pickUpDelay} 拉满）—— 玩家/漏斗都拿不走</li>
+     *   <li>不设无限寿命 —— 让原版 5 分钟的过期逻辑当兜底，球没了也不会留下永久实体</li>
+     * </ul>
+     */
+    private static void ensureBait(ServerLevel level, BallProjectile ball) {
+        Vec3 pos = ball.position();
+        Integer id = BAIT_IDS.get(ball.getUUID());
+        if (id != null) {
+            Entity existing = level.getEntity(id);
+            if (existing instanceof ItemEntity bait && bait.isAlive()) {
+                // 跟着球走：球在飞，饵也得飞
+                bait.setPos(pos.x, pos.y, pos.z);
+                return;
+            }
+            // 记录失效（实体没了 / 过期了）→ 重新做
+            BAIT_IDS.remove(ball.getUUID());
+        }
+
+        ItemEntity bait = new ItemEntity(level, pos.x, pos.y, pos.z, new ItemStack(Items.GOLD_INGOT));
+        bait.setInvisible(true);
+        bait.setNoGravity(true);
+        bait.setPickUpDelay(Integer.MAX_VALUE);
+        level.addFreshEntity(bait);
+        BAIT_IDS.put(ball.getUUID(), bait.getId());
+    }
+
+    /**
+     * 球消失（被捡走 / 破碎 / 掉出世界）时，把它的饵一起收掉。
+     *
+     * <p>不收的话那颗隐形金锭会留在原地继续吸引猪灵 ——
+     * 最直接的后果是「猪灵捡起金球之后，还站在原地欣赏一堆空气」。</p>
+     */
+    @SubscribeEvent
+    public static void onBallGone(EntityLeaveLevelEvent event) {
+        if (!(event.getEntity() instanceof BallProjectile ball) || ball.level().isClientSide()) {
+            return;
+        }
+        if (ball.level() instanceof ServerLevel level) {
+            clearBait(level, ball);
+        }
+    }
+
+    /** 收掉这颗球的饵 */
+    private static void clearBait(ServerLevel level, BallProjectile ball) {
+        Integer id = BAIT_IDS.remove(ball.getUUID());
+        if (id == null) {
+            return;
+        }
+        Entity bait = level.getEntity(id);
+        if (bait != null) {
+            bait.discard();
         }
     }
 
@@ -294,8 +443,9 @@ public final class PiglinLure {
         if (!(piglin.level() instanceof ServerLevel level)) {
             return;
         }
+        List<ItemStack> pool = tradePool();
         for (int i = 0; i < count; i++) {
-            ItemStack goods = TRADE_POOL.get(level.getRandom().nextInt(TRADE_POOL.size())).copy();
+            ItemStack goods = pool.get(level.getRandom().nextInt(pool.size())).copy();
             piglin.spawnAtLocation(level, goods, 0.3F);
         }
         level.playSound(null, piglin.getX(), piglin.getY(), piglin.getZ(),

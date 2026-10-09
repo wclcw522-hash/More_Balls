@@ -105,13 +105,39 @@ public final class BallThunder {
         // 实际被劈到的实体，用来最后分摊那 60 点
         List<Entity> struck = new ArrayList<>();
 
+        // ⚠️ 候选按分值**从高到低**排序后依次劈（2026-10-09 修）。
+        //
+        //    原来每道闪电都调 pickOne（按分值加权随机），有两个毛病：
+        //      ① 会**重复**选中同一个目标 —— 4~9 道可能全砸在一处，
+        //         而真正该劈的高优先级目标一次都没轮上；
+        //      ② 高优先级目标被大量低分候选**淹没**（见 collect 里的权重说明）。
+        //
+        //    改成「高分优先、逐个往下劈」之后，避雷针 / 导电球 / 金属装备生物
+        //    会被优先覆盖，剩下的闪电才轮到更低的档位。
+        //    同一个实体只劈一次（选取时就跳过已劈过的，不浪费闪电）。
+        List<Candidate> ordered = new ArrayList<>(candidates);
+        ordered.sort((a, b) -> Integer.compare(b.score(), a.score()));
+        int cursor = 0;
+
         for (int i = 0; i < boltCount; i++) {
-            Candidate target = pickOne(candidates, random);
+            // 取「还没劈过」的下一个候选
+            Candidate target = null;
+            while (cursor < ordered.size()) {
+                Candidate c = ordered.get(cursor++);
+                Entity e = c.entity();
+                if (e != null && alreadyHit.contains(e.getUUID())) {
+                    continue;   // 这个实体已经中过了，换下一个
+                }
+                target = c;
+                break;
+            }
+
             LightningBolt bolt = EntityTypes.LIGHTNING_BOLT.create(level, EntitySpawnReason.EVENT);
             if (bolt == null) {
                 continue;
             }
 
+            // 候选用完了（或都已劈过）→ 退回纯特效落点
             Vec3 at = target == null ? randomAround(origin, random) : target.position();
             bolt.setPos(at.x, at.y, at.z);
             // 原版的伤害我们自己接管，避免 9 道各自结算把总伤顶到几十上百
@@ -201,17 +227,37 @@ public final class BallThunder {
             out.add(new Candidate(other, other.position(), SCORE_CONDUCTOR));
         }
 
-        // ③ 方块：避雷针与铜制方块。扫一个立方体范围，只取够得着的少数几个，
-        //    不然 33³ 全扫一遍太贵
+        // ③ 方块：避雷针与铜制方块。扫一个立方体范围。
+        //
+        // ⚠️ **普通方块（0 分）不进候选池**（2026-10-09 修）。
+        //
+        //    这个范围是 13³ = 2197 格，其中绝大多数是普通方块，而它们的分值是 0。
+        //    旧代码把它们全部 add 进候选池，于是「按分值加权随机」里它们各占
+        //    最低权重 1 票 —— 数量一大就把真正该劈的目标稀释到几乎选不中：
+        //        1 个金属装备生物（10 分）+ 1000 个普通方块 → 命中率 ≈ 1%
+        //    表现就是「9 道闪电基本全空劈，几乎没有伤害」。
+        //
+        //    现在只有**有分值的方块**（避雷针 / 铜块）直接进池；
+        //    普通方块收进 fallback，只在「一个有意义的目标都没有」时拿来当落点。
+        List<Candidate> blockFallback = new ArrayList<>();
         BlockPos center = source.blockPosition();
         int r = 6;
         for (BlockPos pos : BlockPos.betweenClosed(center.offset(-r, -r, -r), center.offset(r, r, r))) {
             BlockState state = level.getBlockState(pos);
             int score = scoreBlock(state);
             if (score < 0) {
-                continue;
+                continue;   // 空气
             }
-            out.add(new Candidate(null, Vec3.atCenterOf(pos), score));
+            Candidate candidate = new Candidate(null, Vec3.atCenterOf(pos), score);
+            if (score > SCORE_PLAIN_BLOCK) {
+                out.add(candidate);
+            } else {
+                blockFallback.add(candidate);
+            }
+        }
+        // 一个有意义的目标都没有 → 退回方块当落点，免得闪电凭空打在天上
+        if (out.isEmpty()) {
+            out.addAll(blockFallback);
         }
 
         return out;
@@ -273,26 +319,6 @@ public final class BallThunder {
     private static String blockPath(BlockState state) {
         return net.minecraft.core.registries.BuiltInRegistries.BLOCK
                 .getKey(state.getBlock()).getPath();
-    }
-
-    /** 按分值加权随机挑一个候选；没有候选时返回 {@code null} */
-    private static Candidate pickOne(List<Candidate> candidates, RandomSource random) {
-        if (candidates.isEmpty()) {
-            return null;
-        }
-        // 每个候选至少 1 点权重，这样低优先级的也不会永远轮不上
-        int total = 0;
-        for (Candidate c : candidates) {
-            total += Math.max(1, c.score());
-        }
-        int roll = random.nextInt(total);
-        for (Candidate c : candidates) {
-            roll -= Math.max(1, c.score());
-            if (roll < 0) {
-                return c;
-            }
-        }
-        return candidates.get(candidates.size() - 1);
     }
 
     /** 没有任何候选时，让闪电落在起点附近，纯观赏 */
