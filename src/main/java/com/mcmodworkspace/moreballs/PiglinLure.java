@@ -12,6 +12,7 @@ import net.minecraft.world.entity.Entity;
 import net.neoforged.bus.api.SubscribeEvent;
 import net.neoforged.fml.common.EventBusSubscriber;
 import net.neoforged.neoforge.event.entity.EntityLeaveLevelEvent;
+import net.neoforged.neoforge.event.tick.ServerTickEvent;
 import net.minecraft.world.entity.EquipmentSlot;
 import net.minecraft.world.entity.item.ItemEntity;
 import net.minecraft.world.entity.player.Player;
@@ -26,6 +27,7 @@ import org.jspecify.annotations.Nullable;
 
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 
@@ -93,6 +95,20 @@ public final class PiglinLure {
      * <p>见 {@link #ensureBait} 的说明 —— 那是让猪灵稳定停在 ADMIRE_ITEM 的关键。</p>
      */
     private static final Map<UUID, Integer> BAIT_IDS = new ConcurrentHashMap<>();
+
+    /**
+     * 待清理的球 UUID —— <b>延迟一 tick 再清</b>。
+     *
+     * <p>⚠️ 不能直接在 {@code EntityLeaveLevelEvent} 里 discard 饵（2026-10-09 实测崩服）：
+     * 那个事件**会在原版 {@code PersistentEntitySectionManager.updateChunkStatus}
+     * 遍历某个区块的实体列表时触发**（区块卸载要移除实体）——
+     * 我们此时再 discard 掉另一个实体，就等于**在遍历中途改列表**，
+     * 直接抛 {@code ConcurrentModificationException}，整个世界 tick 崩掉。</p>
+     *
+     * <p>所以事件里**只登记**，真正的 discard 挪到 {@code ServerTickEvent}——
+     * 那时不在任何实体遍历里，改列表是安全的。</p>
+     */
+    private static final Set<UUID> PENDING_CLEAR = ConcurrentHashMap.newKeySet();
 
     /** 被吸引时多久重设一次导航（刻） */
     public static final int LURE_NAV_INTERVAL = 5;
@@ -318,30 +334,43 @@ public final class PiglinLure {
     }
 
     /**
-     * 球消失（被捡走 / 破碎 / 掉出世界）时，把它的饵一起收掉。
+     * 球消失（被捡走 / 破碎 / 掉出世界）时**登记**要清掉的饵。
      *
      * <p>不收的话那颗隐形金锭会留在原地继续吸引猪灵 ——
      * 最直接的后果是「猪灵捡起金球之后，还站在原地欣赏一堆空气」。</p>
+     *
+     * <p>⚠️ <b>这里绝对不能直接 discard</b>（2026-10-09 实测把服务器 tick 崩掉）：
+     * 本事件会在原版 {@code updateChunkStatus} 遍历区块实体列表时触发，
+     * 此时再移除另一个实体就会抛 {@code ConcurrentModificationException}。
+     * 所以只登记 UUID，真正的清理交给下面的 {@link #onServerTickCleanup}。</p>
      */
     @SubscribeEvent
     public static void onBallGone(EntityLeaveLevelEvent event) {
         if (!(event.getEntity() instanceof BallProjectile ball) || ball.level().isClientSide()) {
             return;
         }
-        if (ball.level() instanceof ServerLevel level) {
-            clearBait(level, ball);
-        }
+        PENDING_CLEAR.add(ball.getUUID());
     }
 
-    /** 收掉这颗球的饵 */
-    private static void clearBait(ServerLevel level, BallProjectile ball) {
-        Integer id = BAIT_IDS.remove(ball.getUUID());
-        if (id == null) {
+    /** 真正清掉饵的地方 —— 在 ServerTick 阶段，不在任何实体遍历里 */
+    @SubscribeEvent
+    public static void onServerTickCleanup(ServerTickEvent.Post event) {
+        if (PENDING_CLEAR.isEmpty()) {
             return;
         }
-        Entity bait = level.getEntity(id);
-        if (bait != null) {
-            bait.discard();
+        for (ServerLevel level : event.getServer().getAllLevels()) {
+            for (java.util.Iterator<UUID> it = PENDING_CLEAR.iterator(); it.hasNext(); ) {
+                UUID ballId = it.next();
+                it.remove();
+                Integer baitId = BAIT_IDS.remove(ballId);
+                if (baitId == null) {
+                    continue;
+                }
+                Entity bait = level.getEntity(baitId);
+                if (bait != null) {
+                    bait.discard();
+                }
+            }
         }
     }
 

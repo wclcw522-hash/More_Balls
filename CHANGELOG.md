@@ -5,7 +5,50 @@
 > 26.3 线已冻结（那边 Curios 与 NeoForge 不兼容，饰品功能没法测）。
 > 26.3 线的历史见 `[26.3更多球]_More_Balls\CHANGELOG.md`。
 
-### 0.3.3.124
+### 0.3.3.125
+
+### 修一个会把服务器 tick 崩掉的 `ConcurrentModificationException`
+
+作者复测金球时报的崩溃。报告堆栈**全是原版代码**（`PersistentEntitySectionManager.updateChunkStatus`
+→ `ChunkHolder.demoteFullChunk` → `DistanceManager`），**没有我们的类** —— 但触发者是我：
+
+```java
+@SubscribeEvent
+public static void onBallGone(EntityLeaveLevelEvent event) {
+    ...
+    clearBait(level, ball);      // ← 在这里 discard 另一个实体
+}
+```
+
+**根因**：`EntityLeaveLevelEvent` 恰恰**会在原版 `updateChunkStatus` 遍历某个区块的实体列表时触发**
+（区块卸载要移除实体）。我们在这个时机再 `discard()` 掉饵，
+就等于**在遍历中途改列表** → `ConcurrentModificationException` → 整个世界 tick 崩掉。
+
+**修法**：事件里**只登记 UUID**，真正的 `discard` 挪到 `ServerTickEvent`：
+
+```java
+private static final Set<UUID> PENDING_CLEAR = ConcurrentHashMap.newKeySet();
+
+// EntityLeaveLevelEvent：只记下
+PENDING_CLEAR.add(ball.getUUID());
+
+// ServerTickEvent.Post：不在任何实体遍历里，这时清才安全
+for (ServerLevel level : event.getServer().getAllLevels()) {
+    for (Iterator<UUID> it = PENDING_CLEAR.iterator(); it.hasNext(); ) { … discard … }
+}
+```
+
+**教训（已写进 AGENTS.md）**：
+
+> **不要在 `EntityLeaveLevelEvent` / `EntityJoinLevelEvent` 里直接增删实体** ——
+> 这两个事件会在原版遍历区块实体列表的过程中触发，
+> 在里面改列表就是 `ConcurrentModificationException`。
+> 要改就登记下来，挪到 `ServerTickEvent` 里做。
+
+⚠️ **这个 bug 启动自测查不出来**（只在区块降级时触发）—— 需要实际走远让区块卸载才能复现。
+
+---
+## 0.3.3.124
 
 ### 【磁吸】对生物生效
 
