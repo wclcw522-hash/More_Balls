@@ -5,7 +5,75 @@
 > 26.3 线已冻结（那边 Curios 与 NeoForge 不兼容，饰品功能没法测）。
 > 26.3 线的历史见 `[26.3更多球]_More_Balls\CHANGELOG.md`。
 
-### 0.3.3.117
+### 0.3.3.118
+
+### 卡顿真凶确认并修复：`enforceBallCap`
+
+作者在长会话中补的关键信息——**「这不是掉帧，帧率还是很好的」**——
+是整条排查链的转折点：说明客户端渲染正常，问题在**集成服务器的 tick**上。
+
+#### 证据链
+
+```
+① 给球内部各阶段加计时 → prospecting 从 96% 降到可忽略，但还卡
+② 给全部 5 个全局监听加计时 → 全部 < 0.1ms，但服务器 Running 2164ms or 43 ticks behind
+③ 给 BallProjectile.tick() 整体加计时 → ball.tick=152.9ms，而 super.tick 只 0.3ms
+④ 把 tick 切成前段/后段 → 前段 106.0ms，后段 0.0ms
+⑤ 把前段再切三份 → enforceBallCap=110.1ms  ★ 坐实
+```
+
+#### 真凶是什么
+
+```java
+private void enforceBallCap() {
+    List<BallProjectile> all = server.getEntitiesOfClass(BallProjectile.class, WHOLE_LEVEL_BOX);
+    //                                                          ↑ -3千万 ~ +3千万，整个世界
+    int overflow = all.size() - BALL_CAP;   // 25 颗，没到 50 → 直接 return
+    ...
+}
+```
+
+两个致命点：
+
+1. **扫描范围是整个维度** —— 要遍历所有已加载区块的实体列表。
+2. **它是每个球各调一次** —— 判据 `gameTime % 20 == 0` 是**每个球各自成立**的，
+   于是 25 个球在**同一个 tick** 里各扫一遍全世界。
+
+**而且扔 25 颗时根本没到 50 的上限**：`25 - 50 = -25`，第二步就返回了。
+**那 110ms 全花在扫描上，清理一步都没做。**
+
+（单人游戏的集成服务器与客户端**同线程**，所以卡感直接落在操作上，
+但帧率统计看不出来——因为不是渲染管线本身慢。）
+
+#### 修法
+
+```java
+// ① 全局静态记录「上次检查的刻」，同一个刻只让第一个球跑
+if (capNow % BALL_CAP_CHECK_INTERVAL == 0L && capNow != ballCapLastCheckTick) {
+    ballCapLastCheckTick = capNow;
+    enforceBallCap(capLevel);
+}
+```
+
+```java
+// ② 检查间隔 20 → 100 刻（作者指定）
+public static final int BALL_CAP_CHECK_INTERVAL = 100;
+```
+
+同时 `enforceBallCap` 从实例方法改为 `static`（不再需要「不是自己」的排除逻辑，
+因为它不再由「自己」触发），参数改为吃 `ServerLevel`。
+
+**总开销约为原来的 1/125**（同一刻重复 25 次 → 1 次，是 25 倍；
+间隔 20 → 100，是 5 倍）。功能完全不变：扫的是同一个维度，结果一样，
+少跑的 24 次是纯重复。
+
+#### 保留
+
+`ModProfiler` 与所有计时调用点**暂时留着** —— 等作者确认卡顿确实解决后一并删除
+（它本身也有开销：每 tick 若干次 `ConcurrentHashMap` 查找）。
+
+---
+## 0.3.3.117
 
 ### 真凶锁定在 `ballTickPre`（前段）
 

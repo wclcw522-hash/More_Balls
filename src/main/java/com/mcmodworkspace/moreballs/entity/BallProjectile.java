@@ -757,8 +757,17 @@ public class BallProjectile extends ThrowableItemProjectile {
      */
     public static final int BALL_CAP = 50;
 
-    /** 上限检查的间隔（刻）—— 一秒一次足够，不必逐刻遍历维度 */
-    public static final int BALL_CAP_CHECK_INTERVAL = 20;
+    /**
+     * 上限检查的间隔（刻）。
+     *
+     * <p>原为 20（一秒一次）。作者 2026-10-09 指定放宽到 <b>100（五秒一次）</b> ——
+     * 这是整个卡顿问题里最大的开销源：每次检查都要拿 {@link #WHOLE_LEVEL_BOX}
+     * 扫一遍**全世界已加载区块的实体**，实测单次累计 110ms/200 采样。</p>
+     *
+     * <p>这个机制本身是「防堆积」的兜底，晚五秒清理完全不影响体验
+     * （球本来也不会瞬间堆到 50 颗）。</p>
+     */
+    public static final int BALL_CAP_CHECK_INTERVAL = 100;
 
     /**
      * 覆盖整个维度的包围盒 —— {@code getEntitiesOfClass} 需要一个 AABB，
@@ -768,6 +777,24 @@ public class BallProjectile extends ThrowableItemProjectile {
             new net.minecraft.world.phys.AABB(
                     -3.0E7D, -2048.0D, -3.0E7D,
                     3.0E7D, 2048.0D, 3.0E7D);
+
+    /**
+     * 上一次做上限检查的游戏刻 —— <b>全局共享</b>。
+     *
+     * <p>⚠️ 这是性能修复的关键（作者 2026-10-09：卡顿真凶，实测 110.1ms/200 采样）。</p>
+     *
+     * <p>原来判据只有 {@code gameTime % 20 == 0}，那是**每个球各自**成立的 ——
+     * 25 个球在同一个 tick 里各做一次 {@code WHOLE_LEVEL_BOX} 全维度扫描，
+     * 等于同一件事重复 25 遍。单人游戏的集成服务器跟客户端同线程，
+     * 于是卡感直接体现在操作上（但帧率统计看不出来，因为不是渲染管线本身慢）。</p>
+     *
+     * <p>改成「记下上次检查的刻，同一个刻只跑一次」—— 同一刻的重复扫描从 25 次降到 1 次。
+     * 再叠加 {@link #BALL_CAP_CHECK_INTERVAL} 从 20 放宽到 100，总开销约为原来的 1/125。</p>
+     *
+     * <p>注：gameTime 是全服务器共享的，所以多维度同刻只会让先到的那个维度跑检查，
+     * 另一个维度下一轮再查 —— 对「防堆积」这种兜底机制来说，晚几秒完全无所谓。</p>
+     */
+    private static long ballCapLastCheckTick = Long.MIN_VALUE;
 
     /**
      * 执行一次上限检查：本维度的球多于 {@link #BALL_CAP} 时，
@@ -780,12 +807,9 @@ public class BallProjectile extends ThrowableItemProjectile {
      * <h2>为什么用 discard() 而不是 kill()</h2>
      * <p>{@code kill()} 会走 {@code hurt(damageSources().genericKill())} 那条路，
      * 对投射物来说会触发掉落/碎裂之类的收尾逻辑；{@code discard()} 是直接移除，
-     * **不产生任何掉落物** —— 这正是作者要的「无掉落消失」。</p>
+     * <b>不产生任何掉落物</b> —— 这正是作者要的「无掉落消失」。</p>
      */
-    private void enforceBallCap() {
-        if (!(this.level() instanceof net.minecraft.server.level.ServerLevel server)) {
-            return;
-        }
+    private static void enforceBallCap(net.minecraft.server.level.ServerLevel server) {
         java.util.List<BallProjectile> all =
                 server.getEntitiesOfClass(BallProjectile.class, WHOLE_LEVEL_BOX);
         int overflow = all.size() - BALL_CAP;
@@ -796,14 +820,8 @@ public class BallProjectile extends ThrowableItemProjectile {
         // tickCount 是 Entity 的 public 字段（不是 getter）
         all.sort((a, b) -> Integer.compare(b.tickCount, a.tickCount));
         for (int i = 0; i < overflow; i++) {
-            BallProjectile oldest = all.get(i);
-            if (oldest != this) {
-                // 不动「自己」—— 自己的 tick 正在跑，提前移除会打乱这一帧的后续逻辑
-                oldest.discard();
-            } else if (overflow > 1) {
-                // 自己被点到但还有别的要清，先跳过，下一轮再算
-                continue;
-            }
+            // 现在不再由「自己」触发，所以不用排除自己 —— 该清就清。
+            all.get(i).discard();
         }
         MoreBalls.LOGGER.debug("[ball] 实体上限 {}：本维度有 {} 颗，清掉最旧的 {} 颗",
                 BALL_CAP, all.size(), overflow);
@@ -840,10 +858,18 @@ public class BallProjectile extends ThrowableItemProjectile {
         // 每 20 刻（1 秒）才查一次 —— 逐刻遍历整个维度的实体没意义，
         // 而这个上限本身是「防堆积」用的，晚一秒清理完全够。
         // 只在服务端做：客户端的实体列表不完整，也轮不到它决定谁该消失。
-        if (!this.level().isClientSide() && this.level().getGameTime() % BALL_CAP_CHECK_INTERVAL == 0L) {
-            long _tCap = System.nanoTime();
-            enforceBallCap();
-            ModProfiler.hit("ball.前段.enforceBallCap", _tCap);
+        //
+        // ⚠️ **同一个刻只让一个球跑**（`ballCapLastCheckTick` 是全局静态的）。
+        //    原来只判 `gameTime % 20 == 0`，那是**每个球各自成立**的 ——
+        //    25 个球在同一刻各做一次全维度扫描，等于同一件事重复 25 遍。
+        if (this.level() instanceof ServerLevel capLevel) {
+            long capNow = capLevel.getGameTime();
+            if (capNow % BALL_CAP_CHECK_INTERVAL == 0L && capNow != ballCapLastCheckTick) {
+                ballCapLastCheckTick = capNow;
+                long _tCap = System.nanoTime();
+                enforceBallCap(capLevel);
+                ModProfiler.hit("ball.前段.enforceBallCap", _tCap);
+            }
         }
 
         // 回归期间，<b>在 super.tick() 之前</b>先把恼鬼的开关压上。
