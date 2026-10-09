@@ -485,10 +485,14 @@ public class BallProjectile extends ThrowableItemProjectile {
     }
 
     private void setSettled(boolean settled) {
-        // 【智慧x】追踪期间**永不进入静止态**（作者 2026-10-09 指定）。
+        // 【智慧x】**正在无视重力飞行**时不进入静止态（作者 2026-10-09 指定）。
         // 静止态的球会被「按在地上」（贴地、可被捡、触发静止特效），
-        // 而智慧球此刻还在无视重力飞行 —— 必须拦住。
-        if (settled && this.wisdomStillTracking()) {
+        // 而此时它还在空中追目标 —— 必须拦住。
+        //
+        // ⚠️ 判据是 **isNoGravity()**，不是 wisdomStillTracking()。
+        //    后者在「第一次命中之前」也为真，会让球一扔出去就拒绝静止；
+        //    而作者要的是「无视重力的时候才不静止」—— 命中前照常能落地静止。
+        if (settled && this.isNoGravity()) {
             this.entityData.set(SETTLED, false);
             return;
         }
@@ -907,13 +911,16 @@ public class BallProjectile extends ThrowableItemProjectile {
                 if (!this.isNoGravity()) {
                     this.setNoGravity(true);
                 }
-            } else if (this.isNoGravity() && this.wisdomGravityBefore) {
-                // ⚠️ 只有**值真的变了**才调用 setNoGravity。
-                //    它是同步数据，值没变也会标记变更、触发一次实体同步 ——
-                //    每 tick 调就是「卡一下闪现一下」（作者 2026-10-09 反馈）。
-                this.setNoGravity(true);
-            } else if (!this.isNoGravity() && !this.wisdomGravityBefore) {
-                // 已经是 false、目标也是 false —— 什么都不做
+            } else if (this.isNoGravity() != this.wisdomGravityBefore) {
+                // ⚠️ 还原成**最初的重力状态**（通常是 false = 受重力）。
+                //
+                //    这里原来错写成 setNoGravity(true) —— 在「还原重力」的分支里
+                //    又把重力关掉了，于是次数耗尽后球永远不落地
+                //    （作者 2026-10-09 遍历时发现的）。
+                //
+                //    ⚠️ 同时注意：**只在值真的变化时**调用 —— setNoGravity 是同步数据，
+                //    值没变也会触发一次实体同步，每 tick 调就是「卡一下闪现一下」。
+                this.setNoGravity(this.wisdomGravityBefore);
             }
         }
 

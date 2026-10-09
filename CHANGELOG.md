@@ -5,7 +5,47 @@
 > 26.3 线已冻结（那边 Curios 与 NeoForge 不兼容，饰品功能没法测）。
 > 26.3 线的历史见 `[26.3更多球]_More_Balls\CHANGELOG.md`。
 
-### 0.3.3.96
+### 0.3.3.97
+
+### 补做遍历，揪出两个自己写出来的 bug
+
+作者问「这几轮改动前后有没有遍历代码」—— **如实回答：没有完整遍历。**
+最近几轮我把「遍历」压缩成了「读一眼相关的那几行」，违反了 AGENTS.md 里
+「修前修后各遍历一遍」的硬性约定。补做之后立刻查出两个真 bug：
+
+**Bug ① 重力还原写错了目标值（`BallProjectile` L914）**
+
+```java
+} else if (this.isNoGravity() && this.wisdomGravityBefore) {
+    this.setNoGravity(true);          // ❌ 在「还原重力」的分支里又把重力关掉了
+}
+```
+
+**后果**：次数耗尽后球**永远无重力、永远不落地** —— 正好违反作者要求的
+「最后一次机会消耗后正常掉落在地并静止」。
+
+**修法**：`setNoGravity(this.wisdomGravityBefore)`，并把条件简化为
+`isNoGravity() != wisdomGravityBefore`（值不变就不调用，避免多余的实体同步）。
+
+**Bug ② `setSettled` 的判据用错变量**
+
+```java
+if (settled && this.wisdomStillTracking()) { ... }   // ❌ 判据过宽
+```
+
+`wisdomStillTracking()` 是「次数 > 0」，**在第一次命中之前也为真** ——
+于是球一扔出去就拒绝静止，而作者要的是「**无视重力的时候**才不静止」。
+
+**修法**：判据改成 `this.isNoGravity()`。
+
+### 教训
+
+这两处都不是「没想到」，而是**改完没回头看**。同一个方法内相邻两个分支，
+一个设 `true`、一个本该还原成 `false`，写的时候没检查就发版了。
+后续每轮改动一律执行完整的修前 + 修后遍历，不再压缩。
+
+---
+## 0.3.3.96
 
 ### 【智慧】回归本质：保留速度 + 无视重力 + 自己飞
 
