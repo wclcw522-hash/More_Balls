@@ -1,6 +1,7 @@
 package com.mcmodworkspace.moreballs;
 
 import com.mcmodworkspace.moreballs.entity.BallProjectile;
+import net.neoforged.neoforge.event.entity.living.LivingDeathEvent;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.entity.Display;
 import net.minecraft.world.entity.Entity;
@@ -128,6 +129,15 @@ public final class CreeperBallBehavior {
 
     @SubscribeEvent
     public static void onCreeperTick(EntityTickEvent.Post event) {
+        // 【苦力怕死亡 -> 头顶的球立刻消失】（作者 2026-10-09 反馈）
+        //
+        // 头顶那个球是个**独立的 ItemDisplay 实体**，只在 tick 里被维护 ——
+        // 苦力怕一死就不再 tick，图标于是永远留在那儿。
+        // 所以这里在「不存活」时主动收掉它。
+        if (event.getEntity() instanceof Creeper deadCheck
+                && (!deadCheck.isAlive() || deadCheck.isRemoved())) {
+            removeHeadIcon(deadCheck);
+        }
         if (!(event.getEntity() instanceof Creeper creeper) || creeper.level().isClientSide()) {
             return;
         }
@@ -408,6 +418,22 @@ public final class CreeperBallBehavior {
      * <p>为什么不用 Mixin 见类注释 —— 简言之：{@code @Redirect} 试了三轮都静默失败，
      * 换事件一次通。</p>
      */
+    /**
+     * 【苦力怕死亡 -> 头顶的球立刻消失】（作者 2026-10-09 反馈）
+     *
+     * <p>头顶那个球是个<b>独立的 {@code ItemDisplay} 实体</b> —— 它不会被苦力怕带着一起死，
+     * 而维护它的 {@link #onCreeperTick} 在苦力怕死后就不再跑了，于是图标永远留在原地。</p>
+     *
+     * <p>用死亡事件收掉，比在 tick 里判断更可靠：自杀式爆炸、{@code /kill}、掉虚空
+     * 这几种路径都会走到这里。</p>
+     */
+    @SubscribeEvent
+    public static void onCreeperDeath(LivingDeathEvent event) {
+        if (event.getEntity() instanceof Creeper creeper) {
+            removeHeadIcon(creeper);
+        }
+    }
+
     @SubscribeEvent
     public static void onExplosionStart(ExplosionEvent.Start event) {
         if (replayingBallBlast) {

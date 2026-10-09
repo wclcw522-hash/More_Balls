@@ -593,6 +593,11 @@ public class BallProjectile extends ThrowableItemProjectile {
 
     /** 这颗球是不是已经在回家的路上了（起飞过就一直算） */
     private boolean isReturning() {
+        // 注：「次数未耗尽就不回家」的**主拦截点在 homingToOwner()**，
+        // 这里再判一次是为了让「已经在回家路上」的球在次数被重置时也能立刻停 —— 双保险。
+        if (this.wisdomStillTracking()) {
+            return false;
+        }
         return this.returnToOwner && this.homingTicks > 0;
     }
 
@@ -868,9 +873,26 @@ public class BallProjectile extends ThrowableItemProjectile {
         // 而且搜索窗口只有前 40 刻。结果：怪物扔回来的球出手时方向已经对着目标，
         // 那一次锁定几乎不改变弹道，之后再也不会拐弯 —— 表现就是「智慧不生效」。
         // 改成周期性重锁：持续跟踪目标，直到球失效。
-        if (this.profile().wisdom() > 0 && this.wisdomRelockCooldown-- <= 0) {
-            this.wisdomRelockCooldown = WISDOM_RELOCK_INTERVAL;
-            this.tryWisdomLock();
+        if (this.profile().wisdom() > 0) {
+            // 首次初始化剩余次数
+            if (this.wisdomUsesLeft < 0) {
+                this.wisdomUsesLeft = this.profile().wisdom();
+            }
+            if (this.wisdomUsesLeft > 0) {
+                // 【智慧x】**次数未耗尽期间**：不受重力影响。
+                // 这样被反弹回来之后它还会自己拐回去追，直到把「机会」用完
+                // （作者 2026-10-09 指定：被反弹后无视重力，用完最后一次才正常掉落）。
+                if (!this.isNoGravity()) {
+                    this.setNoGravity(true);
+                }
+                if (this.wisdomRelockCooldown-- <= 0) {
+                    this.wisdomRelockCooldown = WISDOM_RELOCK_INTERVAL;
+                    this.tryWisdomLock();
+                }
+            } else if (this.isNoGravity()) {
+                // 次数耗尽：把重力还回来，让它正常掉落
+                this.setNoGravity(this.wisdomGravityBefore);
+            }
         }
 
         // 【金光闪闪】的吸引窗口：**无论球是不是静止**都要吸引。
@@ -951,7 +973,9 @@ public class BallProjectile extends ThrowableItemProjectile {
                     this.burst();
                     return;
                 }
-                // 【空气动力球】：本该停下的球，改成起飞回家
+                // 【智慧x】次数未耗尽时**不触发【空气动力球】回收** —— 它还在追目标，
+    // 不该被拽回主人身边（作者 2026-10-09 指定：次数耗尽后才正常掉落并可被回收）。
+    // 【空气动力球】：本该停下的球，改成起飞回家
                 if (this.returnToOwner && this.homingToOwner()) {
                     return;
                 }
@@ -1700,6 +1724,18 @@ public class BallProjectile extends ThrowableItemProjectile {
     /** 【智慧】是否已经锁定过 */
     private boolean wisdomLocked;   // 只表示「当前处于锁定态」，不再是一道永久闸门
 
+    /**
+     * 【智慧N】的<b>剩余追踪次数</b>。
+     *
+     * <p>{@code -1} = 还没初始化（首次 tick 时从 {@code profile().wisdom()} 取）。
+     * 每次<b>成功锁定</b>扣 1，扣到 0 就彻底不再追踪 —— 于是球会正常坠落、静止、
+     * 并交还给【空气动力球】的回收逻辑。</p>
+     */
+    private int wisdomUsesLeft = -1;
+
+    /** 开启【智慧】追踪前的原始重力状态，次数耗尽后还原 */
+    private boolean wisdomGravityBefore = false;
+
     /** 【善良】已经在 onHitEntity 里反弹过 —— 告诉 onHit 不要再 bounceBack 覆盖它 */
     private boolean friendlyBounced;
 
@@ -1707,7 +1743,8 @@ public class BallProjectile extends ThrowableItemProjectile {
     private int wisdomRelockCooldown;
 
     /** 【智慧】多久重新锁定一次目标（刻）。原来是「只锁一次」，那对怪物扔回的球几乎无效 */
-    private static final int WISDOM_RELOCK_INTERVAL = 5;
+    /** 重锁间隔 —— 作者指定 0.5 秒（10 刻） */
+    private static final int WISDOM_RELOCK_INTERVAL = 10;
 
     /**
      * 【智慧】的扫描与锁定。
@@ -1783,8 +1820,24 @@ public class BallProjectile extends ThrowableItemProjectile {
      * <p><b>保留当前速度大小、只换方向</b> —— 球飞得快的还是快，
      * 不会因为锁定突然减速或加速。</p>
      */
+    /**
+     * 【智慧x】是否还在追踪中（次数未耗尽）。
+     *
+     * <p>追踪期间这颗球<b>不受重力</b>、也<b>不被【空气动力球】回收</b> ——
+     * 它会一直追到把「机会」用完为止（作者 2026-10-09 指定）。</p>
+     */
+    private boolean wisdomStillTracking() {
+        return this.profile().wisdom() > 0 && this.wisdomUsesLeft > 0;
+    }
+
     private void lockOnto(LivingEntity target) {
         this.wisdomLocked = true;
+
+        // 【智慧N】每次成功锁定扣一次 —— 扣到 0 就不再追踪
+        // （作者 2026-10-09：数值代表可追踪次数，消耗完就不再锁定）
+        if (this.wisdomUsesLeft > 0) {
+            this.wisdomUsesLeft--;
+        }
 
         // 【智慧】成就：首次触发锁定 —— 记在**投掷者**头上（怪物扔的不算，
         // 它没有成就页；作者给出的文案也是给玩家看的）
@@ -2126,6 +2179,16 @@ public class BallProjectile extends ThrowableItemProjectile {
      * @return true 表示这一 tick 已经由回归逻辑接管，常规的静止处理应当让路
      */
     private boolean homingToOwner() {
+        // 【智慧x】次数未耗尽时**不启动回归** —— 它还在追目标，不该被拽回主人身边。
+        // 次数用完（wisdomUsesLeft == 0）才解除这条限制，正常掉落并可被回收。
+        // （作者 2026-10-09 指定）
+        //
+        // ⚠️ 判定必须放在**这里**而不是 isReturning()：本方法才是「开始回家」的入口，
+        //    它自己不检查 returnToOwner（由调用方检查），所以只有在这里拦才有效。
+        if (this.wisdomStillTracking()) {
+            return false;
+        }
+
         Entity owner = this.getOwner();
         if (!(owner instanceof LivingEntity living)
                 || !living.isAlive()

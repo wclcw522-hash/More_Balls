@@ -5,7 +5,59 @@
 > 26.3 线已冻结（那边 Curios 与 NeoForge 不兼容，饰品功能没法测）。
 > 26.3 线的历史见 `[26.3更多球]_More_Balls\CHANGELOG.md`。
 
-### 0.3.3.90
+### 0.3.3.91
+
+### 【智慧x】的完整行为（作者 2026-10-09 指定的五条）
+
+**① 次数没有被消耗（作者反馈「一直追」）**
+
+*根因*：`tryWisdomLock()` 只调用 `lockOnto()` 改方向，**从来没有递减过次数** ——
+`profile().wisdom()` 全程只是个只读判断，所以球永远在追。
+
+*修法*：新增字段 `wisdomUsesLeft`（首次 tick 从 `profile().wisdom()` 取值），
+`lockOnto()` 里每成功锁定一次扣 1。
+
+**② 追踪间隔改为 0.5 秒**
+
+`WISDOM_RELOCK_INTERVAL` 从 `5` 刻改成 **`10` 刻**。
+
+**③ 次数未耗尽期间无视重力**
+
+```java
+if (this.wisdomUsesLeft > 0) {
+    if (!this.isNoGravity()) this.setNoGravity(true);
+    ...
+} else if (this.isNoGravity()) {
+    this.setNoGravity(this.wisdomGravityBefore);   // 次数用完，把重力还回去
+}
+```
+
+被反弹回来之后它还会自己拐回去追，直到把「机会」用完。
+新增 `wisdomGravityBefore` 记住原始重力状态，用完时精确还原。
+
+**④ 次数未耗尽期间不触发【空气动力球】回收**
+
+*关键坑*：拦截点必须放在 **`homingToOwner()` 的开头**，不能放 `isReturning()` ——
+后者只是「是否已在回家路上」，而 `homingToOwner()` 才是「**开始回家**」的入口，
+且它自己不检查 `returnToOwner`（由调用方查）。放错地方等于没拦。
+
+现在次数用完（`wisdomUsesLeft == 0`）才解除限制，球正常掉落、静止，之后可被回收。
+
+**⑤ 苦力怕死亡后头顶的球不消失**
+
+*根因*：头顶那个球是个**独立的 `ItemDisplay` 实体** —— 它不会被苦力怕带着一起死，
+而维护它的 `onCreeperTick` 在苦力怕死后就不再执行，于是图标永远留在原地。
+
+*修法*：新增 `LivingDeathEvent` 监听，苦力怕死亡即 `removeHeadIcon()`。
+用死亡事件比在 tick 里判断更可靠：**自杀式爆炸、`/kill`、掉虚空**几条路径都会走到这里。
+
+### 部署流程改进
+
+上一轮出现过「`mods` 里同时存在两个同 ID 的 jar」。本轮部署**加了唯一性核对**，
+确认 `dist` 与 `mods` 各只有 1 个 `0.3.3.91` 之后才收工。
+
+---
+## 0.3.3.90
 
 ### 【引雷】最低伤害 5（作者反馈「感觉没打出伤害」）
 
