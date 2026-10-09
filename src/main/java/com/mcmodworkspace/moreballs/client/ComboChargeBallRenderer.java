@@ -362,16 +362,33 @@ public class ComboChargeBallRenderer implements SpecialModelRenderer<int[]> {
                     float u = (x + 0.5F) / w;
                     float v = (y + 0.5F) / h;
 
-                    // ===== 六个面：正 / 背 / 上 / 下 / 左 / 右 =====
-                    // 正背两面：xy 平面上的矩形，z 从近到远
+                    // ===== 正 / 背 两面：总要画（这是"板"的两个面） =====
                     quadXY(buffer, pose, x0, y0, x1, y1, SIDE_Z_FROM, SIDE_Z_TO, u, v, 0, 0, 1, light, overlay);
                     quadXY(buffer, pose, x1, y0, x0, y1, SIDE_Z_FROM, SIDE_Z_TO, u, v, 0, 0, -1, light, overlay);
-                    // 上下两面：xz 平面上的矩形，y 固定
-                    quadXZ(buffer, pose, x0, x1, y1, SIDE_Z_FROM, SIDE_Z_TO, u, v, 0, 1, 0, light, overlay);
-                    quadXZ(buffer, pose, x0, x1, y0, SIDE_Z_FROM, SIDE_Z_TO, u, v, 0, -1, 0, light, overlay);
-                    // 左右两面：yz 平面上的矩形，x 固定
-                    quadYZ(buffer, pose, x0, y0, y1, SIDE_Z_FROM, SIDE_Z_TO, u, v, -1, 0, 0, light, overlay);
-                    quadYZ(buffer, pose, x1, y0, y1, SIDE_Z_FROM, SIDE_Z_TO, u, v, 1, 0, 0, light, overlay);
+
+                    // ===== 四周：**只画外露的那些面** =====
+                    //
+                    //    ⚠️ 之前六个面全画、还双面提交，顶点数到 6336 ——
+                    //    超过 submitCustomGeometry 的缓冲区，**尾部被静默丢弃**，
+                    //    表现就是「总是缺后面画的那几面」（作者反馈：左前、右后、底面缺）。
+                    //    现在把顶点数压到 ~1600：正背必画，四周只在邻居透明时才画。
+                    //    相邻像素之间的内部面本来也看不见，不画反而更对。
+                    if (!isOpaque(img, x, y - 1)) {
+                        // 上方外露 → +Y 面
+                        quadXZ(buffer, pose, x0, x1, y1, SIDE_Z_FROM, SIDE_Z_TO, u, v, 0, 1, 0, light, overlay);
+                    }
+                    if (!isOpaque(img, x, y + 1)) {
+                        // 下方外露 → -Y 面
+                        quadXZ(buffer, pose, x0, x1, y0, SIDE_Z_FROM, SIDE_Z_TO, u, v, 0, -1, 0, light, overlay);
+                    }
+                    if (!isOpaque(img, x - 1, y)) {
+                        // 左方外露 → -X 面
+                        quadYZ(buffer, pose, x0, y0, y1, SIDE_Z_FROM, SIDE_Z_TO, u, v, -1, 0, 0, light, overlay);
+                    }
+                    if (!isOpaque(img, x + 1, y)) {
+                        // 右方外露 → +X 面
+                        quadYZ(buffer, pose, x1, y0, y1, SIDE_Z_FROM, SIDE_Z_TO, u, v, 1, 0, 0, light, overlay);
+                    }
                     boxes++;
                 }
             }
