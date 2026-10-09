@@ -178,8 +178,11 @@ public class ProspectingHeatData extends SavedData {
 
         long elapsed = tick - entry.lastHeatedTick();
         float heat = entry.heat();
-        if (elapsed > 0) {
-            heat = Math.max(0.0F, heat - DECAY_PER_TICK * elapsed);
+        // 连续 1 秒（20 刻）没被加热才开始消散（作者 2026-10-10 指定）——
+        // 所以真正参与结算的只有「超出宽限期的那部分刻数」。
+        long decayTicks = elapsed - BallProspecting.HEAT_DECAY_DELAY_TICKS;
+        if (decayTicks > 0) {
+            heat = Math.max(0.0F, heat - DECAY_PER_TICK * decayTicks);
             // 消散到零就整条删掉，别让存档越滚越大
             if (heat <= 0.0F) {
                 this.entries.remove(key);

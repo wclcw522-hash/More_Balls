@@ -1,0 +1,11 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "category": "misc",
+  "key": {
+    "S": "minecraft:snowball",
+    "R": "minecraft:redstone_block"
+  },
+  "pattern": [ " S ", "SRS", " S " ],
+  "result": { "count": 4, "id": "more_balls:redstone_snowball" },
+  "show_notification": false
+}

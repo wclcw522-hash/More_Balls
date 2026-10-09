@@ -94,9 +94,13 @@ public final class BallHeatHandler {
         // 否则正被球烤着的生物永远走不到这里，而「满热」恰恰只在被烤时才成立。
         checkMoltenOverload(living, heat);
 
-        // 本刻（或上一刻）刚被球加热过 → 升温阶段，不消退
+        // 连续「1 秒」没被加热过，才开始自然消散（作者 2026-10-10 指定）。
+        //
+        // 原先是「只要不是本刻/上一刻刚加热过就散」—— 加热源一断热量立刻往下掉，攒不起来。
+        // 现在给一个 HEAT_DECAY_DELAY_TICKS 的宽限窗口：只要还在被持续加热（或间歇加热），
+        // 这 20 刻内都不会掉。宽限用完之后才按 PLAYER_HEAT_DECAY 正常降温。
         int lastHeated = living.getData(ModAttachments.LAST_HEATED_TICK.get());
-        if (living.tickCount - lastHeated <= 1) {
+        if (living.tickCount - lastHeated <= BallProspecting.HEAT_DECAY_DELAY_TICKS) {
             return;
         }
 

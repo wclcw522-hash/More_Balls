@@ -6,6 +6,10 @@ import net.minecraft.world.entity.EntityDimensions;
 import net.minecraft.world.phys.AABB;
 import net.minecraft.world.entity.monster.Enemy;
 import com.mcmodworkspace.moreballs.BallBehavior;
+import com.mcmodworkspace.moreballs.BallIlluminate;
+import com.mcmodworkspace.moreballs.DiamondBallDrops;
+import com.mcmodworkspace.moreballs.BallLens;
+import com.mcmodworkspace.moreballs.RedstonePulse;
 import com.mcmodworkspace.moreballs.BallFragments;
 import com.mcmodworkspace.moreballs.BallPouchHelper;
 import com.mcmodworkspace.moreballs.MoltenBurnEffect;
@@ -96,6 +100,17 @@ public class BallProjectile extends ThrowableItemProjectile {
 
     /** 判定为静止的速度平方阈值（约 0.03 格/刻） */
     private static final double SETTLE_SPEED_SQR = 0.0009D;
+
+    /** 【破坏王】每砸掉一个方块后保留的速度比例（作者指定：降到当前的 85%） */
+    private static final double BREAKER_SPEED_RETAIN = 0.85D;
+
+    /**
+     * 【破坏王】是否已经「砸不动了」。
+     *
+     * <p>作者指定：速度衰减到静止阈值之后就<b>停止破坏并静止</b>。
+     * 用这个标志记下来，免得下一 tick 速度刚好微微回升时又来砸一块。</p>
+     */
+    private boolean breakerSpent;
 
     /** 静止后存活时长：2 分钟 = 2400 刻 */
     private static final int SETTLED_LIFETIME_TICKS = 2400;
@@ -1022,6 +1037,27 @@ public class BallProjectile extends ThrowableItemProjectile {
             this.magnetTick(serverLevel);
         }
 
+        // 【照明】红石雪球：每刻维持正下方的四棱锥判定区。
+        //
+        // ⚠️ 这里**不加** isSettled 判断 —— 作者的规格是「在该 balls 的正下方」，
+        //    没限定只算飞行中；球停在地上时判定区照样存在（锥体会随着球离地高度变化）。
+        if (this.profile().hasFlag(BallBehavior.BallProfile.FLAG_ILLUMINATE)
+                && this.level() instanceof ServerLevel illuminateLevel) {
+            BallIlluminate.tick(illuminateLevel, this.position());
+        }
+
+        // 【照明】的飞行拖尾：红色粒子，每颗滞留约 1 秒
+        this.redstoneTrailTick();
+
+        // 【透镜】钻石球：白天晴天时给正下方的方块与生物持续积热。
+        //
+        // ⚠️ 同样**不判 isSettled()** —— 作者明确「即使钻石球静止」也要积热，
+        //    静止的钻石球照样是一块聚焦镜。
+        if (this.profile().hasFlag(BallBehavior.BallProfile.FLAG_LENS)
+                && this.level() instanceof ServerLevel lensLevel) {
+            BallLens.tick(lensLevel, this.position());
+        }
+
         if (this.impulseTicks > 0) {
             this.impulseTicks--;
         }
@@ -1177,6 +1213,45 @@ public class BallProjectile extends ThrowableItemProjectile {
      *   <li><b>生物</b>（2026-10-09 新增）—— 按身上的金属装备数加权（见方法内说明）</li>
      * </ul>
      */
+    /**
+     * 【照明】的飞行拖尾 —— 红色粒子，每颗滞留约 1 秒。
+     *
+     * <p>用 {@code DustParticleOptions} 撒红色尘埃：原版这类粒子的存活时间就在 1 秒上下，
+     * 正好对上作者要的「单个粒子滞留时长 1s」，不需要额外控制寿命。</p>
+     *
+     * <p>隔刻撒即可 —— 逐刻撒会连成一条实心红线，反而看不出是拖尾。</p>
+     */
+    private void redstoneTrailTick() {
+        if (!(this.level() instanceof ServerLevel level)) {
+            return;
+        }
+        if (!this.profile().hasFlag(BallBehavior.BallProfile.FLAG_ILLUMINATE)) {
+            return;   // 只有红石雪球有拖尾
+        }
+        if (this.tickCount % 2 != 0) {
+            return;
+        }
+
+        RandomSource random = this.getRandom();
+        Vec3 velocity = this.getDeltaMovement();
+        // 沿速度反方向拖一点，速度越快尾巴越长；停下来时就撒在自己身上
+        Vec3 back = velocity.length() > 0.05D
+                ? velocity.normalize().scale(-0.25D)
+                : Vec3.ZERO;
+
+        int tint = random.nextInt(3);
+        int color = switch (tint) {
+            case 0 -> 0xFF2020;
+            case 1 -> 0xFF4020;
+            default -> 0xE01010;
+        };
+        level.sendParticles(new net.minecraft.core.particles.DustParticleOptions(color, 1.0F),
+                this.getX() + back.x + (random.nextDouble() - 0.5D) * 0.15D,
+                this.getY() + 0.1D + back.y + (random.nextDouble() - 0.5D) * 0.15D,
+                this.getZ() + back.z + (random.nextDouble() - 0.5D) * 0.15D,
+                1, 0.0D, 0.0D, 0.0D, 0.0D);
+    }
+
     private void magnetTick(ServerLevel level) {
         BallBehavior.BallProfile profile = this.profile();
         if (!profile.hasMagnet() || this.isSettled()) {
@@ -1728,6 +1803,20 @@ public class BallProjectile extends ThrowableItemProjectile {
             return;
         }
 
+        // ===== 【脉冲】红石球：命中即触发（实体与方块都算）=====
+        //
+        // 作者 2026-10-10 指定：以「命中点」为球心、半径 7 格，对范围内
+        // 「身着金属护甲、或护甲值超过 20 点」的生物施加【震荡】（3 秒）；
+        // 若目标「金属装备 ≥ 4 件、或护甲值 ≥ 40」则升级成【震荡 2】（5 秒）。
+        //
+        // 挂在这里而不是 onHitEntity：作者的规格是「命中时」，没区分撞的是生物还是方块，
+        // 挂实体那个分支就漏掉了砸地面 / 砸墙的情形。
+        // 位置放在「回归虚化」早退之后 —— 回家途中的球不该炸开脉冲。
+        if (this.profile().hasFlag(BallBehavior.BallProfile.FLAG_PULSE)
+                && this.level() instanceof ServerLevel pulseLevel) {
+            RedstonePulse.detonate(pulseLevel, hitResult.getLocation());
+        }
+
         if (hitResult.getType() == HitResult.Type.ENTITY) {
             EntityHitResult entityHit = (EntityHitResult) hitResult;
 
@@ -1768,6 +1857,17 @@ public class BallProjectile extends ThrowableItemProjectile {
                 return;
             }
         } else if (hitResult.getType() == HitResult.Type.BLOCK) {
+            // ===== 【破坏王】钻石球：把撞到的方块砸掉 =====
+            //
+            // 作者 2026-10-10 指定：破坏接触到的方块，每碎一块速度降到当前的 85%、
+            // 扣 1 点耐久；速度衰减到静止阈值之后就停止破坏并静止。
+            // 放在 isTough() 判断之前 —— 这是「撞到什么碎什么」，不管球本身坚固与否。
+            if (this.profile().hasFlag(BallBehavior.BallProfile.FLAG_BREAKER)
+                    && !this.breakerSpent
+                    && this.level() instanceof ServerLevel breakerLevel) {
+                this.breakerHit(breakerLevel, (BlockHitResult) hitResult);
+            }
+
             // 【点金】：命中方块时先把这一片石头点成矿物（不坚固的球也要触发，
             // 所以放在 isTough() 判断之外）
             if (this.profile().transmuteChance() > BallBehavior.NOT_TRANSMUTE
@@ -1865,6 +1965,46 @@ public class BallProjectile extends ThrowableItemProjectile {
      * <p>同一 tick 内只结算一次 —— 球在方块表面抖动时可能连续触发碰撞，
      * 那种重复绝不该算成「弹了两次」。</p>
      */
+    /**
+     * 【破坏王】：砸掉撞到的那个方块。
+     *
+     * <p>三件事按顺序做：<b>碎块 → 扣耐久 → 降速</b>；降速之后如果掉到静止阈值以下，
+     * 就把 {@link #breakerSpent} 立起来 —— 从此不再破坏，让球按正常流程落定。</p>
+     *
+     * <p><b>两个刻意的取舍</b>（作者没细说，这里按「最符合直觉」定）：</p>
+     * <ul>
+     *   <li><b>方块正常掉落</b>（{@code destroyBlock(pos, true)}）——
+     *       「砸碎东西」的常规语义就是碎块掉出来；如果不想让它变成挖矿神器，说一声改成不掉落</li>
+     *   <li><b>硬度为负的方块砸不动</b>（基岩 / 结界方块那种 {@code getDestroySpeed < 0}）——
+     *       原版把这些定义为「不可破坏」，球不该绕过它</li>
+     * </ul>
+     */
+    private void breakerHit(ServerLevel level, BlockHitResult hit) {
+        BlockPos pos = hit.getBlockPos();
+        BlockState state = level.getBlockState(pos);
+        if (state.isAir()) {
+            return;
+        }
+        // 硬度 < 0 = 原版定义的「不可破坏」（基岩等），球不该越过这条线
+        if (state.getDestroySpeed(level, pos) < 0.0F) {
+            return;
+        }
+        if (!level.destroyBlock(pos, true)) {
+            return;   // 被别的机制挡下了（保护区 / 事件取消），不扣耐久也不减速
+        }
+
+        this.consumeDurability("破坏王");
+
+        Vec3 scaled = this.getDeltaMovement().scale(BREAKER_SPEED_RETAIN);
+        this.setDeltaMovement(scaled);
+        this.hurtMarked = true;
+
+        // 撞不动了 —— 收手，剩下的交给正常的静止流程
+        if (scaled.lengthSqr() < SETTLE_SPEED_SQR) {
+            this.breakerSpent = true;
+        }
+    }
+
     private void consumeDurability(String cause) {
         int toughness = this.getToughness();
         if (toughness == BallBehavior.TOUGH_FOREVER || toughness <= BallBehavior.NOT_TOUGH) {
@@ -2739,15 +2879,25 @@ public class BallProjectile extends ThrowableItemProjectile {
             // 再只跑那个来源的掉落表（作者指定：「各组成的原版掉落物按照相等的权重
             // 随机掉落其中一份」）。所以铁-金球碎了要么按铁球掉铁、要么按金球掉，
             // 不会两边都掉。
-            List<BallBehavior.BallDrop> drops = this.comboDropsFor(profile);
-            for (BallBehavior.BallDrop drop : drops) {
-                if (this.random.nextFloat() >= drop.chance()) {
-                    continue;
-                }
-                int span = Math.max(1, drop.maxCount() - drop.minCount() + 1);
-                int count = drop.minCount() + this.random.nextInt(span);
-                if (count > 0) {
-                    this.spawnAtLocation(serverLevel, new ItemStack(drop.item(), count), 0.1F);
+            // 【钻石球】的掉落是**递进互斥**的三段（60% 4–6 钻石 / 20% 1–3 钻石 /
+            // 都没中才 80% 煤炭），标准 BallDrop 的「每条独立掷」表达不了 —— 单独走一套。
+            // 判据用「来源球」而不是「球的物品」：组合球抽到钻石球当来源时也整体走这套。
+            Item dropSource = this.comboSourceFor(profile);
+            if (dropSource == ModItems.DIAMOND_BALL.get()) {
+                DiamondBallDrops.roll(serverLevel, this, this.random);
+            } else {
+                List<BallBehavior.BallDrop> drops = dropSource == null
+                        ? List.of()
+                        : BallBehavior.profileFor(new ItemStack(dropSource)).drops();
+                for (BallBehavior.BallDrop drop : drops) {
+                    if (this.random.nextFloat() >= drop.chance()) {
+                        continue;
+                    }
+                    int span = Math.max(1, drop.maxCount() - drop.minCount() + 1);
+                    int count = drop.minCount() + this.random.nextInt(span);
+                    if (count > 0) {
+                        this.spawnAtLocation(serverLevel, new ItemStack(drop.item(), count), 0.1F);
+                    }
                 }
             }
         }
@@ -2762,16 +2912,34 @@ public class BallProjectile extends ThrowableItemProjectile {
      * <p>普通球直接返回自己的掉落表，行为和以前完全一致。</p>
      */
     private List<BallBehavior.BallDrop> comboDropsFor(BallBehavior.BallProfile profile) {
+        Item source = this.comboSourceFor(profile);
+        if (source == null) {
+            return List.of();
+        }
+        return BallBehavior.profileFor(new ItemStack(source)).drops();
+    }
+
+    /**
+     * 这一颗球碎裂时，掉落表按<b>哪个来源球</b>算。
+     *
+     * <p>普通球就是它自己；组合球是从它的组成里<b>等权重随机抽一个</b>
+     * （作者指定：「各组成的原版掉落物按照相等的权重随机掉落其中一份」）。</p>
+     *
+     * <p>抽签只做一次、结果给调用方复用 —— 否则「先问掉落表、再问是不是钻石球」
+     * 会抽两次，两次抽到的可能不是同一个来源，掉落就对不上了。</p>
+     *
+     * @return 来源球物品；组合球没有任何来源时返回 {@code null}
+     */
+    private Item comboSourceFor(BallBehavior.BallProfile profile) {
         if (this.getItem().getItem() != ModItems.COMBO_BALL.get()) {
-            return profile.drops();
+            return this.getItem().getItem();
         }
         List<Integer> indexes = BallFragments.parseIndexes(
                 this.getItem().getOrDefault(ModComponents.COMBO_SOURCES.get(), ""));
         if (indexes.isEmpty()) {
-            return List.of();
+            return null;
         }
         int pick = indexes.get(this.random.nextInt(indexes.size()));
-        Item source = BallFragments.sources().get(pick);
-        return BallBehavior.profileFor(new ItemStack(source)).drops();
+        return BallFragments.sources().get(pick);
     }
 }

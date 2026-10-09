@@ -99,6 +99,14 @@ public final class BallProspecting {
     /** 玩家/生物脱离检测后的热量消退（1 点 / 5 刻 = 0.2 点/刻） */
     public static final float PLAYER_HEAT_DECAY = 0.2F;
 
+    /**
+     * 热量「停增就散」的宽限期（刻）—— 作者 2026-10-10 指定：<b>连续 1 秒没增加，才开始消散</b>。
+     *
+     * <p>生物与方块两套热量共用这一个值。原来的行为是「只要不是当前刻刚被加热，立刻开始散」，
+     * 结果球一飞过、加热源一断，热量马上往下掉，攒不起来。</p>
+     */
+    public static final int HEAT_DECAY_DELAY_TICKS = 20;
+
     /** 泡在水里时的消退倍率（作者指定：10 倍速） */
     public static final float WATER_DECAY_MULTIPLIER = 10.0F;
 

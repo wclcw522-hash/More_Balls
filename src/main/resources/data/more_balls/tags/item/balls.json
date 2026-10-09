@@ -14,6 +14,9 @@
     "more_balls:amethyst_ball",
     "more_balls:copper_ball",
     "more_balls:hollow_copper_ball",
-    "more_balls:snowball_copper_nugget"
+    "more_balls:snowball_copper_nugget",
+      "more_balls:redstone_ball",
+      "more_balls:redstone_snowball",
+      "more_balls:diamond_ball"
   ]
 }

@@ -156,6 +156,30 @@ public final class ModItems {
             props -> new BallItem(props.stacksTo(BALL_STACK_SIZE)));
 
     /**
+     * 钻石球 —— 钻石块质感；伤害 15、坚固 250、重量 7、<b>弹性 0</b>、蓄力 3。
+     *
+     * <p>三个专属词条：<br>
+     * <b>【穿透 3】</b> 自带穿透，能连着打穿三个目标；<br>
+     * <b>【破坏王】</b> 撞碎接触到的方块，每碎一块速度降到 85%、扣 1 点耐久；<br>
+     * <b>【透镜】</b> 白天晴天时给正下方 5×5×2 的方块与生物持续积热，够热就烧起来。</p>
+     */
+    public static final DeferredItem<Item> DIAMOND_BALL = ITEMS.registerItem(
+            "diamond_ball",
+            props -> new BallItem(props.stacksTo(BALL_STACK_SIZE)));
+
+    /**
+     * 红石球 —— 红石块质感；伤害 2、坚固 5、重量 5、<b>弹性 0</b>（不反弹）、蓄力 6。
+     *
+     * <p><b>【脉冲】</b>：命中时让周围「身着金属护甲或护甲值偏高」的生物晕头转向 ——
+     * 施加【震荡】效果，装备越厚震得越久越重。详见 {@code RedstonePulse}。</p>
+     *
+     * <p>破碎 50% 掉 5–7 个红石粉；自然生成权重 5；音效是石头碎裂。</p>
+     */
+    public static final DeferredItem<Item> REDSTONE_BALL = ITEMS.registerItem(
+            "redstone_ball",
+            props -> new BallItem(props.stacksTo(BALL_STACK_SIZE)));
+
+    /**
      * 铜球 —— 伤害 10、坚固 20、重量 7、权重 20，带【感应2】。
      *
      * <p><b>【导电】</b>：处于实体状态时，像避雷针一样让自然闪电优先击中自己，
@@ -173,6 +197,17 @@ public final class ModItems {
     public static final DeferredItem<Item> HOLLOW_COPPER_BALL = ITEMS.registerItem(
             "hollow_copper_ball",
             props -> new BallItem(props.stacksTo(BALL_STACK_SIZE)));
+
+    /**
+     * 「红石雪球」 —— 不坚固、重量 3、<b>伤害 0</b>、蓄力 6。
+     *
+     * <p><b>【照明】</b>：飞行时在正下方张开一个四棱锥判定区，区域内的生物持续被染色发光 ——
+     * 友好蓝、中立黄、敌对红，对隐身与穿墙的目标同样有效。详见 {@code BallIlluminate}。</p>
+     *
+     * <p>飞行途中拖一条红色粒子尾迹；破碎 30% 掉 1–2 个红石粉。</p>
+     */
+    public static final DeferredItem<Item> REDSTONE_SNOWBALL =
+            ITEMS.registerItem("redstone_snowball", BallItem::new);
 
     /**
      * 「雪球_铜粒」 —— 不坚固、重量 5、伤害 3，带【融化200】【感应2】。

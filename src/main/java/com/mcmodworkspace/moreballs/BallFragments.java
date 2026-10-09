@@ -66,7 +66,11 @@ public final class BallFragments {
                     //    前 5 个下标是既有组合球组件里写死的历史值，一动老球就整体错位。
                     ModItems.AMETHYST_BALL.get(),
                     ModItems.COPPER_BALL.get(),
-                    ModItems.HOLLOW_COPPER_BALL.get());
+                    ModItems.HOLLOW_COPPER_BALL.get(),
+                    // ⚠️ 3.0.0（0.3.4.0）追加的三颗，同样**必须排在后面**：
+                    //    永远只在末尾追加，中间插入会让所有老存档的来源下标错位。
+                    ModItems.REDSTONE_BALL.get(),
+                    ModItems.DIAMOND_BALL.get());
         }
         return sourcesCache;
     }

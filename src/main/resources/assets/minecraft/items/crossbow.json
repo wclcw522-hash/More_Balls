@@ -100,6 +100,27 @@
                                                   "model":  "more_balls:item/crossbow_ball_snowball_copper_nugget"
                                               },
                                     "when":  "more_balls:snowball_copper_nugget"
+                                    },
+                                    {
+                                        "model":  {
+                                              "type":  "minecraft:model",
+                                              "model":  "more_balls:item/crossbow_ball_redstone_ball"
+                                        },
+                                    "when":  "more_balls:redstone_ball"
+                                 },
+                                 {
+                                     "model":  {
+                                               "type":  "minecraft:model",
+                                               "model":  "more_balls:item/crossbow_ball_redstone_snowball"
+                                     },
+                                     "when":  "more_balls:redstone_snowball"
+                                 },
+                                 {
+                                     "model":  {
+                                               "type":  "minecraft:model",
+                                               "model":  "more_balls:item/crossbow_ball_diamond_ball"
+                                     },
+                                     "when":  "more_balls:diamond_ball"
                                 },
                                 {
                                     "when":  "more_balls:combo_ball",

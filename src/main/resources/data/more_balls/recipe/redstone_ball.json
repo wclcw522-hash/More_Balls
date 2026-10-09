@@ -1,0 +1,10 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "category": "misc",
+  "key": {
+    "#": "minecraft:redstone_block"
+  },
+  "pattern": [ " # ", "# #", " # " ],
+  "result": { "count": 4, "id": "more_balls:redstone_ball" },
+  "show_notification": false
+}

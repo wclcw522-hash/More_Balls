@@ -28,6 +28,15 @@ public final class ModEffects {
     public static final DeferredHolder<MobEffect, MoltenBurnEffect> MOLTEN_BURN =
             EFFECTS.register(MoltenBurnEffect.EFFECT_ID, MoltenBurnEffect::new);
 
+    /**
+     * 【震荡】—— 红石球的【脉冲】命中时施加的「晕头转向」debuff。
+     *
+     * <p>英文 id 作者指定为 {@code shock}；五级，每 20/17/13/8/2 刻强制随机转向一次，
+     * 且无视一切效果免疫。详见 {@link ShockEffect}。</p>
+     */
+    public static final DeferredHolder<MobEffect, ShockEffect> SHOCK =
+            EFFECTS.register(ShockEffect.EFFECT_ID, ShockEffect::new);
+
     public static void register(IEventBus bus) {
         EFFECTS.register(bus);
     }

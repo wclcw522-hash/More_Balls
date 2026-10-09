@@ -11,7 +11,9 @@
       { "when": 4, "model": { "type": "minecraft:model", "model": "more_balls:item/ball_quarter_4" } },
       { "when": 5, "model": { "type": "minecraft:model", "model": "more_balls:item/ball_quarter_5" } },
       { "when": 6, "model": { "type": "minecraft:model", "model": "more_balls:item/ball_quarter_6" } },
-      { "when": 7, "model": { "type": "minecraft:model", "model": "more_balls:item/ball_quarter_7" } }
+      { "when": 7, "model": { "type": "minecraft:model", "model": "more_balls:item/ball_quarter_7" } },
+        { "when": 8, "model": { "type": "minecraft:model", "model": "more_balls:item/ball_quarter_8" } },
+        { "when": 9, "model": { "type": "minecraft:model", "model": "more_balls:item/ball_quarter_9" } }
     ],
     "fallback": { "type": "minecraft:model", "model": "more_balls:item/ball_quarter_0" }
   }
