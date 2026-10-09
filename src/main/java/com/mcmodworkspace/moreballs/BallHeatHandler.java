@@ -79,6 +79,13 @@ public final class BallHeatHandler {
      */
     @SubscribeEvent
     public static void onEntityTick(EntityTickEvent.Post event) {
+        long _t = System.nanoTime();
+        onEntityTickBody(event);
+        ModProfiler.hit("heat.entityTick", _t);
+    }
+
+    /** 真正的实现（上面是加了计时的壳） */
+    private static void onEntityTickBody(EntityTickEvent.Post event) {
         if (!(event.getEntity() instanceof LivingEntity living) || living.level().isClientSide()) {
             return;
         }
@@ -207,6 +214,13 @@ public final class BallHeatHandler {
      */
     @SubscribeEvent
     public static void onServerTick(ServerTickEvent.Post event) {
+        long _t = System.nanoTime();
+        onServerTickBody(event);
+        ModProfiler.hit("heat.serverTick", _t);
+    }
+
+    /** 真正的实现（上面是加了计时的壳） */
+    private static void onServerTickBody(ServerTickEvent.Post event) {
         for (ServerLevel level : event.getServer().getAllLevels()) {
             long gameTime = level.getGameTime();
             if (gameTime % SETTLE_INTERVAL != 0) {

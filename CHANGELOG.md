@@ -5,7 +5,58 @@
 > 26.3 线已冻结（那边 Curios 与 NeoForge 不兼容，饰品功能没法测）。
 > 26.3 线的历史见 `[26.3更多球]_More_Balls\CHANGELOG.md`。
 
-### 0.3.3.113
+### 0.3.3.114
+
+### 关键结论：**卡顿不在球身上**
+
+作者补了一句非常关键的信息：**「这个卡顿不是掉帧，帧率还是很好的」** ——
+说明**客户端渲染没问题，是服务端 tick 慢**。
+
+**实测数据（25 个球）**：
+
+```
+prospecting=18.9ms → 5.1 → 2.3 → … → 0.6ms     ← 已大幅下降（0.3.3.112 的成效）
+collide / roll / particles / magnet              全都 < 1ms
+```
+
+**球的五个阶段加起来不到 1ms。**
+
+**而服务器日志**：
+
+```
+Can't keep up! Is the server overloaded? Running 2019ms or 40 ticks behind
+```
+
+**每 tick 慢了约 50ms，球只占不到 1ms。**
+
+→ **我这几轮优化球本身的方向是错的**（虽然确实省了性能，但那不是病根）。
+
+### 改进诊断：测所有全局监听
+
+新增 `ModProfiler` 工具类，给**全部 5 个每 tick 的全局监听**加了计时壳
+（原方法改名加 `0` 后缀，外面套一层计时）：
+
+| 计时键 | 监听 |
+|---|---|
+| `heat.entityTick` | `BallHeatHandler.onEntityTick`（每个生物每刻） |
+| `heat.serverTick` | `BallHeatHandler.onServerTick`（每 5 刻扫全部热方块） |
+| `mob.tick` | `BallMobAI.onMobTick`（每个怪物每刻） |
+| `creeper.tick` | `CreeperBallBehavior.onCreeperTick` |
+| `pearl.tick` | `CreeperBallBehavior.onPearlTick` |
+
+日志格式：
+
+```
+[ball][总性能] 各监听累计耗时： heat.serverTick=…ms mob.tick=…ms …
+```
+
+**下一轮就能看出是谁在吃那 50ms。**
+
+⚠️ **`ModProfiler` 是临时诊断工具**，问题解决后应当连同所有调用点一起删掉
+—— 它自己也有开销（`ConcurrentHashMap` 查找）。
+
+---
+## 0.3.3.113
 
 ### 性能诊断：采样阈值 2000 → 300
 

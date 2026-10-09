@@ -527,6 +527,13 @@ public final class BallMobAI {
 
     @SubscribeEvent
     public static void onMobTick(EntityTickEvent.Post event) {
+        long _t = System.nanoTime();
+        onMobTickBody(event);
+        ModProfiler.hit("mob.tick", _t);
+    }
+
+    /** 真正的实现（上面是加了计时的壳） */
+    private static void onMobTickBody(EntityTickEvent.Post event) {
         if (!(event.getEntity() instanceof Mob mob) || mob.level().isClientSide()) {
             return;
         }

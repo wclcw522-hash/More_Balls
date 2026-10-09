@@ -147,6 +147,13 @@ public final class CreeperBallBehavior {
 
     @SubscribeEvent
     public static void onCreeperTick(EntityTickEvent.Post event) {
+        long _t = System.nanoTime();
+        onCreeperTickBody(event);
+        ModProfiler.hit("creeper.tick", _t);
+    }
+
+    /** 真正的实现（上面是加了计时的壳） */
+    private static void onCreeperTickBody(EntityTickEvent.Post event) {
         // 【苦力怕死亡 -> 头顶的球立刻消失】（作者 2026-10-09 反馈）
         //
         // 头顶那个球是个**独立的 ItemDisplay 实体**，只在 tick 里被维护 ——
@@ -373,6 +380,13 @@ public final class CreeperBallBehavior {
     /** 珍珠还在飞的时候，持续抄下它的位置 —— 等它消失时苦力怕要瞬移到那儿 */
     @SubscribeEvent
     public static void onPearlTick(EntityTickEvent.Post event) {
+        long _t = System.nanoTime();
+        onPearlTickBody(event);
+        ModProfiler.hit("pearl.tick", _t);
+    }
+
+    /** 真正的实现（上面是加了计时的壳） */
+    private static void onPearlTickBody(EntityTickEvent.Post event) {
         if (!(event.getEntity() instanceof ThrownEnderpearl pearl) || pearl.level().isClientSide()) {
             return;
         }
