@@ -5,7 +5,61 @@
 > 26.3 线已冻结（那边 Curios 与 NeoForge 不兼容，饰品功能没法测）。
 > 26.3 线的历史见 `[26.3更多球]_More_Balls\CHANGELOG.md`。
 
-### 0.3.3.125
+### 0.3.3.126
+
+### 吸引期间给蛮兵静音
+
+作者反馈：「没被打到过，但叫声很烦」「**只在吸引期间静音**」。
+
+**先查清了吵的来源**（读原版 `PiglinBruteAi` / `PiglinBrute`）：两处
+
+| 声源 | 触发 |
+|---|---|
+| `PIGLIN_BRUTE_AMBIENT` | `getAmbientSound()` —— 常态环境音，与愤怒无关 |
+| `PIGLIN_BRUTE_ANGRY` | `playAngrySound()`，由 `maybePlayActivitySound` 在 `activity == FIGHT` 时按 **1.25%/刻** 播 |
+
+**为什么压不住 FIGHT**（所以只能从声音下手）：
+
+```java
+// PiglinBruteAi.findNearestValidAttackTarget
+Optional player = brain.get(NEAREST_VISIBLE_ATTACKABLE_PLAYER);   // ← sensor 每刻重填，外部清不掉
+return player.isPresent() ? player : ...;
+```
+
+而 `PiglinBrute.customServerAiStep` 的三步**全在同一 tick 内**：
+
+```java
+this.getBrain().tick(level, this);            // StartAttacking 在这里设 ATTACK_TARGET
+PiglinBruteAi.updateActivity(this);           // ATTACK_TARGET 存在 → 切 FIGHT
+PiglinBruteAi.maybePlayActivitySound(this);   // 读 FIGHT → 播
+```
+
+我们的擦除在 `EntityTickEvent.Post`（整个实体 tick **之后**）—— **赶不上**。
+（不过擦除仍然有效：`ATTACK_TARGET` 被清，`MeleeAttack` 找不到目标，所以**它实际打不到人**，
+与作者的实测一致。）
+
+**修法：在声音播出去之前拦掉。** 用 NeoForge 官方的
+`PlayLevelSoundEvent.AtEntity`（实现 `ICancellableEvent`）——
+
+```java
+@SubscribeEvent
+public static void onPlaySound(PlayLevelSoundEvent.AtEntity event) {
+    // 只处理服务端；服务端拦掉就不会广播给客户端
+    // 只处理「正在被吸引」的猪灵系（标记由 lure 每刻刷新）
+    if (sound == SoundEvents.PIGLIN_BRUTE_ANGRY || sound == SoundEvents.PIGLIN_BRUTE_AMBIENT) {
+        event.setCanceled(true);
+    }
+}
+```
+
+**不用 Mixin、不碰原版代码** —— 走官方事件的取消机制。
+
+**「只在吸引期间」是这样保证的**：`lure()` 每刻给范围内的猪灵打一个带有效期的标记
+（`LURED_UNTIL`，宽限 20 刻）；球走了 / 没了，标记自动过期，**蛮兵立刻恢复原版叫声**。
+过期的标记在 `ServerTickEvent` 里顺手清掉，不会无限膨胀。
+
+---
+## 0.3.3.125
 
 ### 修一个会把服务器 tick 崩掉的 `ConcurrentModificationException`
 

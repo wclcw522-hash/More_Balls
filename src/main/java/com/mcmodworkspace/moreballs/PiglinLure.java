@@ -6,12 +6,14 @@ import net.minecraft.advancements.AdvancementHolder;
 import net.minecraft.resources.Identifier;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.sounds.SoundEvent;
 import net.minecraft.sounds.SoundEvents;
 import net.minecraft.sounds.SoundSource;
 import net.minecraft.world.entity.Entity;
 import net.neoforged.bus.api.SubscribeEvent;
 import net.neoforged.fml.common.EventBusSubscriber;
 import net.neoforged.neoforge.event.entity.EntityLeaveLevelEvent;
+import net.neoforged.neoforge.event.PlayLevelSoundEvent;
 import net.neoforged.neoforge.event.tick.ServerTickEvent;
 import net.minecraft.world.entity.EquipmentSlot;
 import net.minecraft.world.entity.item.ItemEntity;
@@ -116,6 +118,21 @@ public final class PiglinLure {
     /** 被吸引时的行走速度（略快于闲逛，看得出它们很急） */
     private static final double LURE_SPEED = 1.2D;
 
+    /**
+     * 被吸引的猪灵 → 静音截止的游戏刻。
+     *
+     * <p>{@link #lure} 每刻刷新；{@code onPlaySound} 据此判断「现在是不是吸引期间」。</p>
+     */
+    private static final Map<UUID, Long> LURED_UNTIL = new ConcurrentHashMap<>();
+
+    /**
+     * 静音标记的有效期（刻）。
+     *
+     * <p>{@code lure} 是每刻调用的，这个宽限只是为了在「球刚好消失的那一瞬」不立刻恢复吵闹，
+     * 同时让 {@link #LURED_UNTIL} 里的过期项能被自动忽略。</p>
+     */
+    private static final int LURE_SILENCE_GRACE = 20;
+
     /** 走到离球多近算「到了」（格）—— 太近会挤成一团，2 格刚好 */
     private static final int LURE_CLOSE_ENOUGH = 2;
 
@@ -213,8 +230,11 @@ public final class PiglinLure {
         }
 
         boolean clearAnger = level.getGameTime() % ANGER_CLEAR_INTERVAL == 0L;
+        long silenceUntil = level.getGameTime() + LURE_SILENCE_GRACE;
         for (AbstractPiglin piglin : piglins) {
             Brain<?> brain = piglin.getBrain();
+            // 登记「这只正在被吸引」—— 静音监听靠它判断
+            LURED_UNTIL.put(piglin.getUUID(), silenceUntil);
 
             // ① 压住战斗意图（**每刻**刷新）。
             //
@@ -352,9 +372,56 @@ public final class PiglinLure {
         PENDING_CLEAR.add(ball.getUUID());
     }
 
+    /**
+     * 吸引期间给蛮兵静音（作者 2026-10-09 指定：<b>只在吸引期间静音</b>）。
+     *
+     * <h2>为什么需要这个</h2>
+     * <p>蛮兵的原版音效有两处会一直响：</p>
+     * <ul>
+     *   <li>{@code getAmbientSound()} → {@code PIGLIN_BRUTE_AMBIENT} —— 常态环境音，与愤怒无关</li>
+     *   <li>{@code playAngrySound()} → {@code PIGLIN_BRUTE_ANGRY} —— 由
+     *       {@code PiglinBruteAi.maybePlayActivitySound} 在 {@code activity == FIGHT} 时按 1.25%/刻 播</li>
+     * </ul>
+     *
+     * <p>而蛮兵**压不进非战斗 activity**：{@code PiglinBruteAi} 只注册了 CORE / IDLE / FIGHT，
+     * 没有 {@code ADMIRE_ITEM}；而且 {@code findNearestValidAttackTarget} 会通过
+     * {@code NEAREST_VISIBLE_ATTACKABLE_PLAYER}（sensor 每刻重填，外部清不掉）找到玩家，
+     * 于是 {@code ATTACK_TARGET} 每刻被设、activity 每刻切 FIGHT ——
+     * {@code customServerAiStep} 里 {@code brain.tick → updateActivity → maybePlayActivitySound}
+     * 全在同一 tick 内，我们的擦除（{@code EntityTickEvent.Post}）赶不上。</p>
+     *
+     * <p>所以不走「压 activity」那条路，直接在**声音播出去之前拦掉** ——
+     * 用 NeoForge 官方的 {@link PlayLevelSoundEvent.AtEntity}（{@code ICancellableEvent}），
+     * 不碰原版代码、不需要 Mixin。</p>
+     *
+     * <p><b>只在吸引期间生效</b>：标记由 {@link #lure} 每刻刷新，球走了 / 没了就自动失效，
+     * 蛮兵恢复原版叫声。</p>
+     */
+    @SubscribeEvent
+    public static void onPlaySound(PlayLevelSoundEvent.AtEntity event) {
+        if (event.getLevel().isClientSide()) {
+            return;   // 判断依据（LURED_UNTIL）只在服务端维护；服务端拦掉就不会广播给客户端
+        }
+        if (!(event.getEntity() instanceof AbstractPiglin piglin)) {
+            return;
+        }
+        Long until = LURED_UNTIL.get(piglin.getUUID());
+        if (until == null || until < event.getLevel().getGameTime()) {
+            return;   // 这只不在吸引期间 → 放行
+        }
+        SoundEvent sound = event.getSound().value();
+        if (sound == SoundEvents.PIGLIN_BRUTE_ANGRY || sound == SoundEvents.PIGLIN_BRUTE_AMBIENT) {
+            event.setCanceled(true);
+        }
+    }
+
     /** 真正清掉饵的地方 —— 在 ServerTick 阶段，不在任何实体遍历里 */
     @SubscribeEvent
     public static void onServerTickCleanup(ServerTickEvent.Post event) {
+        // 顺带清掉过期的静音标记，免得 LURED_UNTIL 无限膨胀
+        long now = event.getServer().overworld() == null ? 0L : event.getServer().overworld().getGameTime();
+        LURED_UNTIL.entrySet().removeIf(e -> e.getValue() < now);
+
         if (PENDING_CLEAR.isEmpty()) {
             return;
         }
