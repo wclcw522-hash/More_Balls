@@ -52,6 +52,15 @@ public final class BallThunder {
     /** 一次雷击的**总**伤害（分散到各个分支） */
     public static final float TOTAL_DAMAGE = 60.0F;
 
+    /**
+     * <b>每道闪电的最低伤害（作者指定 5）。</b>
+     *
+     * <p>原来这里是 {@code 60 / 命中数}，<b>没有下限</b> —— 目标一多每道就摊到很小的数，
+     * 而 Minecraft 对 <b>小于 1 的伤害直接忽略</b>，于是看起来「引雷根本没打出伤害」
+     * （作者 2026-10-09 反馈）。加了这个下限之后，命中越多总伤越高，但每一道都疼。</p>
+     */
+    public static final float MIN_PER_BRANCH = 5.0F;
+
     /** 从球出发找目标的半径（格） */
     public static final double RADIUS = 16.0;
 
@@ -126,7 +135,7 @@ public final class BallThunder {
             }
         }
         if (!victims.isEmpty()) {
-            float per = TOTAL_DAMAGE / victims.size();
+            float per = Math.max(MIN_PER_BRANCH, TOTAL_DAMAGE / victims.size());
             Entity owner = source.getOwner();
             for (LivingEntity victim : victims) {
                 victim.hurtServer(level, level.damageSources().source(

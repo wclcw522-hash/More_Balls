@@ -489,7 +489,31 @@ public final class BallFragments {
      * 拆成四个 int 是因为 {@code minecraft:select} 只能按某个组件的整值匹配，
      * 没法「取字符串的第 n 段」。两个层面由这里一次性写入，所以永远一致。</p>
      */
+    /** 这一串来源是不是全部同一个（用来判断「拼回去 = 原本那颗球」） */
+    private static boolean allSame(List<Integer> indexes) {
+        int first = indexes.get(0);
+        for (int v : indexes) {
+            if (v != first) {
+                return false;
+            }
+        }
+        return true;
+    }
+
     public static ItemStack makeComboBall(List<Integer> indexes) {
+        // 【作者指定】来源**全部相同**时，合出来的就是那颗**原本的实心球**，
+        // 而不是拼出来的组合球 —— 两个同种半球拼回去 = 一颗完整的球。
+        // 四个同种四分之一球同理。
+        //
+        // ⚠️ 判定必须在写组件**之前**：这一步返回的是原物品，不经过 combo_ball。
+        if (indexes != null && !indexes.isEmpty() && allSame(indexes)) {
+            int only = indexes.get(0);
+            List<Item> all = sources();
+            if (only >= 0 && only < all.size()) {
+                MoreBalls.LOGGER.debug("[ball] 组合球：来源全相同（{}），直接还原成实心球", only);
+                return new ItemStack(all.get(only));
+            }
+        }
         ItemStack stack = new ItemStack(ModItems.COMBO_BALL.get());
         stack.set(ModComponents.COMBO_SOURCES.get(), formatIndexes(indexes));
         writeComboSlots(stack, indexes);

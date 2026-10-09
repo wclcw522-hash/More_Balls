@@ -5,7 +5,66 @@
 > 26.3 线已冻结（那边 Curios 与 NeoForge 不兼容，饰品功能没法测）。
 > 26.3 线的历史见 `[26.3更多球]_More_Balls\CHANGELOG.md`。
 
-### 0.3.3.89
+### 0.3.3.90
+
+### 【引雷】最低伤害 5（作者反馈「感觉没打出伤害」）
+
+**根因**：分摊公式没有下限。
+
+```java
+float per = TOTAL_DAMAGE / victims.size();   // 60 ÷ 命中数，没有下限
+```
+
+目标一多每道就摊到很小的数，而 **Minecraft 对小于 1 的伤害直接忽略** —— 于是「引雷根本没打出伤害」。
+
+**修法**：新增 `MIN_PER_BRANCH = 5.0F`。
+
+```java
+float per = Math.max(MIN_PER_BRANCH, TOTAL_DAMAGE / victims.size());
+```
+
+**行为变化**：命中越少每道越疼（最多 60）；命中多时每道保底 5，**总伤会超过 60**。
+这是作者指定的取舍 —— 保证「每一道都疼」优先于「总伤固定」。
+
+### 相同来源合成 → 还原成实心球（作者指定）
+
+**旧行为**：两个同种半球拼起来会得到一颗「组合球」，词条是两份相加、贴图是上下两块。
+
+**新行为**：**来源全部相同时直接还原成那颗原本的实心球。**
+
+```java
+// BallFragments.makeComboBall 开头
+if (indexes != null && !indexes.isEmpty() && allSame(indexes)) {
+    int only = indexes.get(0);
+    List<Item> all = sources();
+    if (only >= 0 && only < all.size()) {
+        return new ItemStack(all.get(only));   // ← 原物品，不经过 combo_ball
+    }
+}
+```
+
+判定放在**写组件之前**，所以返回的是一颗干净的原物品、不带任何组合球的组件。
+两个同种半球、四个同种四分之一球，都走这条路径。
+
+### 已核查：分割等分/合成取整 —— 本来就实现了
+
+作者要求「切割时把数值等分、暂时不取整；合成后相加再取整」。核查结果**已实现**：
+
+| 环节 | 实现 | 是否取整 |
+|---|---|---|
+| `Fragment.scaled(factor)` | `toughness * factor` | **不取整** |
+| `Fragment.plus(a, b)` | 逐项相加 | **不取整** |
+| `Fragment.floor(f)` | 合成时才 `Math.floor` | **取整** |
+
+`floor` 里有一处特例处理：**点金是概率，不参与 floor**（`0.1 → 0` 会把整个特性抹掉），保持小数。
+
+### 部署过程的一个插曲
+
+本轮部署时旧 jar 没被清掉，`mods` 里一度同时存在 `0.3.3.89` 与 `0.3.3.90` 两个同 ID 的 jar。
+**已手动清除**，现在三处（`dist` / `libs` / `mods`）都只有 `0.3.3.90`，哈希校验一致。
+
+---
+## 0.3.3.89
 
 ### 【智慧】改为带数值的词条 + 紫水晶球数值调整
 
