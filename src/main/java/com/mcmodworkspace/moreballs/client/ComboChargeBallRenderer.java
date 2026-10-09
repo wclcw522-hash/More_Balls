@@ -124,6 +124,26 @@ public class ComboChargeBallRenderer implements SpecialModelRenderer<int[]> {
      * 一遍读图 + 逐像素合成（读图失败通常是资源包问题，短时间内不会好）。
      * 资源包重载时由 {@link #clearCache()} 整体作废。</p>
      */
+    /**
+     * 合成图的**像素副本**，按同一个缓存键存。
+     *
+     * <p>侧壁必须扫「合成后」的轮廓（底图 + 球），但合成图是注册在
+     * {@code TextureManager} 的<b>动态纹理</b>——{@code ResourceManager} 读不到它
+     * （两套系统），所以 {@code drawSideFaces} 里那句 {@code readTexture(texture)}
+     * 恒返回 null，侧壁一次都没画出来过。这里把像素留一份给侧壁用。</p>
+     */
+    private static final Map<String, NativeImage> COMPOSED_PIXELS =
+            new java.util.LinkedHashMap<>(16, 0.75F, true) {
+                @Override
+                protected boolean removeEldestEntry(Map.Entry<String, NativeImage> eldest) {
+                    if (size() > COMPOSED_CAPACITY) {
+                        eldest.getValue().close();
+                        return true;
+                    }
+                    return false;
+                }
+            };
+
     private static final Map<String, Identifier> COMPOSED =
             new java.util.LinkedHashMap<>(16, 0.75F, true) {
                 @Override
@@ -227,7 +247,7 @@ public class ComboChargeBallRenderer implements SpecialModelRenderer<int[]> {
         poseStack.scale(MODEL_SCALE, MODEL_SCALE, MODEL_SCALE);
         drawQuad(poseStack, collector, texture, lightCoords, overlayCoords);
         // 补侧壁 —— special 不渲染 base，不补的话弩就是一片纸
-        drawSideFaces(poseStack, collector, texture, lightCoords, overlayCoords);
+        drawSideFaces(poseStack, collector, texture, composedPixels(slots), lightCoords, overlayCoords);
         poseStack.popPose();
 
         diag("③ submit() 已提交一个面：texture={} 顶点={}~{} z={} scale={}（双面）",
@@ -311,9 +331,11 @@ public class ComboChargeBallRenderer implements SpecialModelRenderer<int[]> {
      * （用 {@code 0.1 / 0.9} 落在像素内部，避免采到相邻像素）。</p>
      */
     private static void drawSideFaces(PoseStack poseStack, SubmitNodeCollector collector,
-                                      Identifier texture, int light, int overlay) {
-        NativeImage img = readTexture(texture);
-        if (img == null) {
+                                      Identifier texture, NativeImage img, int light, int overlay) {
+        // ⚠️ 这里**不能**自己去 readTexture(texture)：那张图是注册在 TextureManager 的
+        //    动态纹理，ResourceManager 读不到（两套系统），readTexture 恒返回 null ——
+        //    侧壁曾经因此一次都没画出来过。像素由 bake() 通过 COMPOSED_PIXELS 传进来。
+        if (img == null || img.isClosed()) {
             return;
         }
         RenderType type = RenderTypes.itemCutout(texture);
@@ -367,7 +389,6 @@ public class ComboChargeBallRenderer implements SpecialModelRenderer<int[]> {
                 }
             }
         });
-        img.close();
     }
 
     /** 带完整法线向量的顶点（侧壁用） */
@@ -411,6 +432,18 @@ public class ComboChargeBallRenderer implements SpecialModelRenderer<int[]> {
         // 失败也要记下来 —— 否则每帧都会重跑一次「读图 + 逐像素合成」
         COMPOSED.put(cacheKey, (baked != null) ? baked : FAILED);
         return baked;
+    }
+
+    /**
+     * 取这一次合成结果的<b>像素副本</b>（侧壁扫轮廓要用）。
+     *
+     * <p>键与 {@link #composedTexture} 一致；没合成过或合成失败时返回 null。</p>
+     */
+    private static @Nullable NativeImage composedPixels(int @Nullable [] slots) {
+        int[] key = (slots == null) ? new int[] { NO_PIECE, NO_PIECE, NO_PIECE, NO_PIECE } : slots;
+        NativeImage img = COMPOSED_PIXELS.get(Arrays.toString(key));
+        // 每次都返回一份可读的副本副本没必要 —— 调用方只读不写，直接给同一个引用
+        return (img == null || img.isClosed()) ? null : img;
     }
 
     /**
@@ -462,6 +495,15 @@ public class ComboChargeBallRenderer implements SpecialModelRenderer<int[]> {
         Identifier id = resource("combo_charge/" + Integer.toHexString(canvas.hashCode())
                 + "_" + COMPOSED.size());
         String label = "more_balls combo charge " + Arrays.toString(slots);
+        // 先留一份像素给侧壁用（canvas 交给 DynamicTexture 之后不能再碰）
+        NativeImage pixels = new NativeImage(NativeImage.Format.RGBA, canvas.getWidth(), canvas.getHeight(), false);
+        for (int py = 0; py < canvas.getHeight(); py++) {
+            for (int px = 0; px < canvas.getWidth(); px++) {
+                pixels.setPixel(px, py, canvas.getPixel(px, py));
+            }
+        }
+        COMPOSED_PIXELS.put(Arrays.toString(slots == null ? new int[] { NO_PIECE, NO_PIECE, NO_PIECE, NO_PIECE } : slots), pixels);
+
         Minecraft.getInstance().getTextureManager().register(id, new DynamicTexture(() -> label, canvas));
         MoreBalls.LOGGER.info("[ball][弩] ④ 合成装填贴图 {} <- slots={}（{}）", id, Arrays.toString(slots),
                 (slots == null) ? "只画底图" : "已叠象限/半球");

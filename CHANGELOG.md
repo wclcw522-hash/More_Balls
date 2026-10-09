@@ -5,7 +5,40 @@
 > 26.3 线已冻结（那边 Curios 与 NeoForge 不兼容，饰品功能没法测）。
 > 26.3 线的历史见 `[26.3更多球]_More_Balls\CHANGELOG.md`。
 
-### 0.3.3.85 恢复（回退已撤销，作者 2026-10-09 指定）
+### 0.3.3.86
+
+### 修复：侧壁一次都没画出来过（「薄薄一层」的真因）
+
+上一版加了 `drawSideFaces()` 想让弩有厚度，但**它每一次都在第一行就返回了**：
+
+```java
+// bake() 里 —— 合成图注册到 TextureManager（运行时动态纹理）
+Minecraft.getInstance().getTextureManager().register(id, new DynamicTexture(...));
+
+// drawSideFaces() 里 —— 却去 ResourceManager 找它
+Resource resource = Minecraft.getInstance().getResourceManager().getResourceOrThrow(id);
+//                                                                  ^^^^^^^^^^^^^^^^
+//   ResourceManager 只认资源包里的静态文件，找不到运行时注册的动态纹理 → 恒 null
+```
+
+**两套系统，各找各的。** 所以那个「有厚度」从来没生效过。
+
+**修法**：新增 `COMPOSED_PIXELS` 缓存 —— `bake()` 在把 canvas 交给 `DynamicTexture` 之前
+**留一份像素副本**；`drawSideFaces()` 改成**收 `NativeImage` 参数**，不再自己读。
+同时去掉方法末尾的 `img.close()`（那张图不是它读的，不该由它关）。
+
+### 仍未解决：球在弩上偏右下
+
+作者反馈「球正常，但像右下偏移了几个像素」。
+
+**已排查**：底图 `charge_base_crossbow.png` 与原版 `crossbow_pulling_2.png` **逐像素形状完全一致**
+（y12 都是横梁那条），所以不是底图的问题。新生成的象限贴图也是居中的（占 x5..10 / y5..10）。
+
+**待作者提供**：具体是「球整体偏右下」还是「球看起来变大了/被裁了」，以及参照物
+（是跟原版装箭的样子比、还是跟改造前比）。有了这个才能定位是 UV 还是贴图内容。
+
+---
+## 0.3.3.85 恢复（回退已撤销，作者 2026-10-09 指定）
 
 上一条「回退 0.3.3.85」已被作者撤销 —— **0.3.3.85 的两处改动恢复**：
 
