@@ -95,6 +95,41 @@ public final class BallIntegrationCheck {
     public static void run() {
         List<Item> sources = BallFragments.sources();
 
+        // ===== 检查 0：几张「与 sources() 同序」的表必须同长 =====
+        //
+        // ⚠️ 作者 2026-10-10 报「切出来的碎片名字都是错的、完全套的铜球」——
+        //    根因就是 SHORT_NAME / SHORT_ID 比 sources() 短了两项，
+        //    而 BallFragmentItem 取值时做了 clamp，下标 8/9 被夹回 7（= 铜）。
+        //    **这种错不崩、不报错，只是名字悄悄变成别人的**，所以必须在这儿拦住。
+        if (BallFragments.SHORT_NAME.size() != sources.size()
+                || BallFragments.SHORT_ID.size() != sources.size()) {
+            MoreBalls.LOGGER.warn("[ball] ★★ 自检失败：表长不一致 —— sources()={} 项，"
+                    + "SHORT_NAME={} 项，SHORT_ID={} 项。这几张表是**按下标对齐**的，"
+                    + "短了会让新球的碎片显示成另一颗球的名字（历史上就是被 clamp 成铜球）。"
+                    + "补的时候一律追加在末尾。",
+                    sources.size(), BallFragments.SHORT_NAME.size(), BallFragments.SHORT_ID.size());
+        }
+
+        // ===== 检查 0b：可切的球必须进子分类标签 =====
+        //
+        // ⚠️ 切割配方读的是 #more_balls:balls/cuttable，而那只是汇总：
+        //    { "values": [ "#more_balls:balls/solid", "#more_balls:balls/hollow" ] }
+        //    真正决定「切不切得动」的是子分类。作者 2026-10-10 报红石球/钻石球切不动，
+        //    就是只补了总标签 #balls 而漏了 solid。
+        List<String> noSubTag = new ArrayList<>();
+        for (Item ball : sources) {
+            boolean solid = ball.builtInRegistryHolder().is(ModTags.Items.BALLS_SOLID);
+            boolean hollow = ball.builtInRegistryHolder().is(ModTags.Items.BALLS_HOLLOW);
+            if (!solid && !hollow) {
+                noSubTag.add(name(ball));
+            }
+        }
+        if (!noSubTag.isEmpty()) {
+            MoreBalls.LOGGER.warn("[ball] ★ 自检提示：以下球在 sources() 里（能进组合球），"
+                    + "但既不在 balls/solid 也不在 balls/hollow —— 切石机里会放不进去。"
+                    + "按类型补进对应的子分类标签：{}", noSubTag);
+        }
+
         // ===== 反向检查：sources() 里的球必须在 balls 标签里 =====
         List<String> sourcesNotInTag = new ArrayList<>();
         for (Item ball : sources) {

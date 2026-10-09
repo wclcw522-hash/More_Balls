@@ -105,14 +105,27 @@ public final class BallFragments {
     public static int indexOfBall(Item ball) {
         return sources().indexOf(ball);
     }
-    /** 组合球<b>显示名</b>里用的短名，与 {@link #sources()} 同序（铁-金球里的「铁」「金」） */
+    /**
+     * 组合球<b>显示名</b>里用的短名，与 {@link #sources()} <b>同序、同长度</b>。
+     *
+     * <p>⚠️ 这两张表和 {@code sources()} 是<b>按下标对齐</b>的 —— 加来源球时必须一起追加，
+     * 否则新球的下标会越界。作者 2026-10-10 报「切出来的名字都是错的、完全套的铜球」，
+     * 根因就是这里漏了两项：{@code BallFragmentItem} 取值时做了 clamp，
+     * 下标 8/9 被夹回 7（= 铜），于是红石球和钻石球的碎片全叫「铜」。</p>
+     */
     public static final List<String> SHORT_NAME =
-            List.of("木", "圆石", "铁", "金", "空心铁", "紫水晶", "铜", "空心铜");
+            List.of("木", "圆石", "铁", "金", "空心铁", "紫水晶", "铜", "空心铜",
+                    "红石", "钻石");
 
-    /** 组合球<b>内部 id</b> 里用的短名，与 {@link #sources()} 同序（{@code iron_gold_ball} 里的 iron/gold） */
+    /**
+     * 组合球<b>内部 id</b> 里用的短名，与 {@link #sources()} <b>同序、同长度</b>。
+     *
+     * <p>见 {@link #SHORT_NAME} 的说明 —— 这两张表必须和 {@code sources()} 一起增长。</p>
+     */
     public static final List<String> SHORT_ID =
             List.of("wooden", "cobblestone", "iron", "gold", "hollow_iron",
-                    "amethyst", "copper", "hollow_copper");
+                    "amethyst", "copper", "hollow_copper",
+                    "redstone", "diamond");
 
     /** 这颗球在 {@link #sources()} 里的下标；不属于其中就返回 -1（雪球会走到这里） */
     public static int indexOf(Item ball) {

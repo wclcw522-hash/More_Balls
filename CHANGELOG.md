@@ -5,7 +5,44 @@
 > 26.3 线已冻结（那边 Curios 与 NeoForge 不兼容，饰品功能没法测）。
 > 26.3 线的历史见 `[26.3更多球]_More_Balls\CHANGELOG.md`。
 
-### 0.3.4.6
+### 0.3.4.7
+
+### 新球切出来的碎片名字全是「铜」
+
+作者反馈：「你这新的俩球完全套的铜球啊，切出来的名字都是错的。」
+
+**根因**：`BallFragments` 里有两张「与 `sources()` 按下标对齐」的表，**长度没跟着涨**：
+
+```java
+SHORT_NAME = List.of("木","圆石","铁","金","空心铁","紫水晶","铜","空心铜");        // 8 项
+SHORT_ID   = List.of("wooden","cobblestone","iron","gold","hollow_iron","amethyst","copper","hollow_copper");
+```
+
+而 `sources()` 是 **10 项**（红石球 idx 8、钻石球 idx 9）。取用时又被夹了一刀：
+
+```java
+// BallFragmentItem.java:88
+int safe = Math.max(0, Math.min(idx, BallFragments.SHORT_ID.size() - 1));
+                                  ↑ 8/9 双双被夹成 7
+Component.translatable("ball.more_balls.short." + SHORT_ID.get(safe)));
+```
+
+**7 就是 `copper`（铜）** —— 所以两颗新球切出来的碎片全叫「铜半球」。
+
+**修**：两张表各追加两项（`"红石"/"diamond"`、`"redstone"/"diamond"`），中英 lang 补
+`ball.more_balls.short.redstone` / `.diamond`。
+
+### 顺带加了两条启动自检
+
+这类错**不崩、不报错、也不缺贴图** —— 只是名字悄悄变成别人的，很容易查不到。所以在
+`BallIntegrationCheck` 里加了两道：
+
+1. **表长一致** —— `SHORT_NAME` / `SHORT_ID` 必须与 `sources()` 同长，短了就告警并点名
+2. **子分类标签** —— `sources()` 里的球必须落在 `balls/solid` 或 `balls/hollow`，
+   否则提醒「切石机里会放不进去」（就是 0.3.4.6 修的那个问题）
+
+---
+## 0.3.4.6
 
 作者报了三个问题，其中一个是崩服。
 
