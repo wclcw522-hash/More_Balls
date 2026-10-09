@@ -5,6 +5,7 @@ import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.util.Mth;
 import net.minecraft.world.effect.MobEffect;
 import net.minecraft.world.effect.MobEffectCategory;
+import net.minecraft.world.effect.MobEffectInstance;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.phys.Vec3;
 import net.neoforged.bus.api.SubscribeEvent;
@@ -84,10 +85,41 @@ public class ShockEffect extends MobEffect {
         return tickCount % intervalFor(amplifier) == 0;
     }
 
+    /**
+     * 效果自身的 tick —— <b>这里故意什么都不做</b>，只返回 {@code true} 维持效果存在。
+     *
+     * <p>⚠️ 为什么不在这个回调里真的去扭：{@code LivingEntity.tick()} 的顺序是
+     * {@code tickEffects()} → {@code aiStep()}，也就是效果回调跑在<b>AI 之前</b>。
+     * 对生物来说，AI 的 {@code MoveControl} 随后就会把速度重写成「朝目标走」，
+     * 我们改的那一下**立刻被覆盖** —— 表现就是「对非玩家生物无效」
+     * （玩家不受影响，因为玩家速度由客户端驱动）。</p>
+     *
+     * <p>所以真正的转向挪到 {@link #onEntityTickPost}，在实体 tick <b>结束之后</b>做。</p>
+     */
     @Override
     public boolean applyEffectTick(ServerLevel level, LivingEntity mob, int amplifier) {
-        applyShock(mob);
         return true;
+    }
+
+    /**
+     * 每刻（实体 tick 之后）检查【震荡】并执行转向。
+     *
+     * <p>放在 {@code EntityTickEvent.Post} 是关键：这时 AI 已经跑完，
+     * 我们设的速度/朝向会一直保留到下一刻的移动结算 —— 生物这才真的会歪。</p>
+     */
+    @SubscribeEvent
+    public static void onEntityTickPost(net.neoforged.neoforge.event.tick.EntityTickEvent.Post event) {
+        if (!(event.getEntity() instanceof LivingEntity mob) || mob.level().isClientSide()) {
+            return;
+        }
+        MobEffectInstance instance = mob.getEffect(ModEffects.SHOCK);
+        if (instance == null) {
+            return;
+        }
+        if (instance.getDuration() % intervalFor(instance.getAmplifier()) != 0) {
+            return;
+        }
+        applyShock(mob);
     }
 
     /**

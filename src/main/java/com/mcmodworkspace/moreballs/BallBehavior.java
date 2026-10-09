@@ -131,6 +131,13 @@ public final class BallBehavior {
     public static final int MOLTEN_THRESHOLD = 120;
 
     /**
+     * 【破坏王 x】的预算 —— <b>10 次</b>（作者 2026-10-10 指定：【破坏王10】）。
+     *
+     * <p>钻石球每砸掉一个方块消耗 1 次，用完就再也砸不动。</p>
+     */
+    public static final int BREAKER_BUDGET = 10;
+
+    /**
      * 【熔融】击中目标时挂上的灼伤时长（刻）—— 作者指定 <b>1 秒</b>。
      *
      * <p>注意这只是<b>基础</b>时长：真正生效的时长还要乘上目标身上的金属装备数，

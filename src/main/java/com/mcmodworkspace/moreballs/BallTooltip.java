@@ -229,6 +229,42 @@ public final class BallTooltip {
             out.add(Entry.of(line("tooltip.more_balls.entry.transmute"), Kind.TRAIT));
         }
 
+        // ===== 3.0.0（0.3.4.0）新增的五个词条 =====
+
+        // 【穿透x】—— 自带穿透，能连着打穿 x 个目标
+        if (profile.hasPenetration()) {
+            out.add(Entry.of(
+                    line("tooltip.more_balls.entry.penetration", String.valueOf(profile.penetration())),
+                    Kind.TRAIT,
+                    line("tooltip.more_balls.desc.penetration", String.valueOf(profile.penetration()))));
+        }
+
+        // 【脉冲】—— 红石球：命中时让周围金属目标晕头转向
+        if (profile.hasFlag(BallBehavior.BallProfile.FLAG_PULSE)) {
+            out.add(Entry.of(line("tooltip.more_balls.entry.pulse"), Kind.TRAIT,
+                    line("tooltip.more_balls.desc.pulse")));
+        }
+
+        // 【照明】—— 红石雪球：下方四棱锥区域内的生物被染色发光
+        if (profile.hasFlag(BallBehavior.BallProfile.FLAG_ILLUMINATE)) {
+            out.add(Entry.of(line("tooltip.more_balls.entry.illuminate"), Kind.TRAIT,
+                    line("tooltip.more_balls.desc.illuminate")));
+        }
+
+        // 【破坏王x】—— 钻石球：能砸碎 x 个方块
+        if (profile.hasFlag(BallBehavior.BallProfile.FLAG_BREAKER)) {
+            out.add(Entry.of(
+                    line("tooltip.more_balls.entry.breaker", String.valueOf(BallBehavior.BREAKER_BUDGET)),
+                    Kind.TRAIT,
+                    line("tooltip.more_balls.desc.breaker", String.valueOf(BallBehavior.BREAKER_BUDGET))));
+        }
+
+        // 【透镜】—— 钻石球：白天晴天时给下方持续积热
+        if (profile.hasFlag(BallBehavior.BallProfile.FLAG_LENS)) {
+            out.add(Entry.of(line("tooltip.more_balls.entry.lens"), Kind.TRAIT,
+                    line("tooltip.more_balls.desc.lens")));
+        }
+
         // 【感应】—— 底层词条，不带数字即 1 级（【感应】与【感应1】是一回事）；
         // 说明只在 Shift 展开时出现
         if (profile.hasSense()) {

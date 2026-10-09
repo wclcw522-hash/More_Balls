@@ -100,6 +100,7 @@
   "tooltip.more_balls.entry.breaker": "[Demolisher] Smash Everything!",
   "tooltip.more_balls.desc.breaker": "Shatters every block in its path - each one slows it down and chips its durability. Under clear daylight it also bakes the ground below until it catches fire",
   "tooltip.more_balls.entry.penetration": "【穿透%1$s】" ,
+  "tooltip.more_balls.entry.penetration": "【穿透%1$s】",
   "tooltip.more_balls.entry.lens": "【透镜】千万不要把它丢在山里……" ,
   "tooltip.more_balls.desc.lens": "白天晴天时，正下方的方块与生物会被持续加热",
   "tooltip.more_balls.entry.illuminate": "[Illuminate] I See Everything",

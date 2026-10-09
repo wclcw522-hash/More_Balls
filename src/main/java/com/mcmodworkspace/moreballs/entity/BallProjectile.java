@@ -105,12 +105,15 @@ public class BallProjectile extends ThrowableItemProjectile {
     private static final double BREAKER_SPEED_RETAIN = 0.85D;
 
     /**
-     * 【破坏王】是否已经「砸不动了」。
+     * 【破坏王】已经砸掉的方块数。
      *
-     * <p>作者指定：速度衰减到静止阈值之后就<b>停止破坏并静止</b>。
-     * 用这个标志记下来，免得下一 tick 速度刚好微微回升时又来砸一块。</p>
+     * <p>作者 2026-10-10 指定：【破坏王10】—— 一共只有 {@link BallBehavior#BREAKER_BUDGET}
+     * 次破坏方块的机会，用完就再也砸不动（不再破坏、也不再扣耐久）。</p>
+     *
+     * <p>另外，速度衰减到静止阈值以下时也会提前收手 —— 免得下一 tick 速度
+     * 刚好微微回升时又来砸一块。</p>
      */
-    private boolean breakerSpent;
+    private int breakerUsed;
 
     /** 静止后存活时长：2 分钟 = 2400 刻 */
     private static final int SETTLED_LIFETIME_TICKS = 2400;
@@ -1010,6 +1013,23 @@ public class BallProjectile extends ThrowableItemProjectile {
             this.moltenParticlesTick();
         }
 
+        // ===== 【照明】/【透镜】：必须在「不坚固就早退」之前 =====
+        //
+        // ⚠️ 作者 2026-10-10 报「【照明】未生效」—— 根因就是位置。
+        //    红石雪球是 **不坚固** 的，而下面那句 `if (!this.isTough()) return;`
+        //    会把它直接挡回去，挂在后面的照明逻辑永远执行不到。
+        //    这两个词条与「坚固与否」无关，本来就该放在早退之前。
+        if (this.profile().hasFlag(BallBehavior.BallProfile.FLAG_ILLUMINATE)
+                && this.level() instanceof ServerLevel illuminateLevel) {
+            BallIlluminate.tick(illuminateLevel, this.position());
+        }
+        if (this.profile().hasFlag(BallBehavior.BallProfile.FLAG_LENS)
+                && this.level() instanceof ServerLevel lensLevel) {
+            BallLens.tick(lensLevel, this.position());
+        }
+        // 【照明】的飞行拖尾：红色粒子，每颗滞留约 1 秒（不坚固的雪球也有）
+        this.redstoneTrailTick();
+
         if (!this.isTough()) {
             return;
         }
@@ -1037,26 +1057,6 @@ public class BallProjectile extends ThrowableItemProjectile {
             this.magnetTick(serverLevel);
         }
 
-        // 【照明】红石雪球：每刻维持正下方的四棱锥判定区。
-        //
-        // ⚠️ 这里**不加** isSettled 判断 —— 作者的规格是「在该 balls 的正下方」，
-        //    没限定只算飞行中；球停在地上时判定区照样存在（锥体会随着球离地高度变化）。
-        if (this.profile().hasFlag(BallBehavior.BallProfile.FLAG_ILLUMINATE)
-                && this.level() instanceof ServerLevel illuminateLevel) {
-            BallIlluminate.tick(illuminateLevel, this.position());
-        }
-
-        // 【照明】的飞行拖尾：红色粒子，每颗滞留约 1 秒
-        this.redstoneTrailTick();
-
-        // 【透镜】钻石球：白天晴天时给正下方的方块与生物持续积热。
-        //
-        // ⚠️ 同样**不判 isSettled()** —— 作者明确「即使钻石球静止」也要积热，
-        //    静止的钻石球照样是一块聚焦镜。
-        if (this.profile().hasFlag(BallBehavior.BallProfile.FLAG_LENS)
-                && this.level() instanceof ServerLevel lensLevel) {
-            BallLens.tick(lensLevel, this.position());
-        }
 
         if (this.impulseTicks > 0) {
             this.impulseTicks--;
@@ -1863,7 +1863,7 @@ public class BallProjectile extends ThrowableItemProjectile {
             // 扣 1 点耐久；速度衰减到静止阈值之后就停止破坏并静止。
             // 放在 isTough() 判断之前 —— 这是「撞到什么碎什么」，不管球本身坚固与否。
             if (this.profile().hasFlag(BallBehavior.BallProfile.FLAG_BREAKER)
-                    && !this.breakerSpent
+                    && this.breakerUsed < BallBehavior.BREAKER_BUDGET
                     && this.level() instanceof ServerLevel breakerLevel) {
                 this.breakerHit(breakerLevel, (BlockHitResult) hitResult);
             }
@@ -1968,7 +1968,7 @@ public class BallProjectile extends ThrowableItemProjectile {
     /**
      * 【破坏王】：砸掉撞到的那个方块。
      *
-     * <p>三件事按顺序做：<b>碎块 → 扣耐久 → 降速</b>；降速之后如果掉到静止阈值以下，
+     * <p>三件事按顺序做：<b>碎块 → 扣耐久 → 降速</b>（并消耗一次【破坏王】额度）；降速之后如果掉到静止阈值以下，
      * 就把 {@link #breakerSpent} 立起来 —— 从此不再破坏，让球按正常流程落定。</p>
      *
      * <p><b>两个刻意的取舍</b>（作者没细说，这里按「最符合直觉」定）：</p>
@@ -1995,13 +1995,17 @@ public class BallProjectile extends ThrowableItemProjectile {
 
         this.consumeDurability("破坏王");
 
+        // 额度 -1（作者指定的【破坏王10】：一共只有 10 次机会）
+        this.breakerUsed++;
+
         Vec3 scaled = this.getDeltaMovement().scale(BREAKER_SPEED_RETAIN);
         this.setDeltaMovement(scaled);
         this.hurtMarked = true;
 
-        // 撞不动了 —— 收手，剩下的交给正常的静止流程
+        // 撞不动了 —— 收手，剩下的交给正常的静止流程。
+        // 这里把额度一次性用光，等价于「从此不再破坏」。
         if (scaled.lengthSqr() < SETTLE_SPEED_SQR) {
-            this.breakerSpent = true;
+            this.breakerUsed = BallBehavior.BREAKER_BUDGET;
         }
     }
 
