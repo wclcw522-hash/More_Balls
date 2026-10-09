@@ -226,8 +226,6 @@ public class ComboChargeBallRenderer implements SpecialModelRenderer<int[]> {
         poseStack.pushPose();
         poseStack.scale(MODEL_SCALE, MODEL_SCALE, MODEL_SCALE);
         drawQuad(poseStack, collector, texture, lightCoords, overlayCoords);
-        // 补侧壁 —— special 不渲染 base，不补的话弩就是一片纸
-        drawSideFaces(poseStack, collector, texture, lightCoords, overlayCoords);
         poseStack.popPose();
 
         diag("③ submit() 已提交一个面：texture={} 顶点={}~{} z={} scale={}（双面）",
@@ -295,92 +293,6 @@ public class ComboChargeBallRenderer implements SpecialModelRenderer<int[]> {
         });
     }
 
-    /**
-     * 给平面补<b>侧壁</b>，让它看起来是一块有厚度的挤出板而不是一片纸。
-     *
-     * <h2>为什么必须自己画侧壁</h2>
-     * <p>{@code minecraft:special} <b>不渲染 base 的几何</b> —— 整把弩的外观全靠本渲染器提交。
-     * 原版 2D 物品走 {@code ItemModelGenerator.bakeExtrudedSprite()} + {@code bakeSideFaces()}，
-     * 会生成正反面<b>加四周侧壁</b>；而这里之前只提交了一个平面，
-     * 于是弩拿在手上是「薄薄一层」（作者 2026-10-09 反馈）。</p>
-     *
-     * <h2>做法</h2>
-     * <p>照原版 {@code bakeSideFaces} 的思路：扫一遍贴图，对每个<b>不透明</b>像素检查上下左右
-     * 四邻（越界视为透明），凡外露的那条边就生成一个四边形，{@code z} 从
-     * {@link #PLANE_Z_BACK} 跨到 {@link #PLANE_Z_FRONT}，UV 取该像素的那一条边
-     * （用 {@code 0.1 / 0.9} 落在像素内部，避免采到相邻像素）。</p>
-     */
-    private static void drawSideFaces(PoseStack poseStack, SubmitNodeCollector collector,
-                                      Identifier texture, int light, int overlay) {
-        NativeImage img = readTexture(texture);
-        if (img == null) {
-            return;
-        }
-        RenderType type = RenderTypes.itemCutout(texture);
-        float z0 = PLANE_Z_BACK;
-        float z1 = PLANE_Z_FRONT;
-        collector.submitCustomGeometry(poseStack, type, (pose, buffer) -> {
-            for (int py = 0; py < 16; py++) {
-                for (int px = 0; px < 16; px++) {
-                    if (img.getLuminanceOrAlpha(px, py) == 0) {
-                        continue;
-                    }
-                    float x0 = px;
-                    float x1 = px + 1.0F;
-                    float y0 = py;
-                    float y1 = py + 1.0F;
-                    float u0 = px / 16.0F;
-                    float u1 = (px + 1.0F) / 16.0F;
-                    float v0 = py / 16.0F;
-                    float v1 = (py + 1.0F) / 16.0F;
-                    float uMid = px + 0.5F;
-                    float vMid = py + 0.5F;
-
-                    // 上边（y = py）外露 → 朝 -Y 的侧壁
-                    if (py == 0 || img.getLuminanceOrAlpha(px, py - 1) == 0) {
-                        vertexRaw(buffer, pose, x0, y0, z1, u0, v0, 0, -1, 0, light, overlay);
-                        vertexRaw(buffer, pose, x0, y0, z0, u0, v0, 0, -1, 0, light, overlay);
-                        vertexRaw(buffer, pose, x1, y0, z0, u1, v0, 0, -1, 0, light, overlay);
-                        vertexRaw(buffer, pose, x1, y0, z1, u1, v0, 0, -1, 0, light, overlay);
-                    }
-                    // 下边（y = py+1）外露 → 朝 +Y
-                    if (py == 15 || img.getLuminanceOrAlpha(px, py + 1) == 0) {
-                        vertexRaw(buffer, pose, x0, y1, z0, u0, v1, 0, 1, 0, light, overlay);
-                        vertexRaw(buffer, pose, x0, y1, z1, u0, v1, 0, 1, 0, light, overlay);
-                        vertexRaw(buffer, pose, x1, y1, z1, u1, v1, 0, 1, 0, light, overlay);
-                        vertexRaw(buffer, pose, x1, y1, z0, u1, v1, 0, 1, 0, light, overlay);
-                    }
-                    // 左边（x = px）外露 → 朝 -X
-                    if (px == 0 || img.getLuminanceOrAlpha(px - 1, py) == 0) {
-                        vertexRaw(buffer, pose, x0, y1, z1, u0, v1, -1, 0, 0, light, overlay);
-                        vertexRaw(buffer, pose, x0, y0, z1, u0, v0, -1, 0, 0, light, overlay);
-                        vertexRaw(buffer, pose, x0, y0, z0, u0, v0, -1, 0, 0, light, overlay);
-                        vertexRaw(buffer, pose, x0, y1, z0, u0, v1, -1, 0, 0, light, overlay);
-                    }
-                    // 右边（x = px+1）外露 → 朝 +X
-                    if (px == 15 || img.getLuminanceOrAlpha(px + 1, py) == 0) {
-                        vertexRaw(buffer, pose, x1, y0, z0, u1, v0, 1, 0, 0, light, overlay);
-                        vertexRaw(buffer, pose, x1, y0, z1, u1, v0, 1, 0, 0, light, overlay);
-                        vertexRaw(buffer, pose, x1, y1, z1, u1, v1, 1, 0, 0, light, overlay);
-                        vertexRaw(buffer, pose, x1, y1, z0, u1, v1, 1, 0, 0, light, overlay);
-                    }
-                }
-            }
-        });
-        img.close();
-    }
-
-    /** 带完整法线向量的顶点（侧壁用） */
-    private static void vertexRaw(VertexConsumer buffer, PoseStack.Pose pose,
-                                  float x, float y, float z, float u, float v,
-                                  float nx, float ny, float nz, int light, int overlay) {
-        buffer.addVertex(pose, x, y, z)
-                .setColor(0xFFFFFFFF)
-                .setUv(u, v)
-                .setOverlay(overlay)
-                .setLight(light)
-                .setNormal(pose, nx, ny, nz);
-    }
     private static void vertex(VertexConsumer buffer, PoseStack.Pose pose,
                                float x, float y, float u, float v,
                                float z, float normalZ, int light, int overlay) {
