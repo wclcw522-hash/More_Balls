@@ -58,7 +58,21 @@ public final class BallProspecting {
     }
 
     /** 检测半径（格）：超出这个范围连扫都不扫 */
-    public static final int RADIUS = 15;
+    /**
+     * 扫描半径。
+     *
+     * <p>⚠️ **必须是 7，与 {@link #PULL_RADIUS} 一致**（作者 2026-10-09 性能修复）。</p>
+     *
+     * <p>原来写 15 —— 注释说「扫 15 格是为了提前看到远处的目标」，但 {@link #scan}
+     * 里紧接着就有 {@code if (dist > PULL_RADIUS²) continue;}，**超出的方块当场丢弃**；
+     * 下游的 {@code bestMagnetTarget} 又判了一次同样的条件。
+     * 也就是说那 15 格里的外侧部分**读出来了、判定了、然后扔掉**，纯属白扫。</p>
+     *
+     * <p>代价有多大：{@code 31³ = 29791} 格/次，{@code SCAN_INTERVAL = 4} 刻一次，
+     * 25 个球就是 **372 万次 {@code getBlockState} 每秒** ——
+     * 实测 {@code prospecting} 阶段占 185.9ms / 2000 次采样，是其余四项总和的 20 倍。</p>
+     */
+    public static final int RADIUS = 7;
 
     /** 偏转半径（格）：进入这个范围才开始真正拽动轨迹（作者指定） */
     public static final int PULL_RADIUS = 7;
@@ -89,7 +103,8 @@ public final class BallProspecting {
     public static final float WATER_DECAY_MULTIPLIER = 10.0F;
 
     /** 扫描间隔（刻）：半径 7 的立方体有 3375 格，每刻全扫太贵，每 4 刻扫一次、结果复用 */
-    public static final int SCAN_INTERVAL = 4;
+    /** 扫描间隔（刻）—— 4 太密了，8 刻（0.4 秒）对「提前看到矿物」完全够用 */
+    public static final int SCAN_INTERVAL = 8;
 
     /** 磁吸偏航的拉力（每刻加到水平速度上的上限） */
     public static final double MAGNET_PULL = 0.035D;
@@ -202,17 +217,22 @@ public final class BallProspecting {
         int metal = 0;
         List<BlockPos> ores = new ArrayList<>();
 
-        for (int dx = -RADIUS; dx <= RADIUS; dx++) {
-            for (int dy = -RADIUS; dy <= RADIUS; dy++) {
-                for (int dz = -RADIUS; dz <= RADIUS; dz++) {
+        // ⚠️ **球形遍历**：只在 dx²+dy²+dz² ≤ pullSqr 的格子里走。
+        //
+        //    原来是三层循环把整个立方体扫一遍再逐个 continue —— 立方体 3375 格，
+        //    而球只占 1437 格，**一半以上是白读的**。
+        //    改成「按半径收窄 dy/dz 的上界」，白读的部分根本不进循环。
+        int r = PULL_RADIUS;
+        int rSqr = r * r;
+        for (int dx = -r; dx <= r; dx++) {
+            int dyMax = (int) Math.sqrt(rSqr - dx * dx);
+            for (int dy = -dyMax; dy <= dyMax; dy++) {
+                int dzMax = (int) Math.sqrt(rSqr - dx * dx - dy * dy);
+                for (int dz = -dzMax; dz <= dzMax; dz++) {
                     cursor.set(base.getX() + dx, base.getY() + dy, base.getZ() + dz);
                     BlockState state = level.getBlockState(cursor);
                     // 用 isHeatAbsorbing：金属储存块也要进热表（冒粒子 + 烫脚），只是永不破坏
-            if (state.isAir() || !isHeatAbsorbing(level, state)) {
-                        continue;
-                    }
-                    // 只有进入「生效范围」的矿物才算数 —— 15 格扫描只是提前看到
-                    if (cursor.distToCenterSqr(center) > pullSqr) {
+                    if (state.isAir() || !isHeatAbsorbing(level, state)) {
                         continue;
                     }
                     metal++;
