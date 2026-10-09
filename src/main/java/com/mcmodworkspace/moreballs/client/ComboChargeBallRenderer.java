@@ -362,13 +362,16 @@ public class ComboChargeBallRenderer implements SpecialModelRenderer<int[]> {
                     float u = (x + 0.5F) / w;
                     float v = (y + 0.5F) / h;
 
-                    // 六个面：正 / 背 / 上 / 下 / 左 / 右
-                    quad(buffer, pose, x0, y0, SIDE_Z_FROM, x1, y1, SIDE_Z_TO, u, v, 0, 0, 1, light, overlay);
-                    quad(buffer, pose, x1, y0, SIDE_Z_FROM, x0, y1, SIDE_Z_TO, u, v, 0, 0, -1, light, overlay);
-                    quad(buffer, pose, x0, y1, SIDE_Z_FROM, x1, y1, SIDE_Z_TO, u, v, 0, 1, 0, light, overlay);
-                    quad(buffer, pose, x0, y0, SIDE_Z_FROM, x1, y0, SIDE_Z_TO, u, v, 0, -1, 0, light, overlay);
-                    quad(buffer, pose, x0, y0, SIDE_Z_FROM, x0, y1, SIDE_Z_TO, u, v, -1, 0, 0, light, overlay);
-                    quad(buffer, pose, x1, y0, SIDE_Z_FROM, x1, y1, SIDE_Z_TO, u, v, 1, 0, 0, light, overlay);
+                    // ===== 六个面：正 / 背 / 上 / 下 / 左 / 右 =====
+                    // 正背两面：xy 平面上的矩形，z 从近到远
+                    quadXY(buffer, pose, x0, y0, x1, y1, SIDE_Z_FROM, SIDE_Z_TO, u, v, 0, 0, 1, light, overlay);
+                    quadXY(buffer, pose, x1, y0, x0, y1, SIDE_Z_FROM, SIDE_Z_TO, u, v, 0, 0, -1, light, overlay);
+                    // 上下两面：xz 平面上的矩形，y 固定
+                    quadXZ(buffer, pose, x0, x1, y1, SIDE_Z_FROM, SIDE_Z_TO, u, v, 0, 1, 0, light, overlay);
+                    quadXZ(buffer, pose, x0, x1, y0, SIDE_Z_FROM, SIDE_Z_TO, u, v, 0, -1, 0, light, overlay);
+                    // 左右两面：yz 平面上的矩形，x 固定
+                    quadYZ(buffer, pose, x0, y0, y1, SIDE_Z_FROM, SIDE_Z_TO, u, v, -1, 0, 0, light, overlay);
+                    quadYZ(buffer, pose, x1, y0, y1, SIDE_Z_FROM, SIDE_Z_TO, u, v, 1, 0, 0, light, overlay);
                     boxes++;
                 }
             }
@@ -385,19 +388,58 @@ public class ComboChargeBallRenderer implements SpecialModelRenderer<int[]> {
      * <p>四个顶点按 {@code (x0/y0/x1/y1)} 与 {@code (u, v)} 组合出来，
      * 法线用调用方给的面朝向（用于光照计算）。</p>
      */
+    /** 正/背面：xy 平面上的矩形，z 从 zNear 到 zFar */
+    private static void quadXY(VertexConsumer buffer, PoseStack.Pose pose,
+                               float x0, float y0, float x1, float y1,
+                               float zNear, float zFar,
+                               float u, float v, float nx, float ny, float nz,
+                               int light, int overlay) {
+        vertexRaw(buffer, pose, x0, y0, zNear, u, v, nx, ny, nz, light, overlay);
+        vertexRaw(buffer, pose, x1, y0, zFar, u, v, nx, ny, nz, light, overlay);
+        vertexRaw(buffer, pose, x1, y1, zFar, u, v, nx, ny, nz, light, overlay);
+        vertexRaw(buffer, pose, x0, y1, zNear, u, v, nx, ny, nz, light, overlay);
+    }
+
+    /** 上/下面：xz 平面上的矩形，y 固定 */
+    private static void quadXZ(VertexConsumer buffer, PoseStack.Pose pose,
+                               float x0, float x1, float y,
+                               float zNear, float zFar,
+                               float u, float v, float nx, float ny, float nz,
+                               int light, int overlay) {
+        vertexRaw(buffer, pose, x0, y, zNear, u, v, nx, ny, nz, light, overlay);
+        vertexRaw(buffer, pose, x1, y, zNear, u, v, nx, ny, nz, light, overlay);
+        vertexRaw(buffer, pose, x1, y, zFar, u, v, nx, ny, nz, light, overlay);
+        vertexRaw(buffer, pose, x0, y, zFar, u, v, nx, ny, nz, light, overlay);
+    }
+
+    /** 左/右面：yz 平面上的矩形，x 固定 */
+    private static void quadYZ(VertexConsumer buffer, PoseStack.Pose pose,
+                               float x, float y0, float y1,
+                               float zNear, float zFar,
+                               float u, float v, float nx, float ny, float nz,
+                               int light, int overlay) {
+        vertexRaw(buffer, pose, x, y0, zNear, u, v, nx, ny, nz, light, overlay);
+        vertexRaw(buffer, pose, x, y0, zFar, u, v, nx, ny, nz, light, overlay);
+        vertexRaw(buffer, pose, x, y1, zFar, u, v, nx, ny, nz, light, overlay);
+        vertexRaw(buffer, pose, x, y1, zNear, u, v, nx, ny, nz, light, overlay);
+    }
+
     private static void quad(VertexConsumer buffer, PoseStack.Pose pose,
                              float x0, float y0, float x1, float y1,
                              float zNear, float zFar,
                              float u, float v, float nx, float ny, float nz,
                              int light, int overlay) {
-        float ax = x0;
-        float ay = y0;
-        float bx = x1;
-        float by = y1;
-        vertexRaw(buffer, pose, ax, ay, zNear, u, v, nx, ny, nz, light, overlay);
-        vertexRaw(buffer, pose, ax, ay, zFar, u, v, nx, ny, nz, light, overlay);
-        vertexRaw(buffer, pose, bx, by, zFar, u, v, nx, ny, nz, light, overlay);
-        vertexRaw(buffer, pose, bx, by, zNear, u, v, nx, ny, nz, light, overlay);
+        // ⚠️ 四个顶点必须是矩形的**四个不同的角**。
+        //
+        //    上一版我写成了 `(x0,y0) (x0,y0) (x1,y1) (x1,y1)` —— 只有两个角、
+        //    重复了两遍，于是每个面都退化成一条线，看上去就是「到处拉丝的小方块」、
+        //    「第三人称像拿了个海胆」（作者 2026-10-09 反馈）。
+        //
+        //    正确走法：从 (x0,y0) 起，沿矩形逆时针一圈。
+        vertexRaw(buffer, pose, x0, y0, zNear, u, v, nx, ny, nz, light, overlay);
+        vertexRaw(buffer, pose, x1, y0, zFar, u, v, nx, ny, nz, light, overlay);
+        vertexRaw(buffer, pose, x1, y1, zFar, u, v, nx, ny, nz, light, overlay);
+        vertexRaw(buffer, pose, x0, y1, zNear, u, v, nx, ny, nz, light, overlay);
     }
 
     /**

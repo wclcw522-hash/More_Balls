@@ -599,7 +599,12 @@ public final class CreeperBallBehavior {
     public static void pushNearbyBalls(Level level, Creeper source, float radius,
                                        @Nullable LivingEntity aimTarget) {
         double cx = source.getX();
-        double cy = source.getY(0.0625D);
+        // ⚠️ 爆心高度**必须与投掷起点一致**（作者 2026-10-09 反馈「轻球会从头顶飞过去」）。
+        //
+        //    `BallMobAI.throwBall` 已经把投掷起点从「脚底」改成「身体中部」
+        //    （`getY() + getBbHeight() * 2/3`），但这里还留在 `getY(0.0625)` 的脚底 ——
+        //    于是「爆心 → 球」的相对方向偏上，推力把球顶过了头顶。
+        double cy = source.getY() + source.getBbHeight() * 2.0D / 3.0D;
         double cz = source.getZ();
         double reach = radius * 2.0D;
         AABB box = new AABB(cx - reach, cy - reach, cz - reach, cx + reach, cy + reach, cz + reach);

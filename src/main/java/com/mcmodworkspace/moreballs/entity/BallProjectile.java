@@ -905,6 +905,9 @@ public class BallProjectile extends ThrowableItemProjectile {
             //   追踪：只要还有次数就一直做（包括第一次出手的飞行途中）
             //   重力：第一次命中**之前**照常受重力；命中一次后改用无重力飞行；
             //         次数耗尽后恢复重力，让它正常掉落静止
+            if (this.wisdomHitGrace > 0) {
+                this.wisdomHitGrace--;
+            }
             if (this.wisdomUsesLeft > 0) {
                 if (this.wisdomRelockCooldown-- <= 0) {
                     this.wisdomRelockCooldown = WISDOM_RELOCK_INTERVAL;
@@ -1009,6 +1012,10 @@ public class BallProjectile extends ThrowableItemProjectile {
             // 刚被撞开的那几刻例外：碰撞传来的速度就在阈值附近，立刻判定静止的话
             // 球会「粘」在原地 —— 现象就是已经停下的球怎么撞都不动。
             if (this.impulseTicks <= 0
+                    // 【智慧x】刚命中过的那几刻**不判静止** —— 命中瞬间速度会被打到接近 0，
+                    // 那一刻判静止就会把球按在地上滑行（作者 2026-10-09 反馈
+                    // 「第一下打中之后有时候会掉地上然后滑行追踪」）。
+                    && this.wisdomHitGrace <= 0
                     && this.hasSupportBelow()
                     && this.getDeltaMovement().lengthSqr() < SETTLE_SPEED_SQR) {
                 // 多重射击的附属弹：一落定就碎，不留在地上、也不回家
@@ -1847,6 +1854,12 @@ public class BallProjectile extends ThrowableItemProjectile {
      */
     private int wisdomUsesLeft = -1;
 
+    /** 【智慧x】命中后的「别急着判静止」宽限刻数 —— 见 tick 里静止判定的说明 */
+    private int wisdomHitGrace;
+
+    /** 宽限期长度（刻）—— 够球脱离接触、速度重新起来 */
+    private static final int WISDOM_HIT_GRACE_TICKS = 10;
+
     /** 开启【智慧】追踪前的原始重力状态，次数耗尽后还原 */
     private boolean wisdomGravityBefore = false;
 
@@ -1953,6 +1966,8 @@ public class BallProjectile extends ThrowableItemProjectile {
         if (this.wisdomUsesLeft > 0) {
             this.wisdomUsesLeft--;
         }
+        // 命中后设一段宽限期：这期间不做静止判定，免得被按在地上滑行
+        this.wisdomHitGrace = WISDOM_HIT_GRACE_TICKS;
 
         // 【智慧】成就：首次触发锁定 —— 记在**投掷者**头上（怪物扔的不算，
         // 它没有成就页；作者给出的文案也是给玩家看的）
@@ -1960,7 +1975,10 @@ public class BallProjectile extends ThrowableItemProjectile {
             ModAdvancements.award(wisdomOwner, ModAdvancements.WISDOM);
         }
 
-        Vec3 aim = target.position().add(0.0, target.getBbHeight() * 0.5, 0.0);
+        // 【智慧】瞄**上半身**（作者 2026-10-09 指定）—— 原来的 0.5 是身体中部，
+        // 锁定瞬间几乎没有抬升动作，看起来不像「抬头锁定」。
+        // 取 0.8 倍身高（接近胸部/头部），锁定时会有一个明显的上抬。
+        Vec3 aim = target.position().add(0.0, target.getBbHeight() * 0.8, 0.0);
         Vec3 direction = aim.subtract(this.position());
         if (direction.lengthSqr() < 1.0E-6) {
             return;

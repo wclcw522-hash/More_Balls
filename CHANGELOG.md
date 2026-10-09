@@ -5,7 +5,58 @@
 > 26.3 线已冻结（那边 Curios 与 NeoForge 不兼容，饰品功能没法测）。
 > 26.3 线的历史见 `[26.3更多球]_More_Balls\CHANGELOG.md`。
 
-### 0.3.3.103
+### 0.3.3.104
+
+### ① 弩侧壁「到处拉丝、像拿了个海胆」—— 我的 `quad()` 写错了
+
+```java
+// 上一版
+vertexRaw(ax, ay, zNear);  vertexRaw(ax, ay, zFar);
+vertexRaw(bx, by, zFar);   vertexRaw(bx, by, zNear);
+//        ↑ 四个顶点只有两个不同的角，重复了两遍 → 每个面退化成一条线
+```
+
+**一个面的四个顶点必须是矩形的四个不同角**，我写成了两个角的重复。
+结果每个立方体都变成几根「线」，看着就是拉丝 / 海胆。
+
+**修法**：拆成 `quadXY` / `quadXZ` / `quadYZ` 三个专用方法，各按自己的平面正确展开四个角。
+
+### ② 【智慧】第一下命中后掉地上滑行
+
+作者分析得对：**命中瞬间速度被打到接近 0，那一刻被判成静止、按在地上**。
+
+**修法**：新增 `wisdomHitGrace`（命中后 10 刻宽限），这期间**不做静止判定**。
+
+```java
+if (this.impulseTicks <= 0
+        && this.wisdomHitGrace <= 0        // ← 新增
+        && this.hasSupportBelow()
+        && this.getDeltaMovement().lengthSqr() < SETTLE_SPEED_SQR) { ... }
+```
+
+### ③ 【智慧】锁定点改上半身
+
+原来瞄 `getBbHeight() * 0.5`（身体中部），锁定瞬间几乎看不出抬升动作。
+改成 **`0.8`**（接近胸部/头部），锁定时会有一个明显的上抬。
+
+### ④ 苦力怕轻球从头顶飞过 —— 爆心高度没跟着改
+
+**作者判断准确**：
+
+```java
+// BallMobAI 投掷起点已改成「身体中部」
+origin = (mob.getX(), mob.getY() + mob.getBbHeight() * 2/3, mob.getZ());
+
+// 但爆炸推力这里仍是「脚底附近」
+double cy = source.getY(0.0625D);      // ← 没跟着改
+```
+
+起点抬了、推力基准没抬 → 相对方向偏上 → 轻球被顶过头顶。
+
+**修法**：`cy` 改用同一条公式 `getY() + getBbHeight() * 2/3`，与投掷起点严格一致。
+
+---
+## 0.3.3.103
 
 ### ① 卡顿：`homingToOwner()` 一个 tick 被调 5 次
 
