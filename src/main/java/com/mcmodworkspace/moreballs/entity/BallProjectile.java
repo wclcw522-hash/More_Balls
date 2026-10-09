@@ -887,7 +887,7 @@ public class BallProjectile extends ThrowableItemProjectile {
         //    不需要这些扫描。）
         boolean idle = this.isSettled();
         if (!idle && this.profile().hasSense()) {
-            this.prospectingTick();
+            long _t = System.nanoTime(); this.prospectingTick(); prof("prospecting", System.nanoTime() - _t);
         }
 
         // 【智慧】—— 紫水晶球：发射后扫描 10 格内无遮挡可直达的敌对（或仇恨中的中立）
@@ -951,7 +951,7 @@ public class BallProjectile extends ThrowableItemProjectile {
 
         // 【熔融】状态的外观：进了熔融的球周身冒火（环绕 + 拖尾）
         if (!this.isSettled()) {
-            this.moltenParticlesTick();
+            long _t = System.nanoTime(); this.moltenParticlesTick(); prof("particles", System.nanoTime() - _t);
         }
 
         if (!this.isTough()) {
@@ -959,7 +959,7 @@ public class BallProjectile extends ThrowableItemProjectile {
         }
 
         if (this.isRolling()) {
-            this.rollTick();
+            long _t = System.nanoTime(); this.rollTick(); prof("roll", System.nanoTime() - _t);
         }
         // 球间碰撞无论是否在滚动都要检测 —— 滚动的球撞上静止的球一样该传递动能。
         //
@@ -971,14 +971,14 @@ public class BallProjectile extends ThrowableItemProjectile {
         //    被别的球撞动的那个 —— 曾经试过「静止就跳过」，结果是
         //    「停着的球怎么撞都不动」。这条不能按静止裁剪，只能靠间隔限流。
         if (this.level().getGameTime() % BALL_COLLIDE_INTERVAL == 0L) {
-            this.collideWithNearbyBalls();
+            long _t = System.nanoTime(); this.collideWithNearbyBalls(); prof("collide", System.nanoTime() - _t);
         }
         // 「磁吸」：飞行中把身边的金属拽向自己（空心铁球）
         // 磁吸扫描会遍历附近实体 —— 每 5 刻一次足够（它只是「把附近的金属拽过来」）
         if (!this.isSettled()
                 && this.level() instanceof ServerLevel serverLevel
                 && this.level().getGameTime() % MAGNET_SCAN_INTERVAL == 0L) {
-            this.magnetTick(serverLevel);
+            long _t = System.nanoTime(); this.magnetTick(serverLevel); prof("magnet", System.nanoTime() - _t);
         }
 
         if (this.impulseTicks > 0) {
@@ -1840,6 +1840,28 @@ public class BallProjectile extends ThrowableItemProjectile {
     /** 【智慧】是否已经锁定过 */
     /** 球撞球的处理冷却（刻）—— 防止贴在一起的球每 tick 重复触发 */
     private static final int COLLIDE_COOLDOWN_TICKS = 8;
+
+    /**
+     * 【性能诊断】各阶段的纳秒累加器。
+     *
+     * <p>球一多就卡，但静态看代码猜不出哪一步是大头 —— 加这个直接测。
+     * 累计到 1000 次采样后打一次日志，然后清零。</p>
+     */
+    static final java.util.Map<String, long[]> PROFILE = new java.util.concurrent.ConcurrentHashMap<>();
+    private static final java.util.concurrent.atomic.AtomicLong PROFILE_SAMPLES =
+            new java.util.concurrent.atomic.AtomicLong();
+
+    private static void prof(String stage, long nanos) {
+        PROFILE.computeIfAbsent(stage, k -> new long[1])[0] += nanos;
+        if (PROFILE_SAMPLES.incrementAndGet() % 2000L == 0L) {
+            StringBuilder sb = new StringBuilder("[ball][性能] 各阶段累计耗时（每 2000 次采样）：");
+            PROFILE.entrySet().stream()
+                    .sorted((x, y) -> Long.compare(y.getValue()[0], x.getValue()[0]))
+                    .forEach(e -> sb.append(String.format(" %s=%.1fms", e.getKey(), e.getValue()[0] / 1_000_000.0)));
+            MoreBalls.LOGGER.info(sb.toString());
+            PROFILE.values().forEach(v -> v[0] = 0L);
+        }
+    }
 
     /** 球撞球的检测间隔（刻）—— 每 tick 做是 O(n²)，球一多就卡 */
     private static final int BALL_COLLIDE_INTERVAL = 4;

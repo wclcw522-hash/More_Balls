@@ -5,7 +5,55 @@
 > 26.3 线已冻结（那边 Curios 与 NeoForge 不兼容，饰品功能没法测）。
 > 26.3 线的历史见 `[26.3更多球]_More_Balls\CHANGELOG.md`。
 
-### 0.3.3.110
+### 0.3.3.111
+
+### 卡顿：先修一处确定的大头 + 加计时诊断
+
+作者给的量化数据很关键：**4 个球就卡、6 个就瞬移、12 个主线程卡死**。
+这不是 O(n²) 能解释的（4 个球的平方才 16 次查询）—— **单个球/单个怪的每 tick 开销本身就得大**。
+
+#### 已修：`onMobTick` 每个怪每 tick 做两次实体查询
+
+```java
+if (!BallAmmo.isBall(hand)) {
+    tryPickUpBall(mob);       // 每个手里没球的怪、每 tick 都调
+    return;
+}
+// 里面：
+findBalls(mob, 1.5D);         // getEntitiesOfClass #1
+findDroppedBall(mob, 1.5D);   // getEntitiesOfClass #2
+```
+
+`getEntitiesOfClass` **会遍历世界的实体列表**（范围小也得先过一遍）。
+几十个怪 → 上百次全表遍历/刻 —— 主线程被打满。
+
+**三项修法**：
+
+| 项 | 前 | 后 |
+|---|---|---|
+| 调用频率 | 每 tick | **每 2 刻**（`PICKUP_TRY_INTERVAL`） |
+| 拾取概率 | 2% | **4%**（`PICKUP_CHANCE * 2`，**期望不变**） |
+| 实体查询次数 | 2 次/调用 | **1 次**（合并成一次 `Entity` 查询再按类型分流） |
+
+#### 已查清：Attachments 没有多余的同步
+
+`ModAttachments` 里所有类型**都没开 `.sync()`** —— 不会触发网络包，排除这一项。
+
+#### 待定位：加计时诊断
+
+静态看代码，可疑的有三处：`rollTick`（扫方块）、`heatNearbyEntities`（每 tick 循环）、
+`moltenParticlesTick`（发粒子）—— **但猜不出哪个是大头**。
+
+所以给 `tick()` 的五个阶段都插了纳秒计时，**每 2000 次采样打一行**：
+
+```
+[ball][性能] 各阶段累计耗时（每 2000 次采样）： collide=…ms roll=…ms magnet=…ms particles=…ms prospecting=…ms
+```
+
+**下一轮拿到这份数据就能精准优化**，不再靠猜。
+
+---
+## 0.3.3.110
 
 ### 弩底图：删掉右侧多余像素 + **恢复我上一版误改的 6 个**
 

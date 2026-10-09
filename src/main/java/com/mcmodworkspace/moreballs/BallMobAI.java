@@ -87,6 +87,9 @@ public final class BallMobAI {
      */
     public static final float PICKUP_CHANCE = 0.02F;
 
+    /** 拾取尝试的间隔（刻）—— 与 PICKUP_CHANCE 配合，概率按倍数补回 */
+    private static final int PICKUP_TRY_INTERVAL = 2;
+
     /**
      * 怪物主动去找球的搜索半径（格）。
      *
@@ -257,7 +260,20 @@ public final class BallMobAI {
         //      · 以及**掉落物形态的球**（ItemEntity 里装着 #more_balls:balls 的东西）——
         //        比如被爆炸炸飞、或者碎裂后滚出来的球
         //    两者共用同一套半径、概率、条件，所以先取实体、没有再取掉落物。
-        List<BallProjectile> near = findBalls(mob, PICKUP_RADIUS);
+        // ⚠️ 先做一次**合并查询**：把「球实体 + 掉落物」一次捞出来，按类型分流。
+        //    原来这里连着两次 getEntitiesOfClass（一次 BallProjectile、一次 ItemEntity），
+        //    等于把世界的实体列表过了两遍 —— 半边的开销纯属浪费。
+        List<BallProjectile> near = new java.util.ArrayList<>();
+        List<ItemEntity> droppedNearList = new java.util.ArrayList<>();
+        for (net.minecraft.world.entity.Entity e : mob.level().getEntitiesOfClass(
+                net.minecraft.world.entity.Entity.class,
+                mob.getBoundingBox().inflate(PICKUP_RADIUS))) {
+            if (e instanceof BallProjectile ball && ball.isAlive()) {
+                near.add(ball);
+            } else if (e instanceof ItemEntity item && item.isAlive() && BallAmmo.isBall(item.getItem())) {
+                droppedNearList.add(item);
+            }
+        }
         if (!near.isEmpty()) {
             // 【金光闪闪】作者 2026-10-08 指定：金球在「碰撞后 5 秒」的吸引窗口内
             // **不能被捡起** —— 那段窗口是留给玩家看清「猪灵被吸引过来」的，
@@ -266,15 +282,15 @@ public final class BallMobAI {
             if (isGoldLureLocked(candidate)) {
                 return;
             }
-            if (mob.getRandom().nextFloat() < PICKUP_CHANCE) {
+            if (mob.getRandom().nextFloat() < PICKUP_CHANCE * PICKUP_TRY_INTERVAL) {
                 pickUpBall(mob, candidate);
             }
             return;
         }
 
-        ItemEntity droppedNear = findDroppedBall(mob, PICKUP_RADIUS);
+        ItemEntity droppedNear = droppedNearList.isEmpty() ? null : droppedNearList.get(0);
         if (droppedNear != null) {
-            if (mob.getRandom().nextFloat() < PICKUP_CHANCE) {
+            if (mob.getRandom().nextFloat() < PICKUP_CHANCE * PICKUP_TRY_INTERVAL) {
                 pickUpDroppedBall(mob, droppedNear);
             }
             return;
@@ -532,7 +548,18 @@ public final class BallMobAI {
         // （金剑换金锭、原物收起来），所以这么做才符合原版行为。
         // 被换下来的东西不会凭空消失，会掉在脚边（见 pickUpBall）。
         if (!BallAmmo.isBall(hand)) {
-            tryPickUpBall(mob);
+            // ⚠️ **节流到每 2 刻**（作者 2026-10-09：4 个球就开始卡、12 个球主线程卡死）。
+            //
+            //    `tryPickUpBall` 里要做两次 `getEntitiesOfClass`，而那个方法
+            //    **会遍历世界的实体列表**（范围小也得先过一遍）。
+            //    每个手里没球的怪、每 tick 都跑 = 怪数 × 2 次全表遍历 / 刻 ——
+            //    几十个怪就是上百次，主线程直接被打满。
+            //
+            //    节流成 2 刻一次，同时把拾取概率翻倍（`PICKUP_CHANCE * 2`），
+            //    **实际期望不变**，但查询次数减半。
+            if (mob.tickCount % PICKUP_TRY_INTERVAL == 0) {
+                tryPickUpBall(mob);
+            }
             return;
         }
 
