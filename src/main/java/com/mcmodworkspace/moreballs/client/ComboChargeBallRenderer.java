@@ -330,6 +330,23 @@ public class ComboChargeBallRenderer implements SpecialModelRenderer<int[]> {
      * {@link #PLANE_Z_BACK} 跨到 {@link #PLANE_Z_FRONT}，UV 取该像素的那一条边
      * （用 {@code 0.1 / 0.9} 落在像素内部，避免采到相邻像素）。</p>
      */
+    /**
+     * 这个像素**是否不透明**。
+     *
+     * <p>⚠️ 不能用 {@code getLuminanceOrAlpha} —— 它返回的是「亮度**或** alpha」，
+     * 对<b>深色像素</b>（弩的贴图里大量深棕与近黑）会返回 0，于是被判成「透明」跳过。
+     * 结果就是侧面有大片像素没有侧壁（作者 2026-10-09 反馈「约 60% 没有侧面、
+     * 右边空得特别多」）。这里只认 alpha 通道。</p>
+     *
+     * <p>越界一律算透明 —— 图边缘的像素向外就是空气，那一条边当然外露。</p>
+     */
+    private static boolean isOpaque(NativeImage img, int x, int y) {
+        if (x < 0 || y < 0 || x >= img.getWidth() || y >= img.getHeight()) {
+            return false;
+        }
+        return (img.getPixel(x, y) >> 24) != 0;
+    }
+
     /** 侧壁 UV 诊断只打一次 */
     private static final java.util.concurrent.atomic.AtomicBoolean SIDE_DIAG =
             new java.util.concurrent.atomic.AtomicBoolean(false);
@@ -367,8 +384,8 @@ public class ComboChargeBallRenderer implements SpecialModelRenderer<int[]> {
                 int start = -1;
                 for (int px = 0; px <= 16; px++) {
                     boolean exposed = px < 16
-                            && img.getLuminanceOrAlpha(px, py) != 0
-                            && (py == 0 || img.getLuminanceOrAlpha(px, py - 1) == 0);
+                            && isOpaque(img, px, py)
+                            && (py == 0 || !isOpaque(img, px, py - 1));
                     if (exposed && start < 0) {
                         start = px;
                     } else if (!exposed && start >= 0) {
@@ -397,8 +414,8 @@ public class ComboChargeBallRenderer implements SpecialModelRenderer<int[]> {
                 int start = -1;
                 for (int px = 0; px <= 16; px++) {
                     boolean exposed = px < 16
-                            && img.getLuminanceOrAlpha(px, py) != 0
-                            && (py == 15 || img.getLuminanceOrAlpha(px, py + 1) == 0);
+                            && isOpaque(img, px, py)
+                            && (py == 15 || !isOpaque(img, px, py + 1));
                     if (exposed && start < 0) {
                         start = px;
                     } else if (!exposed && start >= 0) {
@@ -422,8 +439,8 @@ public class ComboChargeBallRenderer implements SpecialModelRenderer<int[]> {
                 int start = -1;
                 for (int py = 0; py <= 16; py++) {
                     boolean exposed = py < 16
-                            && img.getLuminanceOrAlpha(px, py) != 0
-                            && (px == 0 || img.getLuminanceOrAlpha(px - 1, py) == 0);
+                            && isOpaque(img, px, py)
+                            && (px == 0 || !isOpaque(img, px - 1, py));
                     if (exposed && start < 0) {
                         start = py;
                     } else if (!exposed && start >= 0) {
@@ -447,8 +464,8 @@ public class ComboChargeBallRenderer implements SpecialModelRenderer<int[]> {
                 int start = -1;
                 for (int py = 0; py <= 16; py++) {
                     boolean exposed = py < 16
-                            && img.getLuminanceOrAlpha(px, py) != 0
-                            && (px == 15 || img.getLuminanceOrAlpha(px + 1, py) == 0);
+                            && isOpaque(img, px, py)
+                            && (px == 15 || !isOpaque(img, px + 1, py));
                     if (exposed && start < 0) {
                         start = py;
                     } else if (!exposed && start >= 0) {

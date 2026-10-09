@@ -900,8 +900,13 @@ public class BallProjectile extends ThrowableItemProjectile {
                 if (!this.isNoGravity()) {
                     this.setNoGravity(true);
                 }
-            } else if (this.isNoGravity()) {
-                this.setNoGravity(this.wisdomGravityBefore);
+            } else if (this.isNoGravity() && this.wisdomGravityBefore) {
+                // ⚠️ 只有**值真的变了**才调用 setNoGravity。
+                //    它是同步数据，值没变也会标记变更、触发一次实体同步 ——
+                //    每 tick 调就是「卡一下闪现一下」（作者 2026-10-09 反馈）。
+                this.setNoGravity(true);
+            } else if (!this.isNoGravity() && !this.wisdomGravityBefore) {
+                // 已经是 false、目标也是 false —— 什么都不做
             }
         }
 
@@ -1217,7 +1222,21 @@ public class BallProjectile extends ThrowableItemProjectile {
             //    动能传递照旧做（上面已经算过），只是不再记账耐久。
             //    耐久现在只由「撞墙 / 撞生物」这类真正的碰撞消耗。
 
-            // 被撞后转为贴地滚动
+            // 被撞后转为贴地滚动。
+            //
+            // ⚠️ **必须限流**：球靠在一起时这一段每 tick 都会重新算一遍，
+            //    而 startRollingFromImpulse() 会反复切换状态、还带粒子/音效，
+            //    十来个球就足以让服务端每 tick 卡顿（作者 2026-10-09 反馈
+            //    「十来个球就特别卡、生物卡一下闪现一下」）。
+            //    用「最近碰撞刻」做冷却：同一对球在 COLLIDE_COOLDOWN_TICKS 内只处理一次。
+            long now = this.level().getGameTime();
+            long thisLast = this.lastBallCollideTick;
+            long otherLast = other.lastBallCollideTick;
+            if (now - thisLast < COLLIDE_COOLDOWN_TICKS || now - otherLast < COLLIDE_COOLDOWN_TICKS) {
+                continue;
+            }
+            this.lastBallCollideTick = now;
+            other.lastBallCollideTick = now;
             this.startRollingFromImpulse();
             other.startRollingFromImpulse();
         }
@@ -1754,12 +1773,18 @@ public class BallProjectile extends ThrowableItemProjectile {
      * <p>不加这个的话，目标与球同高时锁定的方向 y 分量接近 0，球会贴着地面平移 ——
      * 「第一次命中后球直接贴地」就是这个原因。</p>
      */
-    private static final double WISDOM_LIFT = 0.35D;
+    private static final double WISDOM_LIFT = 0.12D;
 
     /** 【智慧】发射后持续尝试多少刻；过了这段还没找到就算了，别一直扫 */
     private static final int WISDOM_SCAN_TICKS = 40;
 
     /** 【智慧】是否已经锁定过 */
+    /** 球撞球的处理冷却（刻）—— 防止贴在一起的球每 tick 重复触发 */
+    private static final int COLLIDE_COOLDOWN_TICKS = 10;
+
+    /** 本球上一次被别的球撞到的游戏刻 */
+    private long lastBallCollideTick = Long.MIN_VALUE / 2;
+
     private boolean wisdomLocked;   // 只表示「当前处于锁定态」，不再是一道永久闸门
 
     /**
@@ -1782,7 +1807,13 @@ public class BallProjectile extends ThrowableItemProjectile {
 
     /** 【智慧】多久重新锁定一次目标（刻）。原来是「只锁一次」，那对怪物扔回的球几乎无效 */
     /** 重锁间隔 —— 作者指定 0.5 秒（10 刻） */
-    private static final int WISDOM_RELOCK_INTERVAL = 10;
+    /**
+     * 重锁间隔。
+     *
+     * <p>作者先指定 0.5 秒，但实测「锁定太快、会乱飞」，改为 <b>1 秒</b> ——
+     * 扫描频率减半，弹道也更稳（每次重锁都会重算方向，太频繁就会左右甩）。</p>
+     */
+    private static final int WISDOM_RELOCK_INTERVAL = 20;
 
     /**
      * 【智慧】的扫描与锁定。
@@ -1892,10 +1923,17 @@ public class BallProjectile extends ThrowableItemProjectile {
         // ⚠️ 锁定时给方向加一点**向上抬升**（作者 2026-10-09 反馈：锁定后球直接贴地飞）。
         //    原来是把速度**整个**换成朝目标的方向，而目标在水平方向时 y 分量接近 0，
         //    球就贴着地面平移过去。这里在水平瞄准的基础上补一点 y，保持「在空中飞」的观感。
-        Vec3 flat = new Vec3(direction.x, 0.0D, direction.z);
+        // ⚠️ 抬升要**克制**：0.35 太陡，球会直接往天上窜、打不中
+        //    （作者 2026-10-09 反馈「直接往天上飞」）。改成 0.12 ——
+        //    只够让它离地滑翔，仍能命中同高的目标。
+        Vec3 flat = new Vec3(direction.x, direction.y * 0.5D, direction.z);
         Vec3 aimDir = flat.lengthSqr() < 1.0E-6D
                 ? direction.normalize()
-                : flat.normalize().add(0.0D, WISDOM_LIFT, 0.0D).normalize();
+                : flat.normalize();
+        // 目标在球下方时不额外抬升，否则会「该俯冲却往上飞」
+        if (direction.y > 0.0D) {
+            aimDir = aimDir.add(0.0D, WISDOM_LIFT, 0.0D).normalize();
+        }
         this.setDeltaMovement(aimDir.scale(speed));
     }
 
