@@ -1170,8 +1170,12 @@ public class BallProjectile extends ThrowableItemProjectile {
      *   <li><b>球静止后停止施加</b></li>
      * </ul>
      *
-     * <p>只作用于掉落物实体（{@code ItemEntity}）—— 已经摆在世界里的金属方块拽不动，
-     * 能移动的金属形态就是掉在地上的那些。</p>
+     * <p>拽得动的有两类：</p>
+     * <ul>
+     *   <li><b>金属掉落物</b>（{@code ItemEntity}）—— 已经摆在世界里的金属方块拽不动，
+     *       能移动的金属形态就是掉在地上的那些</li>
+     *   <li><b>生物</b>（2026-10-09 新增）—— 按身上的金属装备数加权（见方法内说明）</li>
+     * </ul>
      */
     private void magnetTick(ServerLevel level) {
         BallBehavior.BallProfile profile = this.profile();
@@ -1195,6 +1199,32 @@ public class BallProjectile extends ThrowableItemProjectile {
                 continue;
             }
             item.setDeltaMovement(toSelf.normalize().scale(pull));
+        }
+
+        // ===== 【磁吸】对生物也生效（作者 2026-10-09 指定）=====
+        //
+        // 方向和基准速度**与掉落物那份完全一致**（从目标指向球、基准 = 球速 × 0.5），
+        // 额外再乘一个「(金属装备数 + 1) / 2」的系数：
+        //
+        //   没穿金属 ×0.5   穿 1 件 ×1.0   穿 3 件 ×2.0   穿 6 件 ×3.5
+        //
+        // 那个 **+1** 是有意的 —— 让**没穿金属的生物也会被拽**，只是弱一半；
+        // 而穿得越多拽得越狠，正好和「金属越多的东西越受磁场影响」对上。
+        //
+        // ⚠️ 掷出者本人排除在外 —— 和「球不烤自己的主人」同一条规矩，
+        //    否则穿着一身铁甲扔铁球，会把自己一起拽飞。
+        List<LivingEntity> pulled = level.getEntitiesOfClass(LivingEntity.class,
+                this.getBoundingBox().inflate(profile.magnetRadius()),
+                living -> living.isAlive() && living != this.getOwner());
+        for (LivingEntity living : pulled) {
+            Vec3 toSelf = self.subtract(living.position());
+            if (toSelf.lengthSqr() < 1.0E-6D) {
+                continue;
+            }
+            // ⚠️ 这里必须是浮点除法（/ 2.0D）。写成 (metal + 1) / 2 会被整数截断，
+            //    穿 2 件和穿 1 件算出来一样，系数表整个失真。
+            double factor = (BallProspecting.countMetalEquipment(living) + 1) / 2.0D;
+            living.setDeltaMovement(toSelf.normalize().scale(pull * factor));
         }
     }
 
