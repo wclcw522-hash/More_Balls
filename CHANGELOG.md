@@ -5,7 +5,53 @@
 > 26.3 线已冻结（那边 Curios 与 NeoForge 不兼容，饰品功能没法测）。
 > 26.3 线的历史见 `[26.3更多球]_More_Balls\CHANGELOG.md`。
 
-### 0.3.3.95
+### 0.3.3.96
+
+### 【智慧】回归本质：保留速度 + 无视重力 + 自己飞
+
+作者指出我把这件事搞复杂了 —— **智慧本来就只是「反弹之后保留速度、无视重力、让球自己飞」**，
+**不需要任何人为的向上抬升**。
+
+**删掉的东西**：
+
+```java
+// ❌ 全部删除 —— 这正是「直接往天上飞」的元凶
+Vec3 flat = new Vec3(direction.x, direction.y * 0.5D, direction.z);
+if (direction.y > 0.0D) {
+    aimDir = aimDir.add(0.0D, WISDOM_LIFT, 0.0D).normalize();
+}
+```
+
+**恢复成最朴素的一行**：
+
+```java
+double speed = Math.max(0.6, this.getDeltaMovement().length());
+this.setDeltaMovement(direction.normalize().scale(speed));
+```
+
+**只改方向、速度大小原样保留。** 追踪期间本来就不吃重力，球会自然保持高度飞过去 ——
+之前那些「抬升」反而是它在天上乱窜的原因。
+
+**间隔调回 0.5 秒**（`WISDOM_RELOCK_INTERVAL` `20 → 10` 刻）。
+
+### 追踪期间永不进入静止态
+
+作者指定：无视重力的时候也**不该触发「静止后按在地上」的效果**。
+
+```java
+private void setSettled(boolean settled) {
+    if (settled && this.wisdomStillTracking()) {
+        this.entityData.set(SETTLED, false);   // 追踪中，拒绝静止
+        return;
+    }
+    this.entityData.set(SETTLED, settled);
+}
+```
+
+静止态的球会贴地、可被捡、触发静止特效 —— 而智慧球此刻还在无视重力飞行，必须拦住。
+
+---
+## 0.3.3.95
 
 ### ① 性能：两个每 tick 触发的元凶（作者反馈「十来个球就特别卡」）
 

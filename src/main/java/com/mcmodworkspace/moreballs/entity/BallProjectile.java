@@ -485,6 +485,13 @@ public class BallProjectile extends ThrowableItemProjectile {
     }
 
     private void setSettled(boolean settled) {
+        // 【智慧x】追踪期间**永不进入静止态**（作者 2026-10-09 指定）。
+        // 静止态的球会被「按在地上」（贴地、可被捡、触发静止特效），
+        // 而智慧球此刻还在无视重力飞行 —— 必须拦住。
+        if (settled && this.wisdomStillTracking()) {
+            this.entityData.set(SETTLED, false);
+            return;
+        }
         this.entityData.set(SETTLED, settled);
     }
 
@@ -1767,13 +1774,7 @@ public class BallProjectile extends ThrowableItemProjectile {
     /** 【智慧】的扫描半径（格）—— 作者指定 10 */
     public static final double WISDOM_RADIUS = 10.0;
 
-    /**
-     * 【智慧】锁定时方向里的**向上抬升分量**（作者 2026-10-09 指定）。
-     *
-     * <p>不加这个的话，目标与球同高时锁定的方向 y 分量接近 0，球会贴着地面平移 ——
-     * 「第一次命中后球直接贴地」就是这个原因。</p>
-     */
-    private static final double WISDOM_LIFT = 0.12D;
+
 
     /** 【智慧】发射后持续尝试多少刻；过了这段还没找到就算了，别一直扫 */
     private static final int WISDOM_SCAN_TICKS = 40;
@@ -1807,13 +1808,8 @@ public class BallProjectile extends ThrowableItemProjectile {
 
     /** 【智慧】多久重新锁定一次目标（刻）。原来是「只锁一次」，那对怪物扔回的球几乎无效 */
     /** 重锁间隔 —— 作者指定 0.5 秒（10 刻） */
-    /**
-     * 重锁间隔。
-     *
-     * <p>作者先指定 0.5 秒，但实测「锁定太快、会乱飞」，改为 <b>1 秒</b> ——
-     * 扫描频率减半，弹道也更稳（每次重锁都会重算方向，太频繁就会左右甩）。</p>
-     */
-    private static final int WISDOM_RELOCK_INTERVAL = 20;
+    /** 重锁间隔 —— 作者指定 <b>0.5 秒</b>（10 刻） */
+    private static final int WISDOM_RELOCK_INTERVAL = 10;
 
     /**
      * 【智慧】的扫描与锁定。
@@ -1919,22 +1915,14 @@ public class BallProjectile extends ThrowableItemProjectile {
         if (direction.lengthSqr() < 1.0E-6) {
             return;
         }
+        // 【智慧】的锁定 = **只把方向转向目标，速度大小原样保留**。
+        //
+        // ⚠️ 这里**不要**加任何「向上抬升」之类的人为修正。
+        //    作者 2026-10-09 明确：智慧就该是「反弹之后保留速度、无视重力、让球自己飞」——
+        //    球在追踪期间本来就不吃重力（见 tick 里的三段式），它会自然保持高度飞过去。
+        //    我之前加的上抬分量反而是「直接往天上飞」的元凶，已删除。
         double speed = Math.max(0.6, this.getDeltaMovement().length());
-        // ⚠️ 锁定时给方向加一点**向上抬升**（作者 2026-10-09 反馈：锁定后球直接贴地飞）。
-        //    原来是把速度**整个**换成朝目标的方向，而目标在水平方向时 y 分量接近 0，
-        //    球就贴着地面平移过去。这里在水平瞄准的基础上补一点 y，保持「在空中飞」的观感。
-        // ⚠️ 抬升要**克制**：0.35 太陡，球会直接往天上窜、打不中
-        //    （作者 2026-10-09 反馈「直接往天上飞」）。改成 0.12 ——
-        //    只够让它离地滑翔，仍能命中同高的目标。
-        Vec3 flat = new Vec3(direction.x, direction.y * 0.5D, direction.z);
-        Vec3 aimDir = flat.lengthSqr() < 1.0E-6D
-                ? direction.normalize()
-                : flat.normalize();
-        // 目标在球下方时不额外抬升，否则会「该俯冲却往上飞」
-        if (direction.y > 0.0D) {
-            aimDir = aimDir.add(0.0D, WISDOM_LIFT, 0.0D).normalize();
-        }
-        this.setDeltaMovement(aimDir.scale(speed));
+        this.setDeltaMovement(direction.normalize().scale(speed));
     }
 
     /**
