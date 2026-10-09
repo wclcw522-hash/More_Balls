@@ -65,14 +65,6 @@ public final class ModTags {
         public static final TagKey<Item> FRAGMENTS_QUARTER =
                 TagKey.create(Registries.ITEM, Identifier.fromNamespaceAndPath(MoreBalls.MOD_ID, "fragments/quarter"));
 
-        /**
-         * 仅用于配方展示的物品 —— 不进创造分类、也没有任何配方。
-         *
-         * <p>见 {@code BallCuttingRecipe} 与 {@code BallComboRecipe} 的 {@code display()}：
-         * 那两处要给玩家看「输入什么 → 得到什么」，用的就是这几个展示样本。
-         * 创造模式那边靠这个标签把它们排除掉（{@code ModCreativeTabs} 的「更多球」页）。</p>
-         */
-        public static final TagKey<Item> EXAMPLE_ONLY =
-                TagKey.create(Registries.ITEM, Identifier.fromNamespaceAndPath(MoreBalls.MOD_ID, "example_only"));
+
     }
 }

@@ -106,11 +106,7 @@ public final class ModCreativeTabs {
                             if (item.builtInRegistryHolder().is(ModTags.Items.BALLS)) {
                                 return;
                             }
-                            // 「仅示例」的物品不进创造模式（作者指定）：
-                            // 它们只是配方页里的展示样本，不是能拿到手的东西。
-                            if (item.builtInRegistryHolder().is(ModTags.Items.EXAMPLE_ONLY)) {
-                                return;
-                            }
+
                             output.accept(item);
                         });
 

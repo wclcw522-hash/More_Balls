@@ -145,7 +145,7 @@ public final class BallComboRecipe {
             //    这里保持与那边一致的「任意半球」语义，只是别让后来者误以为改这里有用。
             SlotDisplay half = new SlotDisplay.TagSlotDisplay(ModTags.Items.FRAGMENTS_HALF);
             // ⚠️ 结果槽必须用**在 JEI 物品列表里存在**的物品。
-            //    原来用的是 EXAMPLE_COMBO_VERTICAL —— 那个示例物品被排除在创造模式物品组之外，
+            //    原来用的是 EXAMPLE_COMBO_VERTICAL —— 那个示例物品（已在 0.3.3.127 整体删除）曾排除在创造模式物品组之外，
             //    而 JEI 的槽位解析只认物品列表里的东西，于是整个配方解析成空、点不开
             //    （作者 2026-10-08 报的：JEI 里组合球配方看不了）。
             //    comboResult() 给的是带真实来源组件的 combo_ball，一定在列表里。

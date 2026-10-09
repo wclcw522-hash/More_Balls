@@ -1,9 +1,0 @@
-{
-  "__comment": "只用于配方展示：创造模式物品栏里不出现，正常玩法也拿不到（示例半球/四分之一球没有来源）。它们唯一的作用是让 JEI 能画出组合球与切球的两个示例配方。",
-  "values": [
-    "more_balls:example_half",
-    "more_balls:example_quarter",
-    "more_balls:example_combo_vertical",
-    "more_balls:example_combo_square"
-  ]
-}

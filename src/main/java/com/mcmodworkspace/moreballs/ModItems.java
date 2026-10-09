@@ -71,43 +71,6 @@ public final class ModItems {
      * 碎石 —— 材料，<b>不是球</b>，因此不在 {@code #more_balls:balls} 标签里。
      * 球被打碎时掉出来的渣，贴图是从圆石上抠下来的一块不规则碎片。
      */
-    // ===== 仅用于配方展示的「示例」物品 =====
-    //
-    // 这四个**故意不进创造模式、也没有任何配方**，唯一用途是当 JEI / 配方书里的展示样本：
-    //   · 切石配方要给人看「输入一颗球 → 得到半球/四分之一球」
-    //   · 组合球配方要给人看「两个半球摆上下 → 合成组合球」
-    // 用真的 ball_half / combo_ball 去展示也行，但它们带组件（fragment_source / combo_slots），
-    // 在配方页里显示的是「某一个具体的球」，而配方其实接受**整个子分类**。
-    // 所以另开四个不带组件的纯展示物品，语义上就是「（示例）」。
-    //
-    // ⚠️ 加物品时**不要**把它们塞进创造标签，也不要给配方 —— 那会让它们变成可获取物品。
-
-    /** 【示例】半球 —— 仅用于配方展示 */
-    /*
-     * ===== 下面四个是「示例物品」=====
-     *
-     * ⚠️ 现状：**没有任何玩法用途**，保留注册只是为了不破坏已存在的存档
-     * （删掉注册会让旧存档里这几个物品变成空气并刷缺失注册表警告）。
-     *
-     * 它们最初的用途是「在 JEI 里显示带组件的半球/组合球长什么样」，
-     * 但 JEI 的槽位解析只认**物品列表里存在**的东西 —— 而这四个被刻意排除在
-     * 创造模式物品组之外，于是当年那套配方在 JEI 里根本解析不出来。
-     * 现在配方改用「真实半球 + fragment_source 组件」和 comboResult()，不再需要它们。
-     */
-    public static final DeferredItem<Item> EXAMPLE_HALF =
-            ITEMS.registerSimpleItem("example_half");
-
-    /** 【示例】四分之一球 —— 仅用于配方展示 */
-    public static final DeferredItem<Item> EXAMPLE_QUARTER =
-            ITEMS.registerSimpleItem("example_quarter");
-
-    /** 【示例】组合球（二合一）—— 仅用于配方展示 */
-    public static final DeferredItem<Item> EXAMPLE_COMBO_VERTICAL =
-            ITEMS.registerSimpleItem("example_combo_vertical");
-
-    /** 【示例】组合球（四合一）—— 仅用于配方展示 */
-    public static final DeferredItem<Item> EXAMPLE_COMBO_SQUARE =
-            ITEMS.registerSimpleItem("example_combo_square");
     public static final DeferredItem<Item> RUBBLE = ITEMS.registerSimpleItem("rubble");
 
     /** 木球 —— 木板质感 + 史莱姆球轮廓；坚固 8、重量 5、木板音效 */

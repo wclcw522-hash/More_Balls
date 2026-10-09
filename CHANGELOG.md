@@ -5,7 +5,61 @@
 > 26.3 线已冻结（那边 Curios 与 NeoForge 不兼容，饰品功能没法测）。
 > 26.3 线的历史见 `[26.3更多球]_More_Balls\CHANGELOG.md`。
 
-### 0.3.3.126
+### 0.3.3.127
+
+### ① 删掉 4 个「（示例）」物品
+
+作者指定：「把 JEI 里那四个带有（示例）的没有配方的东西删了，注意别删有配方的」。
+
+它们是 `example_half` / `example_quarter` / `example_combo_vertical` / `example_combo_square`，
+**确认过确实没有任何配方**，而且 `ModItems` 自己的注释就写着「**不再需要它们**」——
+配方早就改用**真实物品**了：
+
+| 槽位 | 现在用什么 |
+|---|---|
+| 材料格 | `demoComposite(ModItems.BALL_HALF / BALL_QUARTER)` —— 真实碎片 + `fragment_source` 组件 |
+| 产物格 | `comboResult()` —— 真实的 `combo_ball` |
+
+**删除范围（8 处）**：
+
+- `ModItems` —— 4 个注册 + 那段说明注释
+- `MoreBallsJeiPlugin.registerExtraIngredients` —— 整个方法（它只干「把这 4 个塞进 JEI 列表」这一件事）
+- `ModTags.Items.EXAMPLE_ONLY` —— 标签本身
+- `ModCreativeTabs` —— 那段「仅示例不进创造栏」的过滤
+- `assets/more_balls/items/example_*.json` × 4
+- `models/item/example_half.json` / `example_quarter.json`
+- `data/more_balls/tags/item/example_only.json`
+- `zh_cn.json` / **`en_us.json`** 各 4 条语言条目
+
+**为什么删了不会影响旧存档**：它们**没有任何获取途径**（不在创造栏、无配方、无掉落），
+正常玩法的存档里不会存在这几个物品。
+
+### ② 蛮兵静音的真正问题：监听错了子类型
+
+作者反馈「还是一直叫，频率极高」—— 上一版（0.3.3.126）的静音**根本没生效**。
+
+**根因**：上一版只监听了 `PlayLevelSoundEvent.AtEntity`，而蛮兵那两处音效**走的是位置版本**：
+
+```java
+PiglinBrute.playAngrySound() → this.makeSound(sound)
+  → LivingEntity.makeSound：this.playSound(sound, vol, pitch)
+  → Entity.playSound：level().playSound(null, x, y, z, sound, …)   // ← 坐标版本
+  → 触发的是 PlayLevelSoundEvent.AtPosition，压根到不了 AtEntity 那一支
+```
+
+**修法**：改监听**基类** `PlayLevelSoundEvent`，两种子类型都处理：
+
+- `AtEntity` —— 直接按实体判断
+- `AtPosition` —— 位置版本拿不到「谁发的」，只能按坐标认领：**4 格内有正在被吸引的猪灵**就拦掉
+
+（只对 `PIGLIN_BRUTE_ANGRY` / `PIGLIN_BRUTE_AMBIENT` 这两种声音做坐标查询，
+其它声音在一开始就 `return`，代价可以忽略。）
+
+**教训**：`PlayLevelSoundEvent` 有 `AtEntity` 与 `AtPosition` 两个子类，
+**`makeSound(...)` 这一类走的是后者**。监听前先确认实际会触发哪一个 —— 只监听 `AtEntity` 会静默失效。
+
+---
+## 0.3.3.126
 
 ### 吸引期间给蛮兵静音
 

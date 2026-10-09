@@ -138,22 +138,13 @@ public class MoreBallsJeiPlugin implements IModPlugin {
         // 组合球只有八种来源，合并显示反而是想要的效果。
     }
 
-    /**
-     * 把四个**通用示例物品**塞进 JEI 的物品列表。
-     *
-     * <p>它们被 {@code #more_balls:example_only} 挡在创造模式物品组之外（本来是内部用的），
-     * 而 JEI 的槽位解析<b>只认物品列表里存在的东西</b> —— 不注册的话，
-     * 用到它们的配方会整条解析成空、点都点不开（2026-10-08 踩过一次）。
-     * 现在它们正式承担「配方示范」的职责，所以必须露面。</p>
-     */
-    @Override
-    public void registerExtraIngredients(IExtraIngredientRegistration registration) {
-        registration.addExtraItemStacks(List.of(
-                new ItemStack(ModItems.EXAMPLE_HALF.get()),
-                new ItemStack(ModItems.EXAMPLE_QUARTER.get()),
-                new ItemStack(ModItems.EXAMPLE_COMBO_VERTICAL.get()),
-                new ItemStack(ModItems.EXAMPLE_COMBO_SQUARE.get())));
-    }
+    // ===== 四个示例物品已在 0.3.3.127 删除（作者指定）=====
+    //
+    // 它们原本靠 registerExtraIngredients 塞进 JEI 的物品列表，好让「用到它们的配方」
+    // 能被解析出来。但配方早就改用**真实物品**了：
+    //   · 材料格 → demoComposite(ModItems.BALL_HALF / BALL_QUARTER)（真实碎片 + fragment_source 组件）
+    //   · 产物格 → comboResult()（真实的 combo_ball）
+    // 所以这四个示例物品已无人引用，连同它们的注册、贴图、标签、语言条目一并移除。
     @Override
     public void registerVanillaCategoryExtensions(IVanillaCategoryExtensionRegistration registration) {
         MoreBalls.LOGGER.info("[ball][JEI] 注册组合球配方扩展：Vertical(1x2) + Square(2x2)");

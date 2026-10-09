@@ -24,6 +24,7 @@ import net.minecraft.world.entity.monster.piglin.AbstractPiglin;
 import net.minecraft.world.entity.monster.piglin.Piglin;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
+import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.Vec3;
 import org.jspecify.annotations.Nullable;
 
@@ -398,21 +399,47 @@ public final class PiglinLure {
      * 蛮兵恢复原版叫声。</p>
      */
     @SubscribeEvent
-    public static void onPlaySound(PlayLevelSoundEvent.AtEntity event) {
+    public static void onPlaySound(PlayLevelSoundEvent event) {
         if (event.getLevel().isClientSide()) {
             return;   // 判断依据（LURED_UNTIL）只在服务端维护；服务端拦掉就不会广播给客户端
         }
-        if (!(event.getEntity() instanceof AbstractPiglin piglin)) {
+
+        SoundEvent sound = event.getSound().value();
+        if (sound != SoundEvents.PIGLIN_BRUTE_ANGRY && sound != SoundEvents.PIGLIN_BRUTE_AMBIENT) {
+            return;   // 只管这两种，别的声音一律放行（避免每次播放都去查实体）
+        }
+
+        // ⚠️ 必须同时处理两种子类型（2026-10-09 踩到：第一版只监听 AtEntity，完全没生效）。
+        //
+        //    蛮兵那两处音效都是走 makeSound(...) → LivingEntity.makeSound
+        //    → Entity.playSound(sound, vol, pitch) → level().playSound(null, x, y, z, …)
+        //    —— **位置版本**，触发的是 AtPosition，压根到不了 AtEntity 那一支。
+        if (event instanceof PlayLevelSoundEvent.AtEntity atEntity) {
+            if (atEntity.getEntity() instanceof AbstractPiglin piglin && isBeingLured(event, piglin)) {
+                event.setCanceled(true);
+            }
             return;
         }
+
+        if (event instanceof PlayLevelSoundEvent.AtPosition atPosition) {
+            // 位置版本拿不到「是谁发的」，只能按坐标认领：附近有正在被吸引的猪灵就拦掉。
+            // 只对上面那两种声音做这一步，代价可以忽略。
+            Vec3 pos = atPosition.getPosition();
+            AABB box = new AABB(pos.x - 4.0D, pos.y - 4.0D, pos.z - 4.0D,
+                    pos.x + 4.0D, pos.y + 4.0D, pos.z + 4.0D);
+            for (AbstractPiglin piglin : event.getLevel().getEntitiesOfClass(AbstractPiglin.class, box)) {
+                if (isBeingLured(event, piglin)) {
+                    event.setCanceled(true);
+                    return;
+                }
+            }
+        }
+    }
+
+    /** 这只猪灵此刻是否处于「被金球吸引」期间 */
+    private static boolean isBeingLured(PlayLevelSoundEvent event, AbstractPiglin piglin) {
         Long until = LURED_UNTIL.get(piglin.getUUID());
-        if (until == null || until < event.getLevel().getGameTime()) {
-            return;   // 这只不在吸引期间 → 放行
-        }
-        SoundEvent sound = event.getSound().value();
-        if (sound == SoundEvents.PIGLIN_BRUTE_ANGRY || sound == SoundEvents.PIGLIN_BRUTE_AMBIENT) {
-            event.setCanceled(true);
-        }
+        return until != null && until >= event.getLevel().getGameTime();
     }
 
     /** 真正清掉饵的地方 —— 在 ServerTick 阶段，不在任何实体遍历里 */
