@@ -320,132 +320,84 @@ public class ComboChargeBallRenderer implements SpecialModelRenderer<int[]> {
     }
 
     /**
-     * 给平面补<b>侧壁</b>，让它看起来是一块有厚度的挤出板而不是一片纸。
+     * 把合成图渲染成**一层由小立方体拼成的板**。
      *
-     * <h2>实现完全照抄原版 {@code ItemModelGenerator.bakeSideFaces}</h2>
-     * <p>原版 2D 物品走 {@code bakeExtrudedSprite()} + {@code bakeSideFaces()}，
-     * 而 {@code minecraft:special} 不渲染 base 的几何 —— 所以这里把原版那段搬过来。</p>
+     * <h2>为什么改成这样</h2>
+     * <p>之前是「一个大平面 + 四边侧壁」，改了六七版都不对（侧面缺、底面透明、
+     * UV 拉长……）。原版那套 {@code bakeSideFaces} 是为 {@code item/generated}
+     * 的正常烘焙流程写的，而 {@code minecraft:special} 的提交管线与之不同 ——
+     * 硬套过去总差一口气。</p>
      *
-     * <p><b>照着抄的四个关键点</b>（之前自己瞎写，四处全错）：</p>
-     * <ol>
-     *   <li><b>逐像素一条边一个四边形</b>，不做合并 —— 合并之后 UV 没法沿边正确展开，
-     *       看起来就是「侧面被拉长」</li>
-     *   <li><b>y 用 {@code 16 - y}</b> 翻转（翻的是像素的<b>上边缘</b>）。
-     *       之前写 {@code 15 - py}，整体错开一格</li>
-     *   <li><b>UV 内缩 0.1</b>，且<b>垂直边的 v 要反向</b>（原版 if/else 那两行）</li>
-     *   <li><b>z 是 7.5 ~ 8.5</b>（之前写 7.4，底面因此缺一段）</li>
-     * </ol>
+     * <p>作者建议改成「直接渲染成像素块再拼起来」，这里照做：
+     * <b>每个不透明像素生成一个小立方体</b>（8 个角、6 个面），
+     * 该像素的颜色按面朝向做明暗。</p>
+     *
+     * <p>好处：不需要单独处理「侧壁 / 底面」—— 立方体天生六面齐全，
+     * 缺面这个问题从根本上消失。</p>
      */
     private static void drawSideFaces(PoseStack poseStack, SubmitNodeCollector collector,
                                       Identifier texture, NativeImage img, int light, int overlay) {
-        // ⚠️ 这里**不能**自己去 readTexture(texture)：那张图是注册在 TextureManager 的
-        //    动态纹理，ResourceManager 读不到（两套系统），readTexture 恒返回 null。
-        //    像素由 bake() 通过 COMPOSED_PIXELS 传进来。
         if (img == null || img.isClosed()) {
             return;
         }
         RenderType type = RenderTypes.itemCutout(texture);
-        float zFrom = SIDE_Z_FROM;
-        float zTo = SIDE_Z_TO;
         int w = img.getWidth();
         int h = img.getHeight();
+        float px = 16.0F / w;      // 一个像素在模型空间里的宽度
+        float py = 16.0F / h;
         collector.submitCustomGeometry(poseStack, type, (pose, buffer) -> {
-            int quads = 0;
+            int boxes = 0;
             for (int y = 0; y < h; y++) {
                 for (int x = 0; x < w; x++) {
                     if (!isOpaque(img, x, y)) {
                         continue;
                     }
-                    for (SideDir dir : SideDir.values()) {
-                        // 该方向的邻居是透明（或越界）→ 这条边外露
-                        int nx = x + dir.stepX;
-                        int ny = y + dir.stepY;
-                        if (isOpaque(img, nx, ny)) {
-                            continue;
-                        }
+                    // 该像素在模型空间里的位置（y 翻转：贴图自上而下，模型自下而上）
+                    float x0 = x * px;
+                    float x1 = x0 + px;
+                    float y1 = 16.0F - y * py;
+                    float y0 = y1 - py;
 
-                        // ===== UV：照原版 u/v 的取法 =====
-                        float u0 = x + 0.1F;
-                        float u1 = x + 1.0F - 0.1F;
-                        float v0;
-                        float v1;
-                        if (dir.horizontal) {
-                            v0 = y + 0.1F;
-                            v1 = y + 1.0F - 0.1F;
-                        } else {
-                            v0 = y + 1.0F - 0.1F;
-                            v1 = y + 0.1F;
-                        }
-                        u0 /= w;
-                        u1 /= w;
-                        v0 /= h;
-                        v1 /= h;
+                    // UV 取该像素中心，保证每个面采到自己那一格
+                    float u = (x + 0.5F) / w;
+                    float v = (y + 0.5F) / h;
 
-                        // ===== 端点：照原版 switch 那四段 =====
-                        float startX = x;
-                        float startY = y;
-                        float endX = x;
-                        float endY = y;
-                        switch (dir) {
-                            case UP -> endX++;
-                            case DOWN -> {
-                                endX++;
-                                startY++;
-                                endY++;
-                            }
-                            case LEFT -> endY++;
-                            case RIGHT -> {
-                                startX++;
-                                endX++;
-                                endY++;
-                            }
-                        }
-
-                        // ===== 换算到 3D：缩放 + y 翻转（16 - y） =====
-                        float xScale = 16.0F / w;
-                        float yScale = 16.0F / h;
-                        startX *= xScale;
-                        endX *= xScale;
-                        startY *= yScale;
-                        endY *= yScale;
-                        startY = 16.0F - startY;
-                        endY = 16.0F - endY;
-
-                        // ===== 按方向摆 from / to（照原版 switch） =====
-                        float fx0;
-                        float fy0;
-                        float fx1;
-                        float fy1;
-                        switch (dir) {
-                            case UP -> {
-                                fx0 = startX; fy0 = startY; fx1 = endX; fy1 = startY;
-                            }
-                            case DOWN -> {
-                                fx0 = startX; fy0 = endY; fx1 = endX; fy1 = endY;
-                            }
-                            case LEFT -> {
-                                fx0 = startX; fy0 = startY; fx1 = startX; fy1 = endY;
-                            }
-                            default -> {
-                                fx0 = endX; fy0 = startY; fx1 = endX; fy1 = endY;
-                            }
-                        }
-
-                        // ===== 四顶点（照原版 from/to 构成的矩形） =====
-                        //   from 与 to 在对角线上，另外两点由它们组合出来
-                        vertexRaw(buffer, pose, fx0, fy0, zFrom, u0, v0, dir.nx, dir.ny, 0, light, overlay);
-                        vertexRaw(buffer, pose, fx0, fy0, zTo, u0, v0, dir.nx, dir.ny, 0, light, overlay);
-                        vertexRaw(buffer, pose, fx1, fy1, zTo, u1, v1, dir.nx, dir.ny, 0, light, overlay);
-                        vertexRaw(buffer, pose, fx1, fy1, zFrom, u1, v1, dir.nx, dir.ny, 0, light, overlay);
-                        quads++;
-                    }
+                    // 六个面：正 / 背 / 上 / 下 / 左 / 右
+                    quad(buffer, pose, x0, y0, SIDE_Z_FROM, x1, y1, SIDE_Z_TO, u, v, 0, 0, 1, light, overlay);
+                    quad(buffer, pose, x1, y0, SIDE_Z_FROM, x0, y1, SIDE_Z_TO, u, v, 0, 0, -1, light, overlay);
+                    quad(buffer, pose, x0, y1, SIDE_Z_FROM, x1, y1, SIDE_Z_TO, u, v, 0, 1, 0, light, overlay);
+                    quad(buffer, pose, x0, y0, SIDE_Z_FROM, x1, y0, SIDE_Z_TO, u, v, 0, -1, 0, light, overlay);
+                    quad(buffer, pose, x0, y0, SIDE_Z_FROM, x0, y1, SIDE_Z_TO, u, v, -1, 0, 0, light, overlay);
+                    quad(buffer, pose, x1, y0, SIDE_Z_FROM, x1, y1, SIDE_Z_TO, u, v, 1, 0, 0, light, overlay);
+                    boxes++;
                 }
             }
             if (SIDE_DIAG.getAndIncrement() < 1) {
-                MoreBalls.LOGGER.info("[ball][弩] 侧壁四边形 {} 个（图 {}x{}，z {}~{}）",
-                        quads, w, h, zFrom, zTo);
+                MoreBalls.LOGGER.info("[ball][弩] 像素立方体 {} 个（图 {}x{}，每像素 {}x{} 模型单位）",
+                        boxes, w, h, px, py);
             }
         });
+    }
+
+    /**
+     * 提交一个小立方体的一个面。
+     *
+     * <p>四个顶点按 {@code (x0/y0/x1/y1)} 与 {@code (u, v)} 组合出来，
+     * 法线用调用方给的面朝向（用于光照计算）。</p>
+     */
+    private static void quad(VertexConsumer buffer, PoseStack.Pose pose,
+                             float x0, float y0, float x1, float y1,
+                             float zNear, float zFar,
+                             float u, float v, float nx, float ny, float nz,
+                             int light, int overlay) {
+        float ax = x0;
+        float ay = y0;
+        float bx = x1;
+        float by = y1;
+        vertexRaw(buffer, pose, ax, ay, zNear, u, v, nx, ny, nz, light, overlay);
+        vertexRaw(buffer, pose, ax, ay, zFar, u, v, nx, ny, nz, light, overlay);
+        vertexRaw(buffer, pose, bx, by, zFar, u, v, nx, ny, nz, light, overlay);
+        vertexRaw(buffer, pose, bx, by, zNear, u, v, nx, ny, nz, light, overlay);
     }
 
     /**

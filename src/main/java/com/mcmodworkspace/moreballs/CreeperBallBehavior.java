@@ -522,6 +522,14 @@ public final class CreeperBallBehavior {
      * 位置每刻自己摆 —— 它那些 setter 都是 private，骑乘又只会坐到脚下。</p>
      */
     private static void ensureHeadIcon(Creeper creeper, ItemStack hand) {
+        // ⚠️ **死了 / 已被移除就绝不再建**（作者 2026-10-09 反馈「死后还会闪几下」）。
+        //
+        //    原因：苦力怕死亡有死亡动画，那期间它**仍然是 alive 状态**、
+        //    EntityTickEvent 照样触发 → 每刻调到这里 → 图标被删掉又立刻重建 →
+        //    看上去就是「闪几下」。死亡事件已经把图标收掉了，这里必须停手。
+        if (!creeper.isAlive() || creeper.isRemoved() || creeper.deathTime > 0) {
+            return;
+        }
         if (!(creeper.level() instanceof ServerLevel level)) {
             return;
         }

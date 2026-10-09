@@ -5,7 +5,62 @@
 > 26.3 线已冻结（那边 Curios 与 NeoForge 不兼容，饰品功能没法测）。
 > 26.3 线的历史见 `[26.3更多球]_More_Balls\CHANGELOG.md`。
 
-### 0.3.3.102
+### 0.3.3.103
+
+### ① 卡顿：`homingToOwner()` 一个 tick 被调 5 次
+
+列出 `tick()` 全链路的开销后，最大的一处很明确：
+
+```
+homingToOwner()      被调 5 次（L991/1020/1034/1041/1047）
+                     每次都查 owner 实体、算距离、挂区块票据
+hasSupportBelow()    多次扫方块
+magnetTick()         getEntitiesOfClass + 循环（无节流）
+```
+
+**修法**：
+
+| 项 | 处置 |
+|---|---|
+| `homingToOwner()` | **加每 tick 缓存**（`homingCachedTick` / `homingCachedResult`），一 tick 只算一次 |
+| `hasSupportBelow()` | **加每 tick 缓存** —— 一 tick 内方块状态不会变 |
+| `magnetTick()` | **加 5 刻节流**（`MAGNET_SCAN_INTERVAL`） |
+
+`moltenParticlesTick()` 查过，**本来就有 `% 2` 节流**，不用改。
+
+### ② 苦力怕死亡后头顶图标「闪几下」
+
+作者反馈「死后还会闪几下」—— 说明**删了又被重建**。
+
+**根因**：苦力怕有死亡动画，那期间它**仍然是 `alive` 状态**、
+`EntityTickEvent` 照样触发 → 每刻走到 `ensureHeadIcon()` → 图标删掉又立刻重建。
+
+**修法**：`ensureHeadIcon()` 开头加存活检查。
+
+```java
+if (!creeper.isAlive() || creeper.isRemoved() || creeper.deathTime > 0) {
+    return;
+}
+```
+
+（`deathTime > 0` 是关键 —— 死亡动画期间 `isAlive()` 仍为 true。）
+
+### ③ 弩侧壁：按作者建议改成「逐像素立方体」
+
+前六版都是「一个大平面 + 四边侧壁」，怎么改都不对。作者建议
+**直接渲染成像素块再拼起来** —— 照做了。
+
+**现在**：每个不透明像素生成一个**小立方体**（6 个面），
+该像素的颜色按面朝向赋法线。
+
+**为什么这样更对**：原版那套 `bakeSideFaces` 是给 `item/generated` 的正常烘焙流程写的，
+而 `minecraft:special` 的提交管线与之不同 —— 硬套过去总差一口气。
+**立方体天生六面齐全，「侧面缺 / 底面透明」这类问题从根上消失。**
+
+顶点数核算：132 个不透明像素 × 6 面 × 4 顶点 = **3168**（在缓冲区内）。
+
+---
+## 0.3.3.102
 
 ### 弩侧壁：照抄原版实现（不再自己瞎写）
 

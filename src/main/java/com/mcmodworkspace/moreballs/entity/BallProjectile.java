@@ -959,7 +959,9 @@ public class BallProjectile extends ThrowableItemProjectile {
             this.collideWithNearbyBalls();
         }
         // 「磁吸」：飞行中把身边的金属拽向自己（空心铁球）
-        if (this.level() instanceof ServerLevel serverLevel) {
+        // 磁吸扫描会遍历附近实体 —— 每 5 刻一次足够（它只是「把附近的金属拽过来」）
+        if (this.level() instanceof ServerLevel serverLevel
+                && this.level().getGameTime() % MAGNET_SCAN_INTERVAL == 0L) {
             this.magnetTick(serverLevel);
         }
 
@@ -1136,7 +1138,20 @@ public class BallProjectile extends ThrowableItemProjectile {
     }
 
     /** 脚下是否有可站立的碰撞箱（滚到悬崖边、或者还飞在半空时都会是 false） */
-    private boolean hasSupportBelow() {        BlockPos below = this.blockPosition().below();
+    /** 一 tick 内方块状态不会变，缓存免得重复扫 */
+    private int supportCachedTick = -1;
+    private boolean supportCachedResult;
+
+    private boolean hasSupportBelow() {
+        if (this.supportCachedTick == this.tickCount) {
+            return this.supportCachedResult;
+        }
+        this.supportCachedTick = this.tickCount;
+        this.supportCachedResult = this.hasSupportBelow0();
+        return this.supportCachedResult;
+    }
+
+    private boolean hasSupportBelow0() {        BlockPos below = this.blockPosition().below();
         return !this.level().getBlockState(below)
                 .getCollisionShape(this.level(), below)
                 .isEmpty();
@@ -1809,6 +1824,12 @@ public class BallProjectile extends ThrowableItemProjectile {
     /** 球撞球的检测间隔（刻）—— 每 tick 做是 O(n²)，球一多就卡 */
     private static final int BALL_COLLIDE_INTERVAL = 4;
 
+    /** 磁吸扫描间隔（刻）—— 它会遍历附近实体，没必要每 tick */
+    private static final int MAGNET_SCAN_INTERVAL = 5;
+
+    /** 熔融粒子的刷新间隔（刻）—— 每 tick 刷 3 组粒子太贵 */
+    private static final int MOLTEN_PARTICLE_INTERVAL = 2;
+
     /** 单次球撞球检测的搜索半径上限（格） */
     private static final double MAX_COLLIDE_REACH = 3.0D;
 
@@ -2278,7 +2299,27 @@ public class BallProjectile extends ThrowableItemProjectile {
      *
      * @return true 表示这一 tick 已经由回归逻辑接管，常规的静止处理应当让路
      */
+    /**
+     * 「这一 tick 算过的」回归判定结果 —— {@code -1} 表示还没算过。
+     *
+     * <p>⚠️ 这个缓存是<b>性能关键</b>：{@code homingToOwner()} 在 tick 里被调用 5 次
+     * （L991/1020/1034/1041/1047），每次都查 owner 实体、算距离、挂区块票据。
+     * 缓存之后一个 tick 只算一次。</p>
+     */
+    private int homingCachedTick = -1;
+    private boolean homingCachedResult;
+
     private boolean homingToOwner() {
+        // 同一 tick 内复用上次结果
+        if (this.homingCachedTick == this.tickCount) {
+            return this.homingCachedResult;
+        }
+        this.homingCachedTick = this.tickCount;
+        this.homingCachedResult = this.homingToOwner0();
+        return this.homingCachedResult;
+    }
+
+    private boolean homingToOwner0() {
         // 【智慧x】次数未耗尽时**不启动回归** —— 它还在追目标，不该被拽回主人身边。
         // 次数用完（wisdomUsesLeft == 0）才解除这条限制，正常掉落并可被回收。
         // （作者 2026-10-09 指定）
