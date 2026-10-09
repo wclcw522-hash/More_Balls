@@ -351,12 +351,14 @@ public class ComboChargeBallRenderer implements SpecialModelRenderer<int[]> {
                     float x1 = px + 1.0F;
                     float y0 = py;
                     float y1 = py + 1.0F;
-                    float u0 = px / 16.0F;
-                    float u1 = (px + 1.0F) / 16.0F;
-                    float v0 = py / 16.0F;
-                    float v1 = (py + 1.0F) / 16.0F;
-                    float uMid = px + 0.5F;
-                    float vMid = py + 0.5F;
+                    // ⚠️ UV 必须落在像素**内部**，不能取像素边界。
+                    //    取边界（px/16）时采样会跨到相邻像素，而轮廓上的像素边缘往往半透明
+                    //    → 采到透明处 → 侧壁出现一条条黑缝（作者反馈「侧面只有很稀疏的黑线条」）。
+                    //    往内缩到像素的 25% / 75% 处即可稳定采到自己这个像素。
+                    float u0 = (px + 0.25F) / 16.0F;
+                    float u1 = (px + 0.75F) / 16.0F;
+                    float v0 = (py + 0.25F) / 16.0F;
+                    float v1 = (py + 0.75F) / 16.0F;
 
                     // 上边（y = py）外露 → 朝 -Y 的侧壁
                     if (py == 0 || img.getLuminanceOrAlpha(px, py - 1) == 0) {
