@@ -2142,7 +2142,12 @@ public class BallProjectile extends ThrowableItemProjectile {
 
         LivingEntity best = null;
         double bestDistance = WISDOM_RADIUS;
+        // AABB 只是粗筛（立方体）。真正的「10 格内」由下面那句
+        // `distance < bestDistance` 保证 —— bestDistance 的初值就是 WISDOM_RADIUS，
+        // 所以超出半径的候选即使进了循环也选不中。这里保持原写法，
+        // 只是把这条隐含约束写在注释里，免得以后有人以为它是立方体范围。
         AABB box = this.getBoundingBox().inflate(WISDOM_RADIUS);
+        double wisdomRangeSqr = WISDOM_RADIUS * WISDOM_RADIUS;
 
         for (LivingEntity candidate : level.getEntitiesOfClass(LivingEntity.class, box)) {
             if (candidate == this.getOwner() || candidate == this.getVehicle()) {
@@ -2152,6 +2157,10 @@ public class BallProjectile extends ThrowableItemProjectile {
                 continue;
             }
             if (!isWisdomTarget(candidate)) {
+                continue;
+            }
+            // 显式判一次距离，和 bestDistance 那道门槛同义，读起来更直白
+            if (candidate.getBoundingBox().distanceToSqr(this.position()) > wisdomRangeSqr) {
                 continue;
             }
             if (!hasClearPathTo(level, candidate)) {
@@ -2346,8 +2355,15 @@ public class BallProjectile extends ThrowableItemProjectile {
             this.nearbyMetalBlocks = result.metalBlocks();
             this.nearbyOres = result.orePositions();
 
+            // ⚠️ AABB 是**立方体**（inflate(7) 的角落离中心 7√3 ≈ 12.1 格），
+            //    所以必须再按**实际距离**精筛一次 —— 否则站在斜角上的生物会被误算进积热。
+            //    用碰撞箱到球心的最短距离，大个子站在边界上也不会被漏掉。
+            double senseRangeSqr = BallProspecting.RADIUS * BallProspecting.RADIUS;
             this.nearbyEntities = serverLevel.getEntitiesOfClass(LivingEntity.class,
-                    this.getBoundingBox().inflate(BallProspecting.RADIUS));
+                            this.getBoundingBox().inflate(BallProspecting.RADIUS))
+                    .stream()
+                    .filter(e -> e.getBoundingBox().distanceToSqr(this.position()) <= senseRangeSqr)
+                    .toList();
             // 磁吸偏转的候选：只有进入 PULL_RADIUS 的才有资格（矿物与生物同一条赛道）。
             // 投掷者本人排除在外 —— 自己扔的球不该往自己身上拐。
             //

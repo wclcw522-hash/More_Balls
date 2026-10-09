@@ -65,11 +65,21 @@ public final class RedstonePulse {
         // 先起粒子 —— 三团扩散球面由 RedstonePulseFx 按时间轴推进
         RedstonePulseFx.start(level, center);
 
+        // ⚠️ AABB 只是**粗筛**，它是个立方体 —— inflate(7) 出来边长 14，
+        //    角落离中心 7√3 ≈ 12.1 格，远远超出作者要的「半径 7 格范围内」。
+        //    所以下面必须再按**实际距离**精筛一次（2026-10-10 自查时发现并修掉）。
         AABB box = new AABB(center, center).inflate(RADIUS);
+        double radiusSqr = RADIUS * RADIUS;
         List<LivingEntity> nearby = level.getEntitiesOfClass(LivingEntity.class, box);
 
         for (LivingEntity target : nearby) {
             if (!target.isAlive()) {
+                continue;
+            }
+
+            // 用**碰撞箱到命中点的最短距离**判定：取实体边缘而不是中心，
+            // 这样大个子生物站在边界上不会被漏掉，判定也比「中心点在不在球内」更贴合直觉。
+            if (target.getBoundingBox().distanceToSqr(center) > radiusSqr) {
                 continue;
             }
 
