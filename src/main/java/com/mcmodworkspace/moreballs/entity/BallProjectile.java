@@ -818,6 +818,23 @@ public class BallProjectile extends ThrowableItemProjectile {
 
     /** 真正的实现（上面是加了计时的壳） */
     private void ballTickBody() {
+        long _tPre = System.nanoTime();
+        ballTickPre();
+        ModProfiler.hit("ball.tick.前段(super之前)", _tPre);
+
+        // 单独给父类 tick 计时 —— 物理、移动、碰撞检测都在里面，
+        // 而且**这段不是我写的**，之前所有诊断都漏掉了它。
+        long _tSuper = System.nanoTime();
+        super.tick();
+        ModProfiler.hit("ball.super.tick", _tSuper);
+
+        long _tPost = System.nanoTime();
+        ballTickPost();
+        ModProfiler.hit("ball.tick.后段(super之后)", _tPost);
+    }
+
+    /** tick 的前半段：上限检查、回归开关、票据 */
+    private void ballTickPre() {
         // 【实体上限】本维度的球超过上限时，从最旧的开始清掉。
         //
         // 每 20 刻（1 秒）才查一次 —— 逐刻遍历整个维度的实体没意义，
@@ -855,14 +872,14 @@ public class BallProjectile extends ThrowableItemProjectile {
         }
 
         // 记下这一 tick 开始时的状态，super.tick() 之后要用它补位移
-        Vec3 tickStartPos = this.position();
-        Vec3 tickStartVel = this.getDeltaMovement();
+        this.tickTickStartPos = this.position();
+        this.tickTickStartVel = this.getDeltaMovement();
+    }
 
-        // 单独给父类 tick 计时 —— 物理、移动、碰撞检测都在里面，
-        // 而且**这段不是我写的**，之前所有诊断都漏掉了它。
-        long _tSuper = System.nanoTime();
-        super.tick();
-        ModProfiler.hit("ball.super.tick", _tSuper);
+    /** tick 的后半段：回归补位、落定、磁吸、粒子等 */
+    private void ballTickPost() {
+        Vec3 tickStartPos = this.tickTickStartPos;
+        Vec3 tickStartVel = this.tickTickStartVel;
 
         // 【回归虚化】把被「钉住」的位移补回来。
         //
@@ -1850,6 +1867,12 @@ public class BallProjectile extends ThrowableItemProjectile {
     private static final int WISDOM_SCAN_TICKS = 40;
 
     /** 【智慧】是否已经锁定过 */
+    /** tick 起始位置 —— 前段记下、后段用（原来用局部变量，拆成两段后要跨方法传） */
+    private Vec3 tickTickStartPos = Vec3.ZERO;
+
+    /** tick 起始速度 —— 同上 */
+    private Vec3 tickTickStartVel = Vec3.ZERO;
+
     /** 球撞球的处理冷却（刻）—— 防止贴在一起的球每 tick 重复触发 */
     private static final int COLLIDE_COOLDOWN_TICKS = 8;
 
