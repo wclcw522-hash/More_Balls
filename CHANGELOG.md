@@ -5,7 +5,36 @@
 > 26.3 线已冻结（那边 Curios 与 NeoForge 不兼容，饰品功能没法测）。
 > 26.3 线的历史见 `[26.3更多球]_More_Balls\CHANGELOG.md`。
 
-### 0.3.3.114
+### 0.3.3.115
+
+### 我的诊断方法本身有盲区 —— 补上最关键的漏测
+
+上一轮全局监听的数据：
+
+```
+heat.serverTick=0.1ms  creeper.tick=0.1ms  mob.tick=0.0ms
+heat.entityTick=0.0ms  pearl.tick=0.0ms
+球：prospecting=1.2ms  collide=0.1ms …
+而服务器：Can't keep up! Running 2164ms or 43 ticks behind
+```
+
+**我计到的全部加起来不到 2ms，服务器却落后 43 刻。**
+
+→ **说明我量的不是病根。** 我只量了「我自己写在 mod 里的那几个方法」，
+而 **`BallProjectile.tick()` 整个方法**从来没被量过 —— 它由 Minecraft 直接调用，
+**`super.tick()`（物理、移动、碰撞检测）就在里面，那段不是我写的**。
+
+**补上两处计时**：
+
+| 计时键 | 内容 |
+|---|---|
+| `ball.tick(整体)` | 整个 `BallProjectile.tick()` |
+| `ball.super.tick` | **父类的 `super.tick()`** —— 物理与碰撞，之前完全没测 |
+
+下一轮的数据就能区分：是「球的物理本身贵」还是「在 mod 之外」。
+
+---
+## 0.3.3.114
 
 ### 关键结论：**卡顿不在球身上**
 
