@@ -188,10 +188,10 @@ public class BallProjectile extends ThrowableItemProjectile {
     /** 【空气动力球】回归速度上限 */
     private static final double RETURN_MAX_SPEED = 4.0D;
 
-    /** 【空气动力球】离作者多近算「到家」（格） */
+    /** 【空气动力球】离主人多近算「到家」（格） */
     private static final double RETURN_ARRIVE_DISTANCE = 1.8D;
 
-    /** 找绕行路线时，最多往作者上方试探几格 */
+    /** 找绕行路线时，最多往主人上方试探几格 */
     private static final int RETURN_CLIMB_STEPS = 8;
 
     /** 检测「这条路通不通」时的采样步长（格） */
@@ -229,7 +229,7 @@ public class BallProjectile extends ThrowableItemProjectile {
     /** 落定后还剩多少刻的「向下坐实」动作 */
     private int settleDropTicks;
 
-    /** 【空气动力球】：这颗球静止后要自己飞回作者 */
+    /** 【空气动力球】：这颗球静止后要自己飞回主人 */
     private boolean returnToOwner;
 
     /** 正在回家的路上（回归期间免重力，免得飞一半掉下去） */
@@ -595,7 +595,7 @@ public class BallProjectile extends ThrowableItemProjectile {
         //
         // 【空气动力球】回归途中同样断重力：它是「飞回去」，不是「掉回去」。
         // 判定用 homingTicks > 0 兜底 —— 只要这颗球已经起飞过，就一直是回归状态，
-        // 哪怕中间某一刻拿不到作者（下线、维度切换）也不该突然被重力拽下去。
+        // 哪怕中间某一刻拿不到主人（下线、维度切换）也不该突然被重力拽下去。
         if (this.isSettled() || this.homingBack || this.isReturning()
                 || (this.isRolling() && this.hasSupportBelow())) {
             return 0.0D;
@@ -1030,7 +1030,7 @@ public class BallProjectile extends ThrowableItemProjectile {
         //
         // 之前这段挂在「静止分支」里，而 homingToOwner 自己会把球拉出静止态
         // （setSettled(false) 才能起飞），于是球只飞一 tick 就掉回普通物理、落地、
-        // 再判定静止、再飞一 tick……表现就是「球在作者旁边一直弹，永远回不了背包」。
+        // 再判定静止、再飞一 tick……表现就是「球在主人旁边一直弹，永远回不了背包」。
         // 回归期间<b>全程硬维持</b>「恼鬼三件套」。
         //
         // 作者指定：从开始回归到重新回收为止，这期间一直要拥有全部恼鬼特性。
@@ -1050,7 +1050,7 @@ public class BallProjectile extends ThrowableItemProjectile {
             if (this.homingToOwner()) {
                 return;
             }
-            // 作者不在了（下线 / 换维度 / 已死），放弃回归 ——
+            // 主人已不在（下线 / 换维度 / 已死），放弃回归 ——
             // 必须把「恼鬼三件套」和记账状态一起还原，否则球会一直穿墙飘着
             this.homingBack = false;
             this.noPhysics = false;
@@ -1520,9 +1520,9 @@ public class BallProjectile extends ThrowableItemProjectile {
     protected void onHitEntity(EntityHitResult hitResult) {
         super.onHitEntity(hitResult);
 
-        // 【空气动力球】回家途中撞到作者：这一下就是「到家」，直接交付。
+        // 【空气动力球】回家途中撞到主人：这一下就是「到家」，直接交付。
         //
-        // 不这么处理的话，球会先撞在作者身上结算伤害、然后被弹开，
+        // 不这么处理的话，球会先撞在主人身上结算伤害、然后被弹开，
         // 于是永远走不到静止态、也就永远回不了背包 ——
         // 现象就是「球在旁边一直弹，就是不进背包」（作者反馈过）。
         if (this.homingBack && hitResult.getEntity() == this.getOwner()
@@ -2404,7 +2404,7 @@ public class BallProjectile extends ThrowableItemProjectile {
     private boolean shatterOnSettle;
 
     /**
-     * 【空气动力球】：把球朝作者方向推过去，像忠诚附魔的三叉戟那样。
+     * 【空气动力球】：把球朝主人方向推过去，像忠诚附魔的三叉戟那样。
      *
      * <p>作者指定的细节都落在这里：回归途中<b>照常结算伤害与耐久</b>
      * （因为位置更新仍然走正常的 {@code move()} 与命中回调，只是速度方向由这里定），
@@ -2447,7 +2447,7 @@ public class BallProjectile extends ThrowableItemProjectile {
         if (!(owner instanceof LivingEntity living)
                 || !living.isAlive()
                 || living.level() != this.level()) {
-            return false; // 作者不在了（下线 / 换维度 / 已死），那就老实留在地上
+            return false; // 主人已不在（下线 / 换维度 / 已死），那就老实留在地上
         }
 
         // 挂区块票据 —— 但<b>只有带【空气动力球】的球才需要</b>（作者指定）。
@@ -2512,8 +2512,8 @@ public class BallProjectile extends ThrowableItemProjectile {
      *
      * <p>三步：</p>
      * <ol>
-     *   <li>直线通 → 直接朝作者飞</li>
-     *   <li>直线被挡 → 往作者上方逐格试探，找一个「球能直通」的抬头点绕过去
+     *   <li>直线通 → 直接朝主人飞</li>
+     *   <li>直线被挡 → 往主人上方逐格试探，找一个「球能直通」的抬头点绕过去
      *       （很贴近忠诚附魔那种「从上方绕回来」的观感）</li>
      *   <li>怎么绕都不通 → 硬飞，交给 {@link #chargeForPhasing()} 按穿墙次数扣耐久</li>
      * </ol>
@@ -2624,15 +2624,15 @@ public class BallProjectile extends ThrowableItemProjectile {
         if (owner instanceof LivingEntity living) {
             return this.damageSources().mobAttack(living);
         }
-        // 找不到作者（比如它已下线）时退回投射物来源，总比没有来源好
+        // 找不到主人（比如它已下线）时退回投射物来源，总比没有来源好
         return this.damageSources().thrown(this, null);
     }
 
     /**
-     * 回到作者身边：先结算那一下伤害，再把球放进发射者的背包。
+     * 回到主人身边：先结算那一下伤害，再把球放进发射者的背包。
      */
     private void deliverToOwner(ServerLevel level, LivingEntity owner) {
-        // 作者指定：回归时对作者造成 1 滴血的物理伤害；
+        // 作者指定：回归时对主人造成 1 滴血的物理伤害；
         // 本来就没伤害的球（伤害为 0）不造成
         if (this.getDamage() > 0.0F) {
             boolean hurt = owner.hurtServer(level, this.damageFromOwner(),

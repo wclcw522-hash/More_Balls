@@ -18,7 +18,7 @@ import net.minecraft.world.level.Level;
  *   <li><b>强弩</b> {@code powerful_crossbow} —— 每级 +30% 基础发射距离（改的是射程）</li>
  *   <li><b>轻盈</b> {@code lightness} —— 弹药<b>重量减半向上取整</b>，最低 1（1 级）</li>
  *   <li><b>极速</b> {@code swiftness} —— 每级提升弹药<b>初速度</b>（5 级，累积 +70%）</li>
- *   <li><b>空气动力球</b> {@code aerodynamic_ball} —— 未破碎的弹药静止后自动飞回作者</li>
+ *   <li><b>空气动力球</b> {@code aerodynamic_ball} —— 未破碎的弹药静止后自动飞回主人</li>
  * </ul>
  *
  * <p>强弩与极速都作用于「出手速度」，但路子不同：强弩走
@@ -63,10 +63,10 @@ public final class ModEnchantments {
 
     // ===== 空气动力球 =====
 
-    /** {@code more_balls:aerodynamic_ball} —— 1 级，弹药静止后自动回归作者 */
+    /** {@code more_balls:aerodynamic_ball} —— 1 级，弹药静止后自动回归主人 */
     public static final ResourceKey<Enchantment> AERODYNAMIC_BALL = key("aerodynamic_ball");
 
-    /** 【空气动力球】回到作者身边时对作者的物理伤害（作者指定：1 滴血） */
+    /** 【空气动力球】回到主人身边时对主人的物理伤害（作者指定：1 滴血） */
     public static final float AERODYNAMIC_SELF_DAMAGE = 1.0F;
 
     /**

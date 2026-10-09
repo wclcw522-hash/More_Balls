@@ -316,7 +316,7 @@ public final class BallHeatHandler {
     /**
      * 成就「这真的科学吗？」：第一次用热量系统把矿物烤熟。
      *
-     * <p>发在<b>加热者</b>头上 —— 也就是当初把这格方块烤热的那颗球的作者。
+     * <p>发在<b>加热者</b>头上 —— 也就是当初把这格方块烤热的那颗球的主人。
      * 记录里存的是 UUID 字符串，这里反查在线玩家；离线或没记来源就跳过。</p>
      */
     private static void awardHeatSmelt(ServerLevel level, BlockPos pos, ProspectingHeatData data) {

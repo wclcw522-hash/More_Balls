@@ -37,7 +37,7 @@ public class BallPouchCurioItem extends BallPouchItem implements ICurioItem {
     }
 
     /**
-     * 装备在饰品栏时，每个 tick 都给作者做两件事：
+     * 装备在饰品栏时，每个 tick 都给玩家做两件事：
      *
      * <ol>
      *   <li><b>自动收纳</b> —— 把身边停着的球收进袋子（有空格才收）</li>
