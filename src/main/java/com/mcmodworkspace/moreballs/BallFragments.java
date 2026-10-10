@@ -511,6 +511,10 @@ public final class BallFragments {
 
         // 数值 = 各份**相加**（份数已在 frags 里按 1/n 缩好）。
         // 作者 2026-10-10 的准则：合成结果是「相加后**向下取整**」。
+        // ⚠️ 每个来源只贡献 **1/份数**，与上面 frags 的 scaled(fraction) 同一套。
+        //    这里曾经写成 `p.damage()` 直接累加 —— frags 那边缩放了、这五个数值没有，
+        //    于是四合一的伤害/重量/弹性/蓄力全变成四倍；而重量又驱动初速度重算，
+        //    表现就是「重量、初速度都异常」（作者 2026-10-10 报的）。
         double damage = 0.0D;
         double weight = 0.0D;
         double bounce = 0.0D;
@@ -522,11 +526,11 @@ public final class BallFragments {
         Block morph = null;
         BallSound sound = null;
         for (BallProfile p : parts) {
-            damage += p.damage();
-            weight += p.weight();
-            bounce += p.bounce();
-            charge += p.chargeLevels();
-            inaccuracy += p.inaccuracy();
+            damage += p.damage() * fraction;
+            weight += p.weight() * fraction;
+            bounce += p.bounce() * fraction;
+            charge += p.chargeLevels() * fraction;
+            inaccuracy += p.inaccuracy() * fraction;
             scale = Math.max(scale, p.entityScale());
             if (morph == null) {
                 morph = p.morphBlock();

@@ -5,7 +5,49 @@
 > 26.3 线已冻结（那边 Curios 与 NeoForge 不兼容，饰品功能没法测）。
 > 26.3 线的历史见 `[26.3更多球]_More_Balls\CHANGELOG.md`。
 
-### 0.3.4.15
+### 0.3.4.16
+
+### 组合球的重量 / 初速度等基础数值算成四倍
+
+作者报「重量、初速度等基础数值好像又计算异常了」。
+
+**根因是我上一版改错了位置**：`comboProfile` 里有**两套按份数缩放的数据** ——
+
+```java
+List<BallProfile> parts = ...;   // 每个来源的**整球** profile
+List<Fragment> frags = ...;      // 已按 scaled(fraction) 缩放过
+double fraction = 1.0 / indexes.size();
+
+for (BallProfile p : parts) {
+    damage += p.damage();        // ← 这里是整球值，忘了 ×fraction
+    weight += p.weight();
+    bounce += p.bounce();
+    charge += p.chargeLevels();
+    inaccuracy += p.inaccuracy();
+}
+...
+.withDamage((float) Math.floor(damage))
+```
+
+上一版我把 `damage / n` 改成 `Math.floor(damage)`（按作者准则「相加后向下取整」是对的），
+**但 `parts` 里存的是整球数值、并没有缩放** —— 于是四合一的结果直接变成四倍。
+而**重量又驱动初速度重算**（`withWeight` 里会重算 velocity），所以初速度也跟着错。
+
+**修**：五个数值统一改成 `p.xxx() * fraction` —— 与 `frags` 那边同一套缩放。
+
+### 验证（修前 / 修后遍历 + 数值模拟）
+
+| 场景 | 计算 | 期望 |
+|---|---|---|
+| 四个四分之一球（伤害 10/10/1/1） | `(10+10+1+1) × 0.25 = 5.5` → floor | **5**（与作者举例一致） |
+| 同球切四份原样合回（四份都 10） | `(10×4) × 0.25 = 10` | **10**（恢复原值） |
+| 两个半球（10/10） | `(10+10) × 0.5 = 10` | **10**（恢复原值） |
+| 重量（4/4/2/2 四分之一） | `(4+4+2+2) × 0.25 = 3` | **3**（平均值） |
+
+**bug 版本**：damage = 22、weight = 12（全是四倍）。
+
+---
+## 0.3.4.15
 
 ### ① 径向菜单（长按 R）正上方一格改成「取消」
 
