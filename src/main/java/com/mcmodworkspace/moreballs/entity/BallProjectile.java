@@ -106,11 +106,13 @@ public class BallProjectile extends ThrowableItemProjectile {
     /**
      * 【破坏王】砸掉方块后保留的速度比例。
      *
-     * <p>⚠️ 作者 2026-10-10 明确要求「让它飞行**不受干扰**的同时还能挖方块」——
-     *    所以这里是 <b>1.0（完全不减速）</b>。原来是 0.85，砸一块掉 15%，
-     *    连续开路时球会肉眼可见地一顿一顿，也正是「飞不动的感觉」的来源。</p>
+     * <p>作者 2026-10-10 明确：<b>减速保留</b>（0.85，砸一块掉 15%）。
+     *    上一版我误听成「完全不减速」改成了 1.0，已改回。</p>
+     *
+     * <p>作者真正要的是「<b>别因为反弹让球老是往下掉</b>」—— 那是砸完之后又走了
+     * {@code bounceOff()} 导致的，见 {@code onHit} 的方块分支。</p>
      */
-    private static final double BREAKER_SPEED_RETAIN = 1.0D;
+    private static final double BREAKER_SPEED_RETAIN = 0.85D;
 
     /**
      * 【破坏王】已经砸掉的方块数。
@@ -1870,10 +1872,15 @@ public class BallProjectile extends ThrowableItemProjectile {
             // 作者 2026-10-10 指定：破坏接触到的方块，每碎一块速度降到当前的 85%、
             // 扣 1 点耐久；速度衰减到静止阈值之后就停止破坏并静止。
             // 放在 isTough() 判断之前 —— 这是「撞到什么碎什么」，不管球本身坚固与否。
+            // ⚠️ 作者 2026-10-10 更正：**砸掉了就不要反弹** ——
+            //    原来是砸完照样走下面的 bounceOff()，球被弹开后又被重力带着往下坠，
+            //    表现就是「因为反弹老是往下掉」。路已经砸开了，直接放它继续往前飞。
             if (this.profile().hasFlag(BallBehavior.BallProfile.FLAG_BREAKER)
                     && this.breakerUsed < BallBehavior.BREAKER_BUDGET
                     && this.level() instanceof ServerLevel breakerLevel) {
-                this.breakerHit(breakerLevel, (BlockHitResult) hitResult);
+                if (this.breakerHit(breakerLevel, (BlockHitResult) hitResult)) {
+                    return;   // 砸成功 → 沿原方向继续飞，不结算反弹
+                }
             }
 
             // 【点金】：命中方块时先把这一片石头点成矿物（不坚固的球也要触发，
@@ -1987,7 +1994,13 @@ public class BallProjectile extends ThrowableItemProjectile {
      *       原版把这些定义为「不可破坏」，球不该绕过它</li>
      * </ul>
      */
-    private void breakerHit(ServerLevel level, BlockHitResult hit) {
+    /**
+     * 砸掉运动路径上的下一块方块。
+     *
+     * @return <b>true 表示真的砸掉了</b> —— 调用方据此决定「不反弹、继续飞」。
+     *         没砸掉（额度用完 / 硬度 &lt; 0 / 钻石工具挖不动）返回 false，走正常的反弹流程。
+     */
+    private boolean breakerHit(ServerLevel level, BlockHitResult hit) {
         // ===== 破坏目标是「运动路径上的**下一块方块**」，既不是当前命中格、也不是固定往前一格 =====
         //
         // ⚠️ 作者 2026-10-10 指定并**更正过措辞**：「破坏路径上的下一块方块，
@@ -1997,23 +2010,23 @@ public class BallProjectile extends ThrowableItemProjectile {
         // 路径上扫不到方块（整段都是空气）就什么都不砸
         BlockPos pos = aimAheadOfMotion(level);
         if (pos == null) {
-            return;
+            return false;
         }
         BlockState state = level.getBlockState(pos);
         if (state.isAir()) {
-            return;
+            return false;
         }
         // 硬度 < 0 = 原版定义的「不可破坏」（基岩等），球不该越过这条线
         if (state.getDestroySpeed(level, pos) < 0.0F) {
-            return;
+            return false;
         }
         // 【破坏王】的挖掘能力**等同钻石工具**（镐 / 斧 / 锹，作者 2026-10-10 指定）：
         // 只有「三种钻石工具之一能挖」且「不要求下界合金等级」的方块才砸得动。
         if (!canBreakLikeDiamond(state)) {
-            return;
+            return false;
         }
         if (!level.destroyBlock(pos, true)) {
-            return;   // 被别的机制挡下了（保护区 / 事件取消），不扣耐久也不减速
+            return false;   // 被别的机制挡下了（保护区 / 事件取消），不扣耐久也不减速
         }
 
         this.consumeDurability("破坏王");
@@ -2028,11 +2041,12 @@ public class BallProjectile extends ThrowableItemProjectile {
         // 撞不动了 —— 收手，剩下的交给正常的静止流程。
         // 这里把额度一次性用光，等价于「从此不再破坏」。
         //
-        // 现在 BREAKER_SPEED_RETAIN = 1.0（不减速），这一支只有在球**本来就已经慢到
-        // 快静止**时才会走到 —— 那时继续砸也没意义，顺手收手。
+        // 每砸一块掉 15% 速度（BREAKER_SPEED_RETAIN = 0.85，作者要求保留）——
+        // 所以连续开路几块之后球自然会慢下来，这时就该收手了。
         if (scaled.lengthSqr() < SETTLE_SPEED_SQR) {
             this.breakerUsed = BallBehavior.BREAKER_BUDGET;
         }
+        return true;
     }
 
     /** 沿运动方向最多往前扫多少格找「路径上的下一块方块」 */
