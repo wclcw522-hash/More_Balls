@@ -39,6 +39,7 @@
   "key.more_balls.radial_menu": "展开弹药轮盘",
   "gui.more_balls.radial_menu": "选择弹药",
   "gui.more_balls.next_page": "下一页",
+  "gui.more_balls.cancel": "取消",
   "gui.more_balls.prev_page": "上一页",
   "gui.more_balls.page": "第 %1$s / %2$s 页",
   "item.more_balls.rubble": "碎石",

@@ -39,6 +39,7 @@
   "key.more_balls.radial_menu": "Open Ammo Radial",
   "gui.more_balls.radial_menu": "Select Ammo",
   "gui.more_balls.next_page": "Next Page",
+  "gui.more_balls.cancel": "Cancel",
   "gui.more_balls.prev_page": "Prev Page",
   "gui.more_balls.page": "Page %1$s / %2$s",
   "item.more_balls.rubble": "Rubble",

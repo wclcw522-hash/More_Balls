@@ -22,7 +22,12 @@ public class BallPouchContainer implements Container {
     /** 每段固定格数 */
     public static final int AMMO_SLOTS = BallPouchContents.FIXED_SEGMENT_SIZE;
 
-    /** 总格数 */
+    /**
+     * 总格数 —— 弹药段 + 转运段。
+     *
+     * <p>两段共用 {@link BallPouchContents#FIXED_SEGMENT_SIZE}（54）作为<b>存储</b>上限，
+     * 实际可用格数由 {@link BallPouchTier} 决定（转运段是弹药段的两倍）。</p>
+     */
     public static final int TOTAL_SLOTS = AMMO_SLOTS * 2;
 
     /** 装着袋子的那个物品堆（注意：是袋子的 ItemStack，不是袋子里面的东西） */

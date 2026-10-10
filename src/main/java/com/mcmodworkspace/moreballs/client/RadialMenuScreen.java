@@ -59,6 +59,13 @@ public class RadialMenuScreen extends Screen {
     /** 一页的弹药位数（作者指定：8 个） */
     private static final int AMMO_PER_PAGE = 8;
 
+    /**
+     * <b>第 0 格永远是「取消」</b>（作者 2026-10-10 指定）—— 它在正上方
+     * （{@code angleFor(0) = π/2}）。选中它会把副手那颗弹药收回袋里、
+     * 并清空当前选中的弹药种类，于是自动装填随之停止。
+     */
+    private static final int CANCEL_SLOT = 0;
+
     /** 中心圆的半径 —— 里面是左右两个翻页半圆 */
     private static final int CENTER_RADIUS = 32;
 
@@ -122,13 +129,16 @@ public class RadialMenuScreen extends Screen {
     }
 
     /** 总页数（至少一页，哪怕一个弹药都没有） */
+    /** 每页实际能放几个弹药 —— 第 0 格被「取消」占了 */
+    private static final int AMMO_PER_PAGE_REAL = AMMO_PER_PAGE - 1;
+
     private int pageCount() {
-        return Math.max(1, (this.kinds.size() + AMMO_PER_PAGE - 1) / AMMO_PER_PAGE);
+        return Math.max(1, (this.kinds.size() + AMMO_PER_PAGE_REAL - 1) / AMMO_PER_PAGE_REAL);
     }
 
     /** 这一页的第一个弹药在总列表里的下标 */
     private int pageOffset() {
-        return this.page * AMMO_PER_PAGE;
+        return this.page * AMMO_PER_PAGE_REAL;
     }
 
     /** 第 slotIndex 个位置的角度（正上方起，顺时针每 45°） */
@@ -175,8 +185,11 @@ public class RadialMenuScreen extends Screen {
         // 指针在中心圆里就不算选弹药（那是翻页区），只关掉
         if (!isInsideCircle(mouse[0], mouse[1], centerX, centerY, CENTER_RADIUS)) {
             int slot = hoveredSlot(mouse[0], mouse[1]);
-            if (slot >= 0) {
-                int ammoIndex = pageOffset() + slot;
+            if (slot == CANCEL_SLOT) {
+                // 「取消」—— 发空栈，服务端会把副手那颗收回袋子并停止自动装填
+                select(ItemStack.EMPTY);
+            } else if (slot > CANCEL_SLOT) {
+                int ammoIndex = pageOffset() + (slot - 1);
                 if (ammoIndex < this.kinds.size()) {
                     select(this.kinds.get(ammoIndex));
                 }
@@ -217,9 +230,12 @@ public class RadialMenuScreen extends Screen {
         // 圆外：只轻轻压暗，正常画面还看得见
         graphics.fill(0, 0, this.width, this.height, COLOR_BG);
 
-        // ① 8 个弹药位
-        for (int i = 0; i < AMMO_PER_PAGE; i++) {
-            int flatIndex = pageOffset() + i;
+        // ① 正上方永远是「取消」
+        renderCancelSlot(graphics, centerX, centerY, mouseX, mouseY);
+
+        // ② 其余 7 格是弹药（本轮页码从 1 号位开始排）
+        for (int i = 1; i < AMMO_PER_PAGE; i++) {
+            int flatIndex = pageOffset() + (i - 1);
             if (flatIndex >= this.kinds.size()) {
                 break;
             }
@@ -262,6 +278,22 @@ public class RadialMenuScreen extends Screen {
                 canPrev ? (overLeft ? COLOR_HIGHLIGHT : COLOR_TEXT) : COLOR_DISABLED, 0.6F);
         drawCentered(graphics, next, centerX + CENTER_RADIUS / 2, centerY - 4,
                 canNext ? (overRight ? COLOR_HIGHLIGHT : COLOR_TEXT) : COLOR_DISABLED, 0.6F);
+    }
+
+    /** 正上方那一格 —— 固定的「取消」按钮 */
+    private void renderCancelSlot(GuiGraphicsExtractor graphics, int centerX, int centerY,
+                                  int mouseX, int mouseY) {
+        float angle = angleFor(CANCEL_SLOT);
+        int[] icon = pointAt(angle, ICON_RADIUS, centerX, centerY);
+        boolean hovered = isHovered(icon, mouseX, mouseY);
+
+        // 底色略微偏红一点，跟弹药格区分开
+        graphics.fill(icon[0] - 13, icon[1] - 13, icon[0] + 13, icon[1] + 13,
+                hovered ? 0x80FF6B6B : 0x40202020);
+
+        Component label = Component.translatable("gui.more_balls.cancel");
+        drawCentered(graphics, label, icon[0], icon[1] - 4,
+                hovered ? COLOR_HIGHLIGHT : COLOR_TEXT, 0.85F);
     }
 
     /**
@@ -448,8 +480,12 @@ public class RadialMenuScreen extends Screen {
         if (slot < 0) {
             return super.mouseClicked(event, doubleClick);
         }
+        if (slot == CANCEL_SLOT) {
+            select(ItemStack.EMPTY);
+            return true;
+        }
 
-        int ammoIndex = pageOffset() + slot;
+        int ammoIndex = pageOffset() + (slot - 1);
         if (ammoIndex >= 0 && ammoIndex < this.kinds.size()) {
             select(this.kinds.get(ammoIndex));
             this.onClose();   // 选中就关

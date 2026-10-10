@@ -40,7 +40,15 @@ public record BallPouchContents(List<ItemStack> ammo, List<ItemStack> transit) {
      * <b>哪些格子解锁</b>、没用到的格子盖灰禁用。所以容器的格子数也固定，
      * 不必随等级伸缩 —— 这样升级时不需要重建界面，纹理也永远对得齐。</p>
      */
-    public static final int FIXED_SEGMENT_SIZE = 27;
+    /**
+     * 每段的<b>存储上限</b>（不是实际可用格数 —— 那个由 {@link BallPouchTier} 决定）。
+     *
+     * <p>⚠️ 2026-10-10 作者要求「中转区容量翻倍」后，满级转运段要用到
+     * {@code 27 × 2 = 54} 格，所以这里从 27 扩到 54。</p>
+     *
+     * <p>旧存档里的段还是按当时的长度存的，读取时由 {@link #resize} 补齐 —— 不会丢东西。</p>
+     */
+    public static final int FIXED_SEGMENT_SIZE = 54;
 
     /**
      * 编解码用「可空堆」那一套（{@code OPTIONAL_*}）——

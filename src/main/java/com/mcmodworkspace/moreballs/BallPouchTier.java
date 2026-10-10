@@ -63,14 +63,19 @@ public enum BallPouchTier {
         return this.slotsPerRow;
     }
 
-    /** 转运格数量 */
+    /**
+     * 转运格数量 —— <b>是弹药格的两倍</b>（作者 2026-10-10 指定「中转区容量翻倍」）。
+     *
+     * <p>弹药格只放满耐久的球、转运格只放用过的球。实测用过的球积压得更快，
+     * 所以转运段给双倍。</p>
+     */
     public int transitSlots() {
-        return this.slotsPerRow;
+        return this.slotsPerRow * 2;
     }
 
-    /** 总槽位数 */
+    /** 总槽位数 = 弹药格 + 转运格 */
     public int totalSlots() {
-        return this.slotsPerRow * 2;
+        return this.slotsPerRow * 3;
     }
 
     /** 资源名后缀 */
