@@ -14,7 +14,9 @@
         { "when": 4, "model": { "type": "minecraft:model", "model": "more_balls:item/combo_piece_4_1" } },
         { "when": 5, "model": { "type": "minecraft:model", "model": "more_balls:item/combo_piece_5_1" } },
         { "when": 6, "model": { "type": "minecraft:model", "model": "more_balls:item/combo_piece_6_1" } },
-        { "when": 7, "model": { "type": "minecraft:model", "model": "more_balls:item/combo_piece_7_1" } }
+        { "when": 7, "model": { "type": "minecraft:model", "model": "more_balls:item/combo_piece_7_1" } },
+          { "when": 8, "model": { "type": "minecraft:model", "model": "more_balls:item/combo_piece_8_1" } },
+          { "when": 9, "model": { "type": "minecraft:model", "model": "more_balls:item/combo_piece_9_1" } }
       ],
       "fallback": { "type": "minecraft:model", "model": "more_balls:item/combo_piece_0_1" }
     },
@@ -30,7 +32,9 @@
         { "when": 4, "model": { "type": "minecraft:model", "model": "more_balls:item/combo_piece_4_2" } },
         { "when": 5, "model": { "type": "minecraft:model", "model": "more_balls:item/combo_piece_5_2" } },
         { "when": 6, "model": { "type": "minecraft:model", "model": "more_balls:item/combo_piece_6_2" } },
-        { "when": 7, "model": { "type": "minecraft:model", "model": "more_balls:item/combo_piece_7_2" } }
+        { "when": 7, "model": { "type": "minecraft:model", "model": "more_balls:item/combo_piece_7_2" } },
+          { "when": 8, "model": { "type": "minecraft:model", "model": "more_balls:item/combo_piece_8_2" } },
+          { "when": 9, "model": { "type": "minecraft:model", "model": "more_balls:item/combo_piece_9_2" } }
       ],
       "fallback": { "type": "minecraft:model", "model": "more_balls:item/combo_piece_0_2" }
     },
@@ -46,7 +50,9 @@
         { "when": 4, "model": { "type": "minecraft:model", "model": "more_balls:item/combo_piece_4_3" } },
         { "when": 5, "model": { "type": "minecraft:model", "model": "more_balls:item/combo_piece_5_3" } },
         { "when": 6, "model": { "type": "minecraft:model", "model": "more_balls:item/combo_piece_6_3" } },
-        { "when": 7, "model": { "type": "minecraft:model", "model": "more_balls:item/combo_piece_7_3" } }
+        { "when": 7, "model": { "type": "minecraft:model", "model": "more_balls:item/combo_piece_7_3" } },
+          { "when": 8, "model": { "type": "minecraft:model", "model": "more_balls:item/combo_piece_8_3" } },
+          { "when": 9, "model": { "type": "minecraft:model", "model": "more_balls:item/combo_piece_9_3" } }
       ],
       "fallback": { "type": "minecraft:model", "model": "more_balls:item/combo_piece_0_3" }
     },
@@ -62,7 +68,9 @@
         { "when": 4, "model": { "type": "minecraft:model", "model": "more_balls:item/combo_piece_4_4" } },
         { "when": 5, "model": { "type": "minecraft:model", "model": "more_balls:item/combo_piece_5_4" } },
         { "when": 6, "model": { "type": "minecraft:model", "model": "more_balls:item/combo_piece_6_4" } },
-        { "when": 7, "model": { "type": "minecraft:model", "model": "more_balls:item/combo_piece_7_4" } }
+        { "when": 7, "model": { "type": "minecraft:model", "model": "more_balls:item/combo_piece_7_4" } },
+          { "when": 8, "model": { "type": "minecraft:model", "model": "more_balls:item/combo_piece_8_4" } },
+          { "when": 9, "model": { "type": "minecraft:model", "model": "more_balls:item/combo_piece_9_4" } }
       ],
       "fallback": { "type": "minecraft:model", "model": "more_balls:item/combo_piece_0_4" }
     }

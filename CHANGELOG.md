@@ -5,7 +5,51 @@
 > 26.3 线已冻结（那边 Curios 与 NeoForge 不兼容，饰品功能没法测）。
 > 26.3 线的历史见 `[26.3更多球]_More_Balls\CHANGELOG.md`。
 
-### 0.3.4.8
+### 0.3.4.9
+
+### 组合球渲染不出分片（显示成木球）
+
+作者反馈：「在组合球里面没有正确渲染分片」。
+
+**根因**：组合球的物品贴图不是一张图，而是 **`composite` 叠四层 `select`** ——
+每层按组件 `combo_slot_1..4` 的值选一张「分片贴图」：
+
+```json
+{ "type": "minecraft:select",
+  "property": "minecraft:component",
+  "component": "more_balls:combo_slot_1",
+  "cases": [ { "when": 0, ... }, … { "when": 7, ... } ],
+  "fallback": { ... "combo_piece_0_1" } }        ← 8 / 9 落到这里
+```
+
+**四层各只有 `when: 0..7`** —— 红石球(8)、钻石球(9) 全部落 `fallback`，
+也就是**木球的分片**。这跟 `ball_half.json` / `ball_quarter.json` 是同一种结构。
+
+**修**：
+
+1. **`items/combo_ball.json`** —— 四层 select **各补 `when: 8` / `when: 9`**（共 8 处）
+2. **8 个模型** `models/item/combo_piece_{8,9}_1..4.json` ——
+   指向各自的碎片贴图 `more_balls:item/<球id>_quarter_<象限>`
+3. **贴图不用新建** —— 直接复用已有的 `redstone_ball_quarter_1..4` / `diamond_ball_quarter_1..4`
+
+**验证**：`combo_ball.json` case 数 **40**（4 层 × 10）、`when` 值 0–9 齐全、JSON 合法；
+模型文件 **0–9 各 4 个**齐全。
+
+### 顺带把三张按下标枚举的表全扫了一遍
+
+这类漏项已经连着踩了三次，所以写了个自查脚本把仓库里所有带 `"when"` 数字表的 json 点了一遍 ——
+**结果只有三处**，现在都是 0–9 完整：
+
+| 文件 | case 数 | 每颗球补几处 |
+|---|---|---|
+| `items/ball_half.json` | 10 | 1 |
+| `items/ball_quarter.json` | 10 | 1 |
+| `items/combo_ball.json` | **40** | **4**（四层各一） |
+
+**已写进 `AGENTS.md` 作为「加新球的第 12 处」**，含自查命令。
+
+---
+## 0.3.4.8
 
 作者报了 6 个问题，逐个查修。
 
