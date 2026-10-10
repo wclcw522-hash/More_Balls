@@ -62,15 +62,15 @@ public final class BallMagic {
     private static final int MAX_AMPLIFIER = 4;   // 内部 4 = 游戏内 V 级
 
     /**
-     * 大奖概率的分母：<b>2 → 50%</b>。
-     *
-     * <p>⚠️ <b>这是作者 2026-10-10 为了「看一眼大奖特效」临时调高的调试值，
-     * 正式概率是 1000（0.1%）。测完必须改回 1000。</b></p>
+     * 大奖概率的分母：<b>1000 → 0.1%</b>。
      *
      * <p>用整数分母而不是浮点比较 —— 浮点 {@code r < 0.001} 在概率恰好相等时
      * 行为不直观，整数写法更好读也更好调。</p>
+     *
+     * <p>注：0.3.5.2 的调试期间曾临时改为 {@code 2}（50%）供作者实测特效，
+     * 那个版本从未对外发布；0.3.5.3 起已恢复为正式的 1000。</p>
      */
-    private static final int JACKPOT_DENOMINATOR = 2;
+    private static final int JACKPOT_DENOMINATOR = 1000;
 
     /** 这些效果虽然分类是对的，但不适合由球随机施加（事件状态标记） */
     private static final List<String> EXCLUDED = List.of(
