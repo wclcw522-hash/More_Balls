@@ -35,6 +35,51 @@ import net.minecraft.world.level.block.Block;
  * 所以半成品另走一条路：物品上只存「来源球 id + 分数」，词条每次由
  * {@link #scaled} 现算 —— 既保住了小数，也不污染球本身的数据结构。</p>
  */
+/**
+ * <h2>★ 切球 / 重组的三类词条法则（作者 2026-10-10 定，底层准则 —— 改这里之前先读这一节）</h2>
+ *
+ * <p>一颗球被切开再合回去，词条不是简单「除一下再乘回来」。按词条的<b>性质</b>分成三类，各走各的规则：</p>
+ *
+ * <h3>① 数值类 —— 基础</h3>
+ * <p>伤害 / 重量 / 坚固 / 弹性 / 蓄力 / 初速 / 不精确度 等「球的物理属性」。</p>
+ * <ul>
+ *   <li>切开：每份 <b>× 1/份数</b>（半球 0.5、四分之一球 0.25）</li>
+ *   <li>合成：各份<b>相加</b>，然后 <b>向下取整</b></li>
+ *   <li>例：【伤害 10】四等分 → 4 个【伤害 2.5】；两个 2.5 加两个 0.25 → 5.5 → <b>取整得 5</b></li>
+ * </ul>
+ *
+ * <h3>② 数值类 —— 特性</h3>
+ * <p>带数字的特性词条：【智慧N】【穿透N】。</p>
+ * <ul>
+ *   <li>切开：每份 <b>× 1/份数</b>，且处于 <b>未激活</b> 状态 —— 单份<b>不显示、不生效</b>
+ *       （例：【智慧 5】→ 4 个【智慧 1.25·未激活】）</li>
+ *   <li>合成：<b>凑够份数才激活</b>（四合一要 ≥2 份），激活时各份<b>相加再向下取整</b>
+ *       <ul>
+ *         <li>1 份 1.25 + 3 份 0 → 份数不够 → <b>不显示、不生效</b></li>
+ *         <li>2 份 1.25 + 2 份 0 → 2.5 → <b>取整得 2</b>，即【智慧 2】</li>
+ *       </ul></li>
+ * </ul>
+ *
+ * <h3>③ 阈值类 —— 不缩放</h3>
+ * <p>【引雷x】这类「攒到 x 才触发」的词条。</p>
+ * <ul>
+ *   <li>切开：<b>四份都保留原阈值</b>（不是 120/4 = 30）—— 缩放了就永远回不到 120</li>
+ *   <li>合成：<b>取最大值</b>。例：【引雷 120】+【引雷 90】→ <b>【引雷 120】</b></li>
+ * </ul>
+ *
+ * <h3>④ 布尔 / 位掩码类 —— 按份数激活</h3>
+ * <p>变形 / 磁性 / 善良 / 导电 / 电击，以及【脉冲】【照明】【破坏王】【透镜】。</p>
+ * <ul>
+ *   <li>切开：原样透传（数据要留着，合成了还要数份数）</li>
+ *   <li>合成：<b>二合一任一份有即激活；四合一要 ≥2 份</b></li>
+ *   <li><b>例外：【金光闪闪】</b>是金球独占 —— <b>不参与合成</b>，被切开就永久失效，
+ *       合回去也不能重新获得（作者 2026-10-09 指定）</li>
+ * </ul>
+ *
+ * <p>实现落点：{@code Fragment.scaled}（按份数缩放）、{@code Fragment.plus}（叠加）、
+ * {@code combinePair} / {@code combineQuad}（二合一 / 四合一的激活判定）、
+ * {@code comboProfile}（落回 BallProfile）。<b>这四处加词条时要一起改。</b></p>
+ */
 public final class BallFragments {
 
     private BallFragments() {
@@ -181,13 +226,29 @@ public final class BallFragments {
         public static final Fragment EMPTY =
                 new Fragment(0, 0, 0, 0, 0, 0, false, false, false, 0, false, false, false, false, 0, 0);
 
-        /** 按分数缩放一份词条（半球 0.5、四分之一 0.25） */
+        /**
+         * 按分数缩放一份词条（半球 0.5、四分之一球 0.25）。
+         *
+         * <p><b>按「切球 / 重组的三类词条法则」（作者 2026-10-10 定）：</b></p>
+         * <ul>
+         *   <li><b>数值类</b>一律 ×factor —— 包含**基础**（坚固/感应/融化/熔融/磁吸/点金）
+         *       与**特性**（【智慧N】【穿透N】）。</li>
+         *   <li><b>阈值类</b>（【引雷x】）**不缩放**：四份都保留原阈值，合成时取最大值。
+         *       缩放成 30 再取最大值就永远回不到 120 了。</li>
+         *   <li><b>布尔 / 位掩码类</b>（变形/磁性/善良/导电/电击、脉冲/照明/破坏王/透镜）原样透传 ——
+         *       「要够几份才激活」由 combine* 判定，不在这里动。</li>
+         * </ul>
+         */
         public Fragment scaled(double factor) {
             return new Fragment(toughness * factor, sense * factor, melt * factor,
                     molten * factor, magnet * factor, transmute * factor,
                     morph, magnetic, glint,
-                    wisdom, kindness, conduction, thunder, shock,
-                    penetration, flags);
+                    // ⚠️ 【智慧N】是**带数值的特性**词条 —— 切四份后每份是「1.25，未激活」，
+                    //    所以必须 ×factor。否则两份相加会算成 5+5=10（应为 1.25×2=2.5 → 2）。
+                    (int) Math.floor(wisdom * factor),
+                    kindness, conduction, thunder, shock,
+                    (int) Math.floor(penetration * factor),
+                    flags);
         }
 
         /** 叠加 —— 数值相加，特质取「出现过」 */
@@ -359,10 +420,15 @@ public final class BallFragments {
         List<Item> balls = sources();
         List<BallProfile> parts = new ArrayList<>(indexes.size());
         List<Fragment> frags = new ArrayList<>(indexes.size());
+        // ⚠️ 碎片份数 = 1/份数（半成品 2 份 → 1/2；四分之一球 4 份 → 1/4）。
+        //    这里必须**缩放后再相加**，而不是拿整球的值去除以份数 ——
+        //    两者的算术结果相同，但「向下取整」的位置完全不同：
+        //    作者要的是「各份相加=5.5 → floor → 5」，而不是「5.5 的浮点值直接留着」。
+        double fraction = 1.0D / indexes.size();
         for (int i : indexes) {
             Item ball = balls.get(i);
             parts.add(BallBehavior.profileFor(new ItemStack(ball)));
-            frags.add(of(ball));
+            frags.add(of(ball).scaled(fraction));
         }
         if (parts.isEmpty()) {
             return BallBehavior.profileFor(new ItemStack(balls.get(0)));
@@ -382,7 +448,8 @@ public final class BallFragments {
                 ? combinePair(frags.get(0), frags.get(1))
                 : combineQuad(frags.get(0), frags.get(1), frags.get(2), frags.get(3));
 
-        double n = parts.size();
+        // 数值 = 各份**相加**（份数已在 frags 里按 1/n 缩好）。
+        // 作者 2026-10-10 的准则：合成结果是「相加后**向下取整**」。
         double damage = 0.0D;
         double weight = 0.0D;
         double bounce = 0.0D;
@@ -412,11 +479,12 @@ public final class BallFragments {
         // 不用去猜每个字段的构造函数位置
         BallProfile base = parts.get(0);
         BallProfile out = base
-                .withDamage((float) (damage / n))
-                .withWeight((int) Math.round(weight / n))
-                .withBounce((int) Math.round(bounce / n))
-                .withChargeLevels((int) Math.round(charge / n))
-                .withInaccuracy((float) (inaccuracy / n))
+                // 相加后向下取整（作者准则）—— 例：2.5+2.5+0.25+0.25 = 5.5 → 5
+                .withDamage((float) Math.floor(damage))
+                .withWeight((int) Math.floor(weight))
+                .withBounce((int) Math.floor(bounce))
+                .withChargeLevels((int) Math.floor(charge))
+                .withInaccuracy((float) Math.floor(inaccuracy))
                 .withToughness((int) merged.toughness())
                 .withSense((int) merged.sense())
                 .withEntityScale(scale)

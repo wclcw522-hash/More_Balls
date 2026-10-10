@@ -68,6 +68,7 @@ import net.minecraft.world.level.block.Block;
 import net.minecraft.tags.BlockTags;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.phys.BlockHitResult;
+import net.minecraft.world.phys.shapes.CollisionContext;
 import net.minecraft.world.phys.EntityHitResult;
 import net.minecraft.world.phys.HitResult;
 import net.minecraft.world.phys.Vec3;
@@ -2072,25 +2073,28 @@ public class BallProjectile extends ThrowableItemProjectile {
         if (velocity.lengthSqr() < 1.0E-6D) {
             return null;
         }
-        // ⚠️ **必须用水平方向扫，不能直接用 normalize(velocity)** ——
-        //    球一被重力拽着开始下落，速度方向就朝下，于是整颗球只会「径直向下挖方块」
-        //    （作者 2026-10-10 报的实际现象）。取格只想沿**前进方向**开路，与掉不掉无关。
-        //    纯垂直运动（往上抛 / 自由落体）时才退回完整速度方向。
-        double horizSqr = velocity.x * velocity.x + velocity.z * velocity.z;
-        Vec3 dir;
-        if (horizSqr > 0.01D) {
-            double horiz = Math.sqrt(horizSqr);
-            dir = new Vec3(velocity.x / horiz, 0.0D, velocity.z / horiz);
-        } else {
-            dir = velocity.normalize();
+        // ===== 怎么找「路径上的下一块方块」=====
+        //
+        // ⚠️ 走**原版射线**（{@link ClipContext}），不要自己 normalize 速度后按步长采点：
+        //
+        //   · 直接用 normalize(velocity)：球一被重力拽着下落，方向就朝下 →
+        //     整颗球只会「径直向下挖方块」（作者 2026-10-10 报过）。
+        //   · 改成纯水平方向：平飞略向下时又**挖不到斜下方的方块**（作者接着报的）。
+        //   · 射线一次就同时解决了这两件事 —— 它沿**真实运动方向**走，
+        //     斜向下自然命中斜下方的方块，而且自动跳过空气、直接给到第一块挡路的方块。
+        //
+        // ⚠️ 最后一个参数是 **CollisionContext**，不是 Entity —— 传 null 会 NPE
+        //    （见 BallIlluminate.findGroundY 那次崩服）。
+        Vec3 from = this.position();
+        Vec3 to = from.add(velocity.normalize().scale(BREAKER_SCAN_MAX));
+        BlockHitResult hit = level.clip(new ClipContext(
+                from, to, ClipContext.Block.COLLIDER, ClipContext.Fluid.NONE,
+                CollisionContext.empty()));
+        if (hit.getType() == HitResult.Type.MISS) {
+            return null;
         }
-        for (double d = BREAKER_SCAN_STEP; d <= BREAKER_SCAN_MAX; d += BREAKER_SCAN_STEP) {
-            BlockPos pos = BlockPos.containing(this.position().add(dir.scale(d)));
-            if (!level.getBlockState(pos).isAir()) {
-                return pos;
-            }
-        }
-        return null;
+        BlockPos pos = hit.getBlockPos();
+        return level.getBlockState(pos).isAir() ? null : pos;
     }
 
     /**

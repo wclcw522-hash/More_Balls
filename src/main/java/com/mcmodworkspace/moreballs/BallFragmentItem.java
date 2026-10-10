@@ -112,6 +112,32 @@ public class BallFragmentItem extends Item {
         entry(tooltip, "tooltip.more_balls.entry.magnet", f.magnet());
         entry(tooltip, "tooltip.more_balls.entry.transmute", f.transmute());
 
+        // ===== 特性词条（作者 2026-10-10 的三类法则）=====
+        //
+        // 【智慧N】【穿透N】是**带数值的特性**：切过之后数值已按份数缩小，
+        // 且**未激活** —— 单份不显示、也不生效，要合成时凑够份数才会激活。
+
+        // 【引雷x】是**阈值类**：不缩放，四份都带着原阈值，合成时取最大值。
+        if (f.thunder()) {
+            // 阈值从来源球的 profile 取（阈值类不参与缩放，四份都带着原值）
+            Item src = sourceBall(stack);
+            int threshold = src == null ? BallBehavior.NOT_THUNDER
+                    : BallBehavior.profileFor(new ItemStack(src)).thunderThreshold();
+            if (threshold > 0) {
+                tooltip.accept(Component.translatable("tooltip.more_balls.entry.thunder",
+                        String.valueOf(threshold)).withStyle(ChatFormatting.GRAY));
+            }
+        }
+        // 数值型特性：份数不够时显示「未激活」
+        if (f.wisdom() > 0) {
+            tooltip.accept(Component.translatable("tooltip.more_balls.entry.wisdom_inactive",
+                    String.valueOf(f.wisdom())).withStyle(ChatFormatting.DARK_GRAY));
+        }
+        if (f.penetration() > 0) {
+            tooltip.accept(Component.translatable("tooltip.more_balls.entry.penetration_inactive",
+                    String.valueOf(f.penetration())).withStyle(ChatFormatting.DARK_GRAY));
+        }
+
         // 无数值特质：半球直接继承（作者指定）；
         // 四分之一球「把特质藏起来」—— 只是不显示，数据上仍然带着
         if (this.parts == 2) {
