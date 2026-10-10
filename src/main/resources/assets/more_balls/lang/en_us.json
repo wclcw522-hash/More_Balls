@@ -51,6 +51,7 @@
   "enchantment.more_balls.aerodynamic_ball": "Aerodynamic Ball",
   "hud.more_balls.charge": "Charge %1$s / %2$s",
   "effect.more_balls.molten_burn": "Molten Burn",
+  "effect.more_balls.shock": "Shock",
   "message.more_balls.transit_full": "Transit is full - the swapped ammo went to your inventory",
   "death.attack.moltenBurn": "%1$s melted",
   "death.attack.moltenBurn.player": "%1$s was melted by %2$s",

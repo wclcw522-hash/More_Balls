@@ -51,6 +51,7 @@
   "enchantment.more_balls.aerodynamic_ball": "空气动力球",
   "hud.more_balls.charge": "蓄力 %1$s / %2$s",
   "effect.more_balls.molten_burn": "熔融物烧伤",
+  "effect.more_balls.shock": "震荡",
   "message.more_balls.transit_full": "当前中转区已满，本次替换弹药进入背包",
   "death.attack.moltenBurn": "%1$s 融化了",
   "death.attack.moltenBurn.player": "%1$s 被 %2$s 融化了",

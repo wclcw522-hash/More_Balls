@@ -1981,22 +1981,20 @@ public class BallProjectile extends ThrowableItemProjectile {
      * </ul>
      */
     private void breakerHit(ServerLevel level, BlockHitResult hit) {
-        // ===== 破坏目标是「运动路径上的**下一格**」，不是当前命中格 =====
+        // ===== 破坏目标是「运动路径上的**下一块方块**」，既不是当前命中格、也不是固定往前一格 =====
         //
-        // ⚠️ 作者 2026-10-10 指定。球自己的碰撞箱本来就贴在当前格上 ——
-        //    砸它等于原地打转；要砸的是**它即将进入的那一格**，这样才真的往前开路。
-        BlockPos pos = aimAheadOfMotion();
+        // ⚠️ 作者 2026-10-10 指定并**更正过措辞**：「破坏路径上的下一块方块，
+        //    不是破坏路径上的下面一块方块」。所以这里是**沿运动方向往前扫，
+        //    找第一块真正挡路的方块** —— 球飞得快时正前方那一格往往还是空气，
+        //    固定往前一格会扑空。具体见 aimAheadOfMotion。
+        // 路径上扫不到方块（整段都是空气）就什么都不砸
+        BlockPos pos = aimAheadOfMotion(level);
         if (pos == null) {
             return;
         }
         BlockState state = level.getBlockState(pos);
         if (state.isAir()) {
-            // 前方是空气（比如斜着贴墙飞）—— 退回命中格，免得白扣一次额度
-            pos = hit.getBlockPos();
-            state = level.getBlockState(pos);
-            if (state.isAir()) {
-                return;
-            }
+            return;
         }
         // 硬度 < 0 = 原版定义的「不可破坏」（基岩等），球不该越过这条线
         if (state.getDestroySpeed(level, pos) < 0.0F) {
@@ -2027,21 +2025,37 @@ public class BallProjectile extends ThrowableItemProjectile {
         }
     }
 
-    /** 沿当前运动方向往前看的距离（格）—— 取 1 格就是「下一格」 */
-    private static final double BREAKER_LOOKAHEAD = 1.0D;
+    /** 沿运动方向最多往前扫多少格找「路径上的下一块方块」 */
+    private static final double BREAKER_SCAN_MAX = 4.0D;
+
+    /** 扫描步长（格）—— 0.25 足够细，不会跨过一格 */
+    private static final double BREAKER_SCAN_STEP = 0.25D;
 
     /**
-     * 取「运动路径上下一格」的方块坐标。
+     * 找<b>运动路径上的下一块方块</b>。
      *
-     * <p>速度几乎为零（已经飞不动了）时返回 {@code null} —— 没有「下一格」可言。</p>
+     * <p>⚠️ 作者 2026-10-10 更正过措辞：「破坏<b>路径上的下一块方块</b>，
+     * 不是<b>路径上的下面一块</b>方块」。也就是 —— 沿运动员方向往前<b>扫</b>，
+     * 找**第一块真正挡路的方块**，而不是「固定往前一格」。</p>
+     *
+     * <p>为什么不能固定往前一格：球飞得快时，正前方那一格往往还是空气 ——
+     * 固定一格会扑空，然后退回命中格，等于又变成「砸自己贴着的那一格」。</p>
+     *
+     * @return 路径上第一块非空气方块的坐标；速度几乎为零、或整段都是空气时返回 {@code null}
      */
-    private BlockPos aimAheadOfMotion() {
+    private BlockPos aimAheadOfMotion(ServerLevel level) {
         Vec3 velocity = this.getDeltaMovement();
         if (velocity.lengthSqr() < 1.0E-6D) {
             return null;
         }
-        Vec3 ahead = this.position().add(velocity.normalize().scale(BREAKER_LOOKAHEAD));
-        return BlockPos.containing(ahead);
+        Vec3 dir = velocity.normalize();
+        for (double d = BREAKER_SCAN_STEP; d <= BREAKER_SCAN_MAX; d += BREAKER_SCAN_STEP) {
+            BlockPos pos = BlockPos.containing(this.position().add(dir.scale(d)));
+            if (!level.getBlockState(pos).isAir()) {
+                return pos;
+            }
+        }
+        return null;
     }
 
     /**
