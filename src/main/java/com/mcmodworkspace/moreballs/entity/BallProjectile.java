@@ -65,6 +65,7 @@ import net.minecraft.world.item.ItemStackTemplate;
 import net.minecraft.world.item.Items;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.Block;
+import net.minecraft.tags.BlockTags;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.phys.BlockHitResult;
 import net.minecraft.world.phys.EntityHitResult;
@@ -1980,13 +1981,30 @@ public class BallProjectile extends ThrowableItemProjectile {
      * </ul>
      */
     private void breakerHit(ServerLevel level, BlockHitResult hit) {
-        BlockPos pos = hit.getBlockPos();
+        // ===== 破坏目标是「运动路径上的**下一格**」，不是当前命中格 =====
+        //
+        // ⚠️ 作者 2026-10-10 指定。球自己的碰撞箱本来就贴在当前格上 ——
+        //    砸它等于原地打转；要砸的是**它即将进入的那一格**，这样才真的往前开路。
+        BlockPos pos = aimAheadOfMotion();
+        if (pos == null) {
+            return;
+        }
         BlockState state = level.getBlockState(pos);
         if (state.isAir()) {
-            return;
+            // 前方是空气（比如斜着贴墙飞）—— 退回命中格，免得白扣一次额度
+            pos = hit.getBlockPos();
+            state = level.getBlockState(pos);
+            if (state.isAir()) {
+                return;
+            }
         }
         // 硬度 < 0 = 原版定义的「不可破坏」（基岩等），球不该越过这条线
         if (state.getDestroySpeed(level, pos) < 0.0F) {
+            return;
+        }
+        // 【破坏王】的挖掘能力**等同钻石工具**（镐 / 斧 / 锹，作者 2026-10-10 指定）：
+        // 只有「三种钻石工具之一能挖」且「不要求下界合金等级」的方块才砸得动。
+        if (!canBreakLikeDiamond(state)) {
             return;
         }
         if (!level.destroyBlock(pos, true)) {
@@ -2007,6 +2025,47 @@ public class BallProjectile extends ThrowableItemProjectile {
         if (scaled.lengthSqr() < SETTLE_SPEED_SQR) {
             this.breakerUsed = BallBehavior.BREAKER_BUDGET;
         }
+    }
+
+    /** 沿当前运动方向往前看的距离（格）—— 取 1 格就是「下一格」 */
+    private static final double BREAKER_LOOKAHEAD = 1.0D;
+
+    /**
+     * 取「运动路径上下一格」的方块坐标。
+     *
+     * <p>速度几乎为零（已经飞不动了）时返回 {@code null} —— 没有「下一格」可言。</p>
+     */
+    private BlockPos aimAheadOfMotion() {
+        Vec3 velocity = this.getDeltaMovement();
+        if (velocity.lengthSqr() < 1.0E-6D) {
+            return null;
+        }
+        Vec3 ahead = this.position().add(velocity.normalize().scale(BREAKER_LOOKAHEAD));
+        return BlockPos.containing(ahead);
+    }
+
+    /**
+     * 【破坏王】的挖掘能力判定 —— <b>等同钻石工具（镐 / 斧 / 锹）</b>（作者 2026-10-10 指定）。
+     *
+     * <p>判据全走原版标签，不硬编码方块：</p>
+     * <ul>
+     *   <li>{@code MINEABLE_WITH_*} —— 三种钻石工具之一挖得动的那种方块</li>
+     *   <li>{@code INCORRECT_FOR_DIAMOND_TOOL} —— 原版定义的「钻石工具挖不动」，挖不了的就不砸</li>
+     * </ul>
+     *
+     * <p>⚠️ 26.2 里**没有** {@code NEEDS_NETHERITE_TOOL} 这个常量（只有 NEEDS_STONE / IRON /
+     * DIAMOND + 一组 INCORRECT_FOR_*）。要表达「钻石级的挖掘能力」就用
+     * {@code INCORRECT_FOR_DIAMOND_TOOL} 取反 —— 这正是原版自己判定工具够不够格的方式。</p>
+     */
+    private static boolean canBreakLikeDiamond(BlockState state) {
+        boolean rightTool = state.is(BlockTags.MINEABLE_WITH_PICKAXE)
+                || state.is(BlockTags.MINEABLE_WITH_AXE)
+                || state.is(BlockTags.MINEABLE_WITH_SHOVEL);
+        if (!rightTool) {
+            return false;
+        }
+        // 「钻石工具挖不动」的方块（黑曜石、远古残骸那类）砸不动；其余都可以
+        return !state.is(BlockTags.INCORRECT_FOR_DIAMOND_TOOL);
     }
 
     private void consumeDurability(String cause) {

@@ -90,6 +90,8 @@
   "ball.more_balls.short.hollow_iron": "Hollow Iron",
   "ball.more_balls.short.amethyst": "Amethyst",
   "ball.more_balls.short.copper": "Copper",
+  "ball.more_balls.short.redstone": "Redstone",
+  "ball.more_balls.short.diamond": "Diamond",
   
   "ball.more_balls.short.hollow_copper": "Hollow Copper",
   "tooltip.more_balls.fragment": "A part: cannot be thrown, nor used as crossbow ammo",
@@ -98,7 +100,7 @@
   "item.more_balls.redstone_ball": "Redstone Ball",
   "item.more_balls.redstone_snowball": "Redstone Snowball",
   "item.more_balls.diamond_ball": "Diamond Ball",
-  "tooltip.more_balls.entry.breaker": "[Demolisher] Smash Everything!",
+  "tooltip.more_balls.entry.breaker": "[Demolisher %1$s] Smash Everything!",
   "tooltip.more_balls.desc.breaker": "Shatters every block in its path - each one slows it down and chips its durability. Under clear daylight it also bakes the ground below until it catches fire",
   "tooltip.more_balls.entry.penetration": "【穿透%1$s】" ,
   "tooltip.more_balls.entry.penetration": "【穿透%1$s】",

@@ -90,6 +90,8 @@
   "ball.more_balls.short.hollow_iron": "空心铁",
   "ball.more_balls.short.amethyst": "紫水晶",
   "ball.more_balls.short.copper": "铜",
+  "ball.more_balls.short.redstone": "红石",
+  "ball.more_balls.short.diamond": "钻石",
   
   "ball.more_balls.short.hollow_copper": "空心铜",
   "tooltip.more_balls.fragment": "半成品：不能投掷，也不能当作弩弹药",
@@ -98,7 +100,7 @@
   "item.more_balls.redstone_ball": "红石球",
   "item.more_balls.redstone_snowball": "红石雪球",
   "item.more_balls.diamond_ball": "钻石球",
-  "tooltip.more_balls.entry.breaker": "【破坏王】砸碎一切！",
+  "tooltip.more_balls.entry.breaker": "【破坏王%1$s】砸碎一切！",
   "tooltip.more_balls.desc.breaker": "撞碎一切挡路的方块——每碎一块就慢一分、钝一分。白天晴天时还会把正下方的地面烤到着火",
   "tooltip.more_balls.entry.penetration": "【穿透%1$s】" ,
   "tooltip.more_balls.entry.penetration": "【穿透%1$s】",

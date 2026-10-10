@@ -175,17 +175,19 @@ public final class BallFragments {
                            double magnet, double transmute,
                            boolean morph, boolean magnetic, boolean glint,
                            int wisdom, boolean kindness, boolean conduction,
-                           boolean thunder, boolean shock) {
+                           boolean thunder, boolean shock,
+                           int penetration, int flags) {
 
         public static final Fragment EMPTY =
-                new Fragment(0, 0, 0, 0, 0, 0, false, false, false, 0, false, false, false, false);
+                new Fragment(0, 0, 0, 0, 0, 0, false, false, false, 0, false, false, false, false, 0, 0);
 
         /** 按分数缩放一份词条（半球 0.5、四分之一 0.25） */
         public Fragment scaled(double factor) {
             return new Fragment(toughness * factor, sense * factor, melt * factor,
                     molten * factor, magnet * factor, transmute * factor,
                     morph, magnetic, glint,
-                    wisdom, kindness, conduction, thunder, shock);
+                    wisdom, kindness, conduction, thunder, shock,
+                    penetration, flags);
         }
 
         /** 叠加 —— 数值相加，特质取「出现过」 */
@@ -196,7 +198,11 @@ public final class BallFragments {
                     morph || other.morph, magnetic || other.magnetic, glint || other.glint,
                     wisdom + other.wisdom, kindness || other.kindness,
                     conduction || other.conduction, thunder || other.thunder,
-                    shock || other.shock);
+                    shock || other.shock,
+                    // 【穿透x】是数值型，和【智慧】一样相加（够份数/取整由 combine* 决定）
+                    penetration + other.penetration,
+                    // 位掩码型词条（【脉冲】【照明】【破坏王】【透镜】）取并集
+                    flags | other.flags);
         }
     }
 
@@ -248,7 +254,10 @@ public final class BallFragments {
                 p.kindness(),
                 p.conduction(),
                 p.hasThunder(),
-                p.shockDamage());
+                p.shockDamage(),
+                // 新增：穿透数值 + 位掩码型词条
+                p.penetration(),
+                p.flags());
     }
 
     // ===== 合成球 =====
@@ -286,6 +295,19 @@ public final class BallFragments {
         int conductions = (a.conduction() ? 1 : 0) + (b.conduction() ? 1 : 0) + (c.conduction() ? 1 : 0) + (d.conduction() ? 1 : 0);
         int thunders = (a.thunder() ? 1 : 0) + (b.thunder() ? 1 : 0) + (c.thunder() ? 1 : 0) + (d.thunder() ? 1 : 0);
         int shocks = (a.shock() ? 1 : 0) + (b.shock() ? 1 : 0) + (c.shock() ? 1 : 0) + (d.shock() ? 1 : 0);
+        int penetrations = (a.penetration() > 0 ? 1 : 0) + (b.penetration() > 0 ? 1 : 0)
+                + (c.penetration() > 0 ? 1 : 0) + (d.penetration() > 0 ? 1 : 0);
+        // 位掩码型词条：【脉冲】【照明】【破坏王】【透镜】
+        // 四合一同样要「≥2 份」才保留 —— 逐位统计份数，各自判一次
+        int flagMask = 0;
+        for (int bit = 0; bit < 32; bit++) {
+            int unit = 1 << bit;
+            int count = ((a.flags() & unit) != 0 ? 1 : 0) + ((b.flags() & unit) != 0 ? 1 : 0)
+                    + ((c.flags() & unit) != 0 ? 1 : 0) + ((d.flags() & unit) != 0 ? 1 : 0);
+            if (count >= QUAD_TRAIT_THRESHOLD) {
+                flagMask |= unit;
+            }
+        }
         return new Fragment(
                 Math.floor(sum.toughness()), Math.floor(sum.sense()),
                 Math.floor(sum.melt()), Math.floor(sum.molten()),
@@ -298,7 +320,11 @@ public final class BallFragments {
                 kindnesses >= QUAD_TRAIT_THRESHOLD,
                 conductions >= QUAD_TRAIT_THRESHOLD,
                 thunders >= QUAD_TRAIT_THRESHOLD,
-                shocks >= QUAD_TRAIT_THRESHOLD);
+                shocks >= QUAD_TRAIT_THRESHOLD,
+                // 【穿透x】数值型：够份数才保留，保留时给四份之和
+                (penetrations >= QUAD_TRAIT_THRESHOLD)
+                        ? (int) Math.round(sum.penetration()) : 0,
+                flagMask);
     }
 
     /** 四合一时，「同种特质」要出现这么多份才算留住（作者指定：两个及以上） */
@@ -434,6 +460,14 @@ public final class BallFragments {
                 //    就失效，也不该通过组合球重新获得。所以这里显式写回 false，
                 //    而不是沿用 merged.glint()。
                 .withGlint(false);
+        // ===== 位掩码型与数值型的新词条同样要落回输出 =====
+        //
+        // ⚠️ 作者 2026-10-10 报「应该因为叠加而生效的词条没有生效」——
+        //    和上面 wisdom / kindness 那一段是同一个坑：这些词条在各来源球上都是对的，
+        //    但组合时**没有任何一行把它们写回 profile**。以后加新词条必须回来补这里。
+        out = out
+                .withPenetration(merged.penetration())
+                .withFlags(merged.flags());
         return out;
     }
 
@@ -459,7 +493,8 @@ public final class BallFragments {
                 Math.floor(f.melt()), Math.floor(f.molten()),
                 Math.floor(f.magnet()), f.transmute(),   // 点金是概率，不能 floor（0.1 -> 0 会整个抹掉）
                 f.morph(), f.magnetic(), f.glint(),
-                f.wisdom(), f.kindness(), f.conduction(), f.thunder(), f.shock());
+                f.wisdom(), f.kindness(), f.conduction(), f.thunder(), f.shock(),
+                f.penetration(), f.flags());
     }
 
     // ===== 组件 ↔ 下标列表 =====

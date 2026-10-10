@@ -5,7 +5,81 @@
 > 26.3 线已冻结（那边 Curios 与 NeoForge 不兼容，饰品功能没法测）。
 > 26.3 线的历史见 `[26.3更多球]_More_Balls\CHANGELOG.md`。
 
-### 0.3.4.7
+### 0.3.4.8
+
+作者报了 6 个问题，逐个查修。
+
+### ① 碎片名 / 组合球名还是错的
+
+上一版我以为补了 `ball.more_balls.short.redstone` / `.diamond`，**但实际根本没写进 lang 文件**
+（那个替换脚本报了 ✓，锚点却没命中，静默失败了）。
+
+**修**：改用正则匹配 `short.copper` 那一行再插入，并**复查了文件内容确认落地**。
+
+### ② 组合球贴图错误
+
+组合球的球面是**按象限拼**出来的，每颗来源球需要 6 张图：
+
+```
+charge_piece_<下标>_1..4        四个象限（左上/右上/左下/右下）
+charge_piece_<下标>_half_top    
+charge_piece_<下标>_half_bottom 上下两个半圆
+```
+
+**而 8 / 9 号的 12 张根本不存在** —— 红石球和钻石球当组合球组件时自然画不出来。
+
+**修**：按已有 0~7 的规格生成（球占 16×16 里的 `x=2..7, y=2..7`，六块各取对应区域）。
+现在 **0–9 各 6 张、共 60 张**齐全。
+
+### ③ 该叠加生效的词条没生效
+
+`BallFragments.Fragment` 这个 record **只有 14 个字段** ——
+**根本没有** `penetration` 和 `flags`（【穿透】【脉冲】【照明】【破坏王】【透镜】）。
+
+也就是说：组合球**结构上就拿不到这些词条**，不管源代码球上有没有。
+
+**修**：
+
+- `Fragment` 加 `int penetration` + `int flags`
+- `plus` —— 穿透相加、位掩码取并集
+- `of(profile)` / `scaled` / `floor` —— 透传
+- `combineQuad` —— 四合一时穿透要 **≥2 份**才保留（给四份之和）；
+  位掩码**逐位**统计份数，各自判 ≥2
+- `comboProfile` —— **写回 `withPenetration` / `withFlags`**
+- 新增 `BallProfile.withFlags(int)`（整体覆盖）——
+  原来的 `withFlag` 是「或」，表达不了「按份数判定后的结果」
+
+> ⚠️ 这跟 `comboProfile` 里那段智慧/善良的老注释是**同一个坑**：
+> 「词条在各来源球上是对的，但组合时没有任何一行把它们写回 profile」。
+> `AGENTS.md` 已补上这条。
+
+### ④【破坏王10】的「10」不显示
+
+`tooltip.more_balls.entry.breaker` 在 lang 里写死成「【破坏王】砸碎一切！」，**没有 `%1$s` 占位**。
+
+**修**：改成「【破坏王%1$s】砸碎一切！」/「[Demolisher %1$s] Smash Everything!」。
+
+### ⑤【破坏王】的行为改动（作者 2026-10-10 指定）
+
+**破坏目标从「当前命中格」改成「运动路径上的下一格」**：
+
+球自己的碰撞箱本来就贴在当前格上，砸它等于原地打转；要砸的是**它即将进入的那一格**，
+这样才真的往前开路。取 `position + velocity.normalize() × 1.0` 所在的格；
+前方是空气时退回命中格，免得白扣一次额度。
+
+**挖掘能力等同钻石工具（镐 / 斧 / 锹）**：
+
+```java
+state.is(MINEABLE_WITH_PICKAXE) || state.is(MINEABLE_WITH_AXE) || state.is(MINEABLE_WITH_SHOVEL)
+    && !state.is(INCORRECT_FOR_DIAMOND_TOOL)
+```
+
+> 26.2 里**没有** `NEEDS_NETHERITE_TOOL` 常量（只有 NEEDS_STONE/IRON/DIAMOND
+> 加一组 INCORRECT_FOR_*）。「钻石级挖掘能力」要用 `INCORRECT_FOR_DIAMOND_TOOL` 取反 ——
+> 这正是原版自己判定工具够不够格的方式。黑曜石、远古残骸那类砸不动。
+
+---
+## 0.3.4.7
 
 ### 新球切出来的碎片名字全是「铜」
 

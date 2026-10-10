@@ -946,7 +946,16 @@ public final class BallBehavior {
         }
 
         /** 加一个词条开关（按位或） */
-        public BallProfile withFlag(int flag) {
+        /** 整体覆盖 flags —— 组合球合成时要「按份数判定后的结果」写回去，不能用 withFlag 的「或」 */
+    public BallProfile withFlags(int newFlags) {
+        return new BallProfile(damage, cooldownTicks, velocity, inaccuracy, weight, toughness,
+                bounce, chargeLevels, rarity, sound, drops, sense, meltThreshold, moltenThreshold,
+                magnetRadius, morphBlock, entityScale, transmuteChance, magnetic, wisdom,
+                kindness, conduction, thunderThreshold, shockDamage, glint, penetration,
+                newFlags);
+    }
+
+    public BallProfile withFlag(int flag) {
             return new BallProfile(damage, cooldownTicks, velocity, inaccuracy, weight, toughness,
                     bounce, chargeLevels, rarity, sound, drops, sense, meltThreshold, moltenThreshold, magnetRadius,
                     morphBlock, entityScale, transmuteChance, magnetic, wisdom, kindness, conduction,
