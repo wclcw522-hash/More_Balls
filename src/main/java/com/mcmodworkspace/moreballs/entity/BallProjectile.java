@@ -103,7 +103,14 @@ public class BallProjectile extends ThrowableItemProjectile {
     private static final double SETTLE_SPEED_SQR = 0.0009D;
 
     /** 【破坏王】每砸掉一个方块后保留的速度比例（作者指定：降到当前的 85%） */
-    private static final double BREAKER_SPEED_RETAIN = 0.85D;
+    /**
+     * 【破坏王】砸掉方块后保留的速度比例。
+     *
+     * <p>⚠️ 作者 2026-10-10 明确要求「让它飞行**不受干扰**的同时还能挖方块」——
+     *    所以这里是 <b>1.0（完全不减速）</b>。原来是 0.85，砸一块掉 15%，
+     *    连续开路时球会肉眼可见地一顿一顿，也正是「飞不动的感觉」的来源。</p>
+     */
+    private static final double BREAKER_SPEED_RETAIN = 1.0D;
 
     /**
      * 【破坏王】已经砸掉的方块数。
@@ -2020,6 +2027,9 @@ public class BallProjectile extends ThrowableItemProjectile {
 
         // 撞不动了 —— 收手，剩下的交给正常的静止流程。
         // 这里把额度一次性用光，等价于「从此不再破坏」。
+        //
+        // 现在 BREAKER_SPEED_RETAIN = 1.0（不减速），这一支只有在球**本来就已经慢到
+        // 快静止**时才会走到 —— 那时继续砸也没意义，顺手收手。
         if (scaled.lengthSqr() < SETTLE_SPEED_SQR) {
             this.breakerUsed = BallBehavior.BREAKER_BUDGET;
         }
@@ -2048,7 +2058,18 @@ public class BallProjectile extends ThrowableItemProjectile {
         if (velocity.lengthSqr() < 1.0E-6D) {
             return null;
         }
-        Vec3 dir = velocity.normalize();
+        // ⚠️ **必须用水平方向扫，不能直接用 normalize(velocity)** ——
+        //    球一被重力拽着开始下落，速度方向就朝下，于是整颗球只会「径直向下挖方块」
+        //    （作者 2026-10-10 报的实际现象）。取格只想沿**前进方向**开路，与掉不掉无关。
+        //    纯垂直运动（往上抛 / 自由落体）时才退回完整速度方向。
+        double horizSqr = velocity.x * velocity.x + velocity.z * velocity.z;
+        Vec3 dir;
+        if (horizSqr > 0.01D) {
+            double horiz = Math.sqrt(horizSqr);
+            dir = new Vec3(velocity.x / horiz, 0.0D, velocity.z / horiz);
+        } else {
+            dir = velocity.normalize();
+        }
         for (double d = BREAKER_SCAN_STEP; d <= BREAKER_SCAN_MAX; d += BREAKER_SCAN_STEP) {
             BlockPos pos = BlockPos.containing(this.position().add(dir.scale(d)));
             if (!level.getBlockState(pos).isAir()) {

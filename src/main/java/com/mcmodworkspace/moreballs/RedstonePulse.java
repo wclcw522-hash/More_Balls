@@ -41,10 +41,10 @@ public final class RedstonePulse {
     public static final double RADIUS = 7.0D;
 
     /** 【震荡】的持续时长：<b>3 秒</b> = 60 刻 */
-    private static final int DURATION_BASE = 60;
+    public static final int DURATION_BASE = 60;
 
     /** 【震荡 2】的持续时长：<b>5 秒</b> = 100 刻 */
-    private static final int DURATION_STRONG = 100;
+    public static final int DURATION_STRONG = 100;
 
     /** 合格门槛：护甲值**超过**这个数就吃震荡（作者指定 > 20） */
     public static final int ARMOR_TO_QUALIFY = 20;

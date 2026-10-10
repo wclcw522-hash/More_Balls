@@ -297,9 +297,19 @@ public final class BallAmmo {
             ball.setReturnToOwner(ModEnchantments.hasAerodynamicBall(level, weapon));
         }
 
-        // 穿透附魔与原版箭同源：等级从发射武器上取
+        // ===== 穿透等级 = 「球自带的【穿透x】」与「弩的穿透附魔」取较大者 =====
+        //
+        // ⚠️ 原来只读附魔，于是**钻石球自带的【穿透 3】完全没用** ——
+        //    弩一没附魔，PIERCE_LEVEL 就是 0，穿透分支根本不进（作者 2026-10-10 报的）。
+        //    球自带的穿透是**球自己的性质**，不该因为发射它的弩没附魔就消失；
+        //    反过来附魔更高时也照常叠加，与原版箭的「附魔决定穿透」不冲突。
+        int enchantPierce = 0;
         if (level instanceof ServerLevel serverLevel && weapon != null && !weapon.isEmpty()) {
-            ball.setPierceLevel((byte) EnchantmentHelper.getPiercingCount(serverLevel, weapon, ammo));
+            enchantPierce = EnchantmentHelper.getPiercingCount(serverLevel, weapon, ammo);
+        }
+        int pierce = Math.max(enchantPierce, profile.penetration());
+        if (pierce > 0) {
+            ball.setPierceLevel((byte) pierce);
         }
 
         return ball;

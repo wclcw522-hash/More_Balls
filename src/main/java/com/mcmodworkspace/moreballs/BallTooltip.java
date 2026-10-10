@@ -239,10 +239,16 @@ public final class BallTooltip {
                     line("tooltip.more_balls.desc.penetration", String.valueOf(profile.penetration()))));
         }
 
-        // 【脉冲】—— 红石球：命中时让周围金属目标晕头转向
+        // 【脉冲】—— 红石球：命中时让周围金属目标晕头转向。
+        //
+        // ⚠️ 效果名与时长**走原版药水格式**（作者 2026-10-10 指定）——
+        //    和【熔融x】一个做法：名字带效果颜色、时长自动按 tick 速率格式化成 mm:ss，
+        //    而不是在 lang 里写死「（00:03）」（那种写法时长一改就对不上）。
         if (profile.hasFlag(BallBehavior.BallProfile.FLAG_PULSE)) {
             out.add(Entry.of(line("tooltip.more_balls.entry.pulse"), Kind.TRAIT,
-                    line("tooltip.more_balls.desc.pulse")));
+                    Component.translatable("tooltip.more_balls.desc.pulse",
+                            effectWithDuration(ModEffects.SHOCK, RedstonePulse.DURATION_BASE),
+                            effectWithDuration(ModEffects.SHOCK, RedstonePulse.DURATION_STRONG))));
         }
 
         // 【照明】—— 红石雪球：下方四棱锥区域内的生物被染色发光
