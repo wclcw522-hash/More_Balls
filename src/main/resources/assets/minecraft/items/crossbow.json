@@ -1,189 +1,196 @@
 {
-    "model":  {
-                  "type":  "minecraft:select",
-                  "property":  "more_balls:charged_ball",
-                  "cases":  [
-                                {
-                                    "model":  {
-                                                  "type":  "minecraft:model",
-                                                  "model":  "more_balls:item/crossbow_ball_snowball"
-                                              },
-                                    "when":  "minecraft:snowball"
-                                },
-                                {
-                                    "model":  {
-                                                  "type":  "minecraft:model",
-                                                  "model":  "more_balls:item/crossbow_ball_ender_pearl"
-                                              },
-                                    "when":  "minecraft:ender_pearl"
-                                },
-                                {
-                                    "model":  {
-                                                  "type":  "minecraft:model",
-                                                  "model":  "more_balls:item/crossbow_ball_wooden_ball"
-                                              },
-                                    "when":  "more_balls:wooden_ball"
-                                },
-                                {
-                                    "model":  {
-                                                  "type":  "minecraft:model",
-                                                  "model":  "more_balls:item/crossbow_ball_cobblestone_ball"
-                                              },
-                                    "when":  "more_balls:cobblestone_ball"
-                                },
-                                {
-                                    "model":  {
-                                                  "type":  "minecraft:model",
-                                                  "model":  "more_balls:item/crossbow_ball_iron_ball"
-                                              },
-                                    "when":  "more_balls:iron_ball"
-                                },
-                                {
-                                    "model":  {
-                                                  "type":  "minecraft:model",
-                                                  "model":  "more_balls:item/crossbow_ball_hollow_iron_ball"
-                                              },
-                                    "when":  "more_balls:hollow_iron_ball"
-                                },
-                                {
-                                    "model":  {
-                                                  "type":  "minecraft:model",
-                                                  "model":  "more_balls:item/crossbow_ball_gold_ball"
-                                              },
-                                    "when":  "more_balls:gold_ball"
-                                },
-                                {
-                                    "model":  {
-                                                  "type":  "minecraft:model",
-                                                  "model":  "more_balls:item/crossbow_ball_snowball_question"
-                                              },
-                                    "when":  "more_balls:snowball_question"
-                                },
-                                {
-                                    "model":  {
-                                                  "type":  "minecraft:model",
-                                                  "model":  "more_balls:item/crossbow_ball_snowball_iron_nugget"
-                                              },
-                                    "when":  "more_balls:snowball_iron_nugget"
-                                },
-                                {
-                                    "model":  {
-                                                  "type":  "minecraft:model",
-                                                  "model":  "more_balls:item/crossbow_ball_snowball_gold_nugget"
-                                              },
-                                    "when":  "more_balls:snowball_gold_nugget"
-                                },
-                                {
-                                    "model":  {
-                                                  "type":  "minecraft:model",
-                                                  "model":  "more_balls:item/crossbow_ball_amethyst_ball"
-                                              },
-                                    "when":  "more_balls:amethyst_ball"
-                                },
-                                {
-                                    "model":  {
-                                                  "type":  "minecraft:model",
-                                                  "model":  "more_balls:item/crossbow_ball_copper_ball"
-                                              },
-                                    "when":  "more_balls:copper_ball"
-                                },
-                                {
-                                    "model":  {
-                                                  "type":  "minecraft:model",
-                                                  "model":  "more_balls:item/crossbow_ball_hollow_copper_ball"
-                                              },
-                                    "when":  "more_balls:hollow_copper_ball"
-                                },
-                                {
-                                    "model":  {
-                                                  "type":  "minecraft:model",
-                                                  "model":  "more_balls:item/crossbow_ball_snowball_copper_nugget"
-                                              },
-                                    "when":  "more_balls:snowball_copper_nugget"
-                                    },
-                                    {
-                                        "model":  {
-                                              "type":  "minecraft:model",
-                                              "model":  "more_balls:item/crossbow_ball_redstone_ball"
-                                        },
-                                    "when":  "more_balls:redstone_ball"
-                                 },
-                                 {
-                                     "model":  {
-                                               "type":  "minecraft:model",
-                                               "model":  "more_balls:item/crossbow_ball_redstone_snowball"
-                                     },
-                                     "when":  "more_balls:redstone_snowball"
-                                 },
-                                 {
-                                     "model":  {
-                                               "type":  "minecraft:model",
-                                               "model":  "more_balls:item/crossbow_ball_diamond_ball"
-                                     },
-                                     "when":  "more_balls:diamond_ball"
-                                },
-                                {
-                                    "when":  "more_balls:combo_ball",
-                                    "model":  {
-                                                  "type":  "minecraft:special",
-                                                  "base":  "minecraft:item/crossbow_pulling_2",
-                                                  "model":  {
-                                                                "type":  "more_balls:combo_charge_ball"
-                                                            }
-                                              }
-                                }
-                            ],
-                  "fallback":  {
-                                   "type":  "minecraft:select",
-                                   "cases":  [
-                                                 {
-                                                     "model":  {
-                                                                   "type":  "minecraft:model",
-                                                                   "model":  "minecraft:item/crossbow_arrow"
-                                                               },
-                                                     "when":  "arrow"
-                                                 },
-                                                 {
-                                                     "model":  {
-                                                                   "type":  "minecraft:model",
-                                                                   "model":  "minecraft:item/crossbow_firework"
-                                                               },
-                                                     "when":  "rocket"
-                                                 }
-                                             ],
-                                   "fallback":  {
-                                                    "type":  "minecraft:condition",
-                                                    "on_false":  {
-                                                                     "type":  "minecraft:model",
-                                                                     "model":  "minecraft:item/crossbow"
-                                                                 },
-                                                    "on_true":  {
-                                                                    "type":  "minecraft:range_dispatch",
-                                                                    "entries":  [
-                                                                                    {
-                                                                                        "model":  {
-                                                                                                      "type":  "minecraft:model",
-                                                                                                      "model":  "minecraft:item/crossbow_pulling_1"
-                                                                                                  },
-                                                                                        "threshold":  0.58
-                                                                                    },
-                                                                                    {
-                                                                                        "model":  {
-                                                                                                      "type":  "minecraft:model",
-                                                                                                      "model":  "minecraft:item/crossbow_pulling_2"
-                                                                                                  },
-                                                                                        "threshold":  1.0
-                                                                                    }
-                                                                                ],
-                                                                    "fallback":  {
-                                                                                     "type":  "minecraft:model",
-                                                                                     "model":  "minecraft:item/crossbow_pulling_0"
-                                                                                 },
-                                                                    "property":  "minecraft:crossbow/pull"
-                                                                },
-                                                    "property":  "minecraft:using_item"
-                                                },
-                                   "property":  "minecraft:charge_type"
-                               }
-              }
+    "model": {
+        "type": "minecraft:select",
+        "property": "more_balls:charged_ball",
+        "cases": [
+            {
+                "model": {
+                    "type": "minecraft:model",
+                    "model": "more_balls:item/crossbow_ball_snowball"
+                },
+                "when": "minecraft:snowball"
+            },
+            {
+                "model": {
+                    "type": "minecraft:model",
+                    "model": "more_balls:item/crossbow_ball_ender_pearl"
+                },
+                "when": "minecraft:ender_pearl"
+            },
+            {
+                "model": {
+                    "type": "minecraft:model",
+                    "model": "more_balls:item/crossbow_ball_wooden_ball"
+                },
+                "when": "more_balls:wooden_ball"
+            },
+            {
+                "model": {
+                    "type": "minecraft:model",
+                    "model": "more_balls:item/crossbow_ball_cobblestone_ball"
+                },
+                "when": "more_balls:cobblestone_ball"
+            },
+            {
+                "model": {
+                    "type": "minecraft:model",
+                    "model": "more_balls:item/crossbow_ball_iron_ball"
+                },
+                "when": "more_balls:iron_ball"
+            },
+            {
+                "model": {
+                    "type": "minecraft:model",
+                    "model": "more_balls:item/crossbow_ball_hollow_iron_ball"
+                },
+                "when": "more_balls:hollow_iron_ball"
+            },
+            {
+                "model": {
+                    "type": "minecraft:model",
+                    "model": "more_balls:item/crossbow_ball_gold_ball"
+                },
+                "when": "more_balls:gold_ball"
+            },
+            {
+                "model": {
+                    "type": "minecraft:model",
+                    "model": "more_balls:item/crossbow_ball_snowball_question"
+                },
+                "when": "more_balls:snowball_question"
+            },
+            {
+                "model": {
+                    "type": "minecraft:model",
+                    "model": "more_balls:item/crossbow_ball_snowball_iron_nugget"
+                },
+                "when": "more_balls:snowball_iron_nugget"
+            },
+            {
+                "model": {
+                    "type": "minecraft:model",
+                    "model": "more_balls:item/crossbow_ball_snowball_gold_nugget"
+                },
+                "when": "more_balls:snowball_gold_nugget"
+            },
+            {
+                "model": {
+                    "type": "minecraft:model",
+                    "model": "more_balls:item/crossbow_ball_amethyst_ball"
+                },
+                "when": "more_balls:amethyst_ball"
+            },
+            {
+                "model": {
+                    "type": "minecraft:model",
+                    "model": "more_balls:item/crossbow_ball_copper_ball"
+                },
+                "when": "more_balls:copper_ball"
+            },
+            {
+                "model": {
+                    "type": "minecraft:model",
+                    "model": "more_balls:item/crossbow_ball_hollow_copper_ball"
+                },
+                "when": "more_balls:hollow_copper_ball"
+            },
+            {
+                "model": {
+                    "type": "minecraft:model",
+                    "model": "more_balls:item/crossbow_ball_snowball_copper_nugget"
+                },
+                "when": "more_balls:snowball_copper_nugget"
+            },
+            {
+                "model": {
+                    "type": "minecraft:model",
+                    "model": "more_balls:item/crossbow_ball_redstone_ball"
+                },
+                "when": "more_balls:redstone_ball"
+            },
+            {
+                "model": {
+                    "type": "minecraft:model",
+                    "model": "more_balls:item/crossbow_ball_redstone_snowball"
+                },
+                "when": "more_balls:redstone_snowball"
+            },
+            {
+                "model": {
+                    "type": "minecraft:model",
+                    "model": "more_balls:item/crossbow_ball_diamond_ball"
+                },
+                "when": "more_balls:diamond_ball"
+            },
+            {
+                "when": "more_balls:lapis_ball",
+                "model": {
+                    "type": "minecraft:model",
+                    "model": "more_balls:item/crossbow_ball_lapis_ball"
+                }
+            },
+            {
+                "when": "more_balls:combo_ball",
+                "model": {
+                    "type": "minecraft:special",
+                    "base": "minecraft:item/crossbow_pulling_2",
+                    "model": {
+                        "type": "more_balls:combo_charge_ball"
+                    }
+                }
+            }
+        ],
+        "fallback": {
+            "type": "minecraft:select",
+            "cases": [
+                {
+                    "model": {
+                        "type": "minecraft:model",
+                        "model": "minecraft:item/crossbow_arrow"
+                    },
+                    "when": "arrow"
+                },
+                {
+                    "model": {
+                        "type": "minecraft:model",
+                        "model": "minecraft:item/crossbow_firework"
+                    },
+                    "when": "rocket"
+                }
+            ],
+            "fallback": {
+                "type": "minecraft:condition",
+                "on_false": {
+                    "type": "minecraft:model",
+                    "model": "minecraft:item/crossbow"
+                },
+                "on_true": {
+                    "type": "minecraft:range_dispatch",
+                    "entries": [
+                        {
+                            "model": {
+                                "type": "minecraft:model",
+                                "model": "minecraft:item/crossbow_pulling_1"
+                            },
+                            "threshold": 0.58
+                        },
+                        {
+                            "model": {
+                                "type": "minecraft:model",
+                                "model": "minecraft:item/crossbow_pulling_2"
+                            },
+                            "threshold": 1.0
+                        }
+                    ],
+                    "fallback": {
+                        "type": "minecraft:model",
+                        "model": "minecraft:item/crossbow_pulling_0"
+                    },
+                    "property": "minecraft:crossbow/pull"
+                },
+                "property": "minecraft:using_item"
+            },
+            "property": "minecraft:charge_type"
+        }
+    }
 }
