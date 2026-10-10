@@ -1,5 +1,7 @@
 package com.mcmodworkspace.moreballs;
 
+import net.minecraft.core.particles.ColorParticleOption;
+import net.minecraft.core.particles.ParticleTypes;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.effect.MobEffect;
 import net.minecraft.world.effect.MobEffectCategory;
@@ -64,9 +66,25 @@ public class ImmortalEffect extends MobEffect {
     /** 血量下限（作者指定：最小为 1） */
     private static final float MIN_HEALTH = 1.0F;
 
+    /**
+     * 效果色 / 粒子色：<b>金黄色</b>（作者指定粒子要为金黄色）。
+     *
+     * <p>这个值同时决定两件事：HUD 上那个效果图标外框的染色，以及效果的粒子颜色。</p>
+     */
+    public static final int COLOR = 0xFFD700;
+
     public ImmortalEffect() {
-        // BENEFICIAL = 蓝框（正面），颜色取不死图腾那种金
-        super(MobEffectCategory.BENEFICIAL, 0xF2D24B);
+        // ⚠️ 这里用**三参构造**显式指定粒子，而不是让它走默认那套。
+        //
+        // 默认（两参）的实现是：
+        //     particleFactory = inst -> ColorParticleOption.create(
+        //             ParticleTypes.ENTITY_EFFECT, ARGB.color(inst.isAmbient() ? AMBIENT_ALPHA : 255, color));
+        // 颜色确实取自效果色，但 **alpha 会随 isAmbient 变**（环境效果用 AMBIENT_ALPHA，
+        // 比 FF 小），画面上的金黄会发灰。这里固定成 FF，保证是实打实的金黄。
+        //
+        // 顺带一提：BENEFICIAL 只影响 HUD 上外框的红/蓝，与粒子无关。
+        super(MobEffectCategory.BENEFICIAL, COLOR,
+                ColorParticleOption.create(ParticleTypes.ENTITY_EFFECT, 0xFF000000 | COLOR));
     }
 
     /**
