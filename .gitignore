@@ -60,7 +60,9 @@ CLAUDE.md
 
 # ---------- 封面制作的中间产物 ----------
 # 这里放的是原版贴图的副本（从 merged jar 解出来的）以及作者提供的实机截图，
-# 只供 tools/build-cover.py 生成封面时读取。
+# 只供封面生成脚本读取。
 # 真正要发布的是 photos/cover.png 与生成脚本本身，这一坨不进仓库。
 _cover-src/
 photos/_cover_with_title.png
+# 封面生成脚本本身也不上传（作者 2026-10-10：只传图片）
+tools/build-cover.py
