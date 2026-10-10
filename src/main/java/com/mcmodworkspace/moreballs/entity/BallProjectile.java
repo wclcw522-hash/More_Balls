@@ -7,6 +7,7 @@ import net.minecraft.world.phys.AABB;
 import net.minecraft.world.entity.monster.Enemy;
 import com.mcmodworkspace.moreballs.BallBehavior;
 import com.mcmodworkspace.moreballs.BallIlluminate;
+import com.mcmodworkspace.moreballs.BallMagic;
 import com.mcmodworkspace.moreballs.DiamondBallDrops;
 import com.mcmodworkspace.moreballs.BallLens;
 import com.mcmodworkspace.moreballs.RedstonePulse;
@@ -1694,6 +1695,19 @@ public class BallProjectile extends ThrowableItemProjectile {
                         BallBehavior.MOLTEN_BURN_TICKS);
             }
 
+            // 【魔法】（青金石球）—— 命中目标时随机施加一个负面效果。
+            //
+            // 作者 2026-10-10 规格：时长 1–20 秒随机、等级 1–5 级随机，
+            // 池子取「所有非瞬时的负面效果」，详见 BallMagic。
+            //
+            // 放在这个 if 块里（而不是 onHit）是因为这里才有**目标实体** ——
+            // onHit 的 EntityHitResult 分支虽然也能拿到，但那条路径在
+            // 穿透 / 反弹的早退分支后面，会漏掉一部分命中。
+            if (this.profile().hasFlag(BallBehavior.BallProfile.FLAG_MAGIC)
+                    && entity instanceof LivingEntity magicTarget) {
+                BallMagic.applyToVictim(serverLevel, magicTarget);
+            }
+
             // 【金光闪闪】：金球砸猪灵不结仇。
             // 顺便给这只猪灵留个记号 —— 它之后捡起这颗球时，交易是不是「特殊交易」
             // 就看这个记号（被球打过就只能拿普通回礼）。
@@ -2904,6 +2918,18 @@ public class BallProjectile extends ThrowableItemProjectile {
      * 回到主人身边：先结算那一下伤害，再把球放进发射者的背包。
      */
     private void deliverToOwner(ServerLevel level, LivingEntity owner) {
+        // 【魔法】（青金石球）—— <b>回收成功</b>时对主人施加随机正面效果；
+        // 另有 0.1% 概率改判成大奖（60 秒【不灭】+ 不死图腾的音效与粒子）。
+        //
+        // 作者 2026-10-10 规格：正面效果的池子里**不含本模组的效果**
+        // （【不灭】是 0.1% 大奖的专属奖励，不该被随机抽到）。排除逻辑在 BallMagic 里。
+        //
+        // 放在方法最开头 —— 这里是「球已经飞回主人身上」的那一刻，
+        // 也就是作者说的「回收成功」。
+        if (this.profile().hasFlag(BallBehavior.BallProfile.FLAG_MAGIC)) {
+            BallMagic.applyToOwner(level, owner);
+        }
+
         // 作者指定：回归时对主人造成 1 滴血的物理伤害；
         // 本来就没伤害的球（伤害为 0）不造成
         if (this.getDamage() > 0.0F) {

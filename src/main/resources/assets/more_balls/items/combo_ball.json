@@ -2,78 +2,358 @@
   "model": {
     "type": "minecraft:composite",
     "models": [
-    {
-      "type": "minecraft:select",
-      "property": "minecraft:component",
-      "component": "more_balls:combo_slot_1",
-      "cases": [
-        { "when": 0, "model": { "type": "minecraft:model", "model": "more_balls:item/combo_piece_0_1" } },
-        { "when": 1, "model": { "type": "minecraft:model", "model": "more_balls:item/combo_piece_1_1" } },
-        { "when": 2, "model": { "type": "minecraft:model", "model": "more_balls:item/combo_piece_2_1" } },
-        { "when": 3, "model": { "type": "minecraft:model", "model": "more_balls:item/combo_piece_3_1" } },
-        { "when": 4, "model": { "type": "minecraft:model", "model": "more_balls:item/combo_piece_4_1" } },
-        { "when": 5, "model": { "type": "minecraft:model", "model": "more_balls:item/combo_piece_5_1" } },
-        { "when": 6, "model": { "type": "minecraft:model", "model": "more_balls:item/combo_piece_6_1" } },
-        { "when": 7, "model": { "type": "minecraft:model", "model": "more_balls:item/combo_piece_7_1" } },
-          { "when": 8, "model": { "type": "minecraft:model", "model": "more_balls:item/combo_piece_8_1" } },
-          { "when": 9, "model": { "type": "minecraft:model", "model": "more_balls:item/combo_piece_9_1" } }
-      ],
-      "fallback": { "type": "minecraft:model", "model": "more_balls:item/combo_piece_0_1" }
-    },
-    {
-      "type": "minecraft:select",
-      "property": "minecraft:component",
-      "component": "more_balls:combo_slot_2",
-      "cases": [
-        { "when": 0, "model": { "type": "minecraft:model", "model": "more_balls:item/combo_piece_0_2" } },
-        { "when": 1, "model": { "type": "minecraft:model", "model": "more_balls:item/combo_piece_1_2" } },
-        { "when": 2, "model": { "type": "minecraft:model", "model": "more_balls:item/combo_piece_2_2" } },
-        { "when": 3, "model": { "type": "minecraft:model", "model": "more_balls:item/combo_piece_3_2" } },
-        { "when": 4, "model": { "type": "minecraft:model", "model": "more_balls:item/combo_piece_4_2" } },
-        { "when": 5, "model": { "type": "minecraft:model", "model": "more_balls:item/combo_piece_5_2" } },
-        { "when": 6, "model": { "type": "minecraft:model", "model": "more_balls:item/combo_piece_6_2" } },
-        { "when": 7, "model": { "type": "minecraft:model", "model": "more_balls:item/combo_piece_7_2" } },
-          { "when": 8, "model": { "type": "minecraft:model", "model": "more_balls:item/combo_piece_8_2" } },
-          { "when": 9, "model": { "type": "minecraft:model", "model": "more_balls:item/combo_piece_9_2" } }
-      ],
-      "fallback": { "type": "minecraft:model", "model": "more_balls:item/combo_piece_0_2" }
-    },
-    {
-      "type": "minecraft:select",
-      "property": "minecraft:component",
-      "component": "more_balls:combo_slot_3",
-      "cases": [
-        { "when": 0, "model": { "type": "minecraft:model", "model": "more_balls:item/combo_piece_0_3" } },
-        { "when": 1, "model": { "type": "minecraft:model", "model": "more_balls:item/combo_piece_1_3" } },
-        { "when": 2, "model": { "type": "minecraft:model", "model": "more_balls:item/combo_piece_2_3" } },
-        { "when": 3, "model": { "type": "minecraft:model", "model": "more_balls:item/combo_piece_3_3" } },
-        { "when": 4, "model": { "type": "minecraft:model", "model": "more_balls:item/combo_piece_4_3" } },
-        { "when": 5, "model": { "type": "minecraft:model", "model": "more_balls:item/combo_piece_5_3" } },
-        { "when": 6, "model": { "type": "minecraft:model", "model": "more_balls:item/combo_piece_6_3" } },
-        { "when": 7, "model": { "type": "minecraft:model", "model": "more_balls:item/combo_piece_7_3" } },
-          { "when": 8, "model": { "type": "minecraft:model", "model": "more_balls:item/combo_piece_8_3" } },
-          { "when": 9, "model": { "type": "minecraft:model", "model": "more_balls:item/combo_piece_9_3" } }
-      ],
-      "fallback": { "type": "minecraft:model", "model": "more_balls:item/combo_piece_0_3" }
-    },
-    {
-      "type": "minecraft:select",
-      "property": "minecraft:component",
-      "component": "more_balls:combo_slot_4",
-      "cases": [
-        { "when": 0, "model": { "type": "minecraft:model", "model": "more_balls:item/combo_piece_0_4" } },
-        { "when": 1, "model": { "type": "minecraft:model", "model": "more_balls:item/combo_piece_1_4" } },
-        { "when": 2, "model": { "type": "minecraft:model", "model": "more_balls:item/combo_piece_2_4" } },
-        { "when": 3, "model": { "type": "minecraft:model", "model": "more_balls:item/combo_piece_3_4" } },
-        { "when": 4, "model": { "type": "minecraft:model", "model": "more_balls:item/combo_piece_4_4" } },
-        { "when": 5, "model": { "type": "minecraft:model", "model": "more_balls:item/combo_piece_5_4" } },
-        { "when": 6, "model": { "type": "minecraft:model", "model": "more_balls:item/combo_piece_6_4" } },
-        { "when": 7, "model": { "type": "minecraft:model", "model": "more_balls:item/combo_piece_7_4" } },
-          { "when": 8, "model": { "type": "minecraft:model", "model": "more_balls:item/combo_piece_8_4" } },
-          { "when": 9, "model": { "type": "minecraft:model", "model": "more_balls:item/combo_piece_9_4" } }
-      ],
-      "fallback": { "type": "minecraft:model", "model": "more_balls:item/combo_piece_0_4" }
-    }
+      {
+        "type": "minecraft:select",
+        "property": "minecraft:component",
+        "component": "more_balls:combo_slot_1",
+        "cases": [
+          {
+            "when": 0,
+            "model": {
+              "type": "minecraft:model",
+              "model": "more_balls:item/combo_piece_0_1"
+            }
+          },
+          {
+            "when": 1,
+            "model": {
+              "type": "minecraft:model",
+              "model": "more_balls:item/combo_piece_1_1"
+            }
+          },
+          {
+            "when": 2,
+            "model": {
+              "type": "minecraft:model",
+              "model": "more_balls:item/combo_piece_2_1"
+            }
+          },
+          {
+            "when": 3,
+            "model": {
+              "type": "minecraft:model",
+              "model": "more_balls:item/combo_piece_3_1"
+            }
+          },
+          {
+            "when": 4,
+            "model": {
+              "type": "minecraft:model",
+              "model": "more_balls:item/combo_piece_4_1"
+            }
+          },
+          {
+            "when": 5,
+            "model": {
+              "type": "minecraft:model",
+              "model": "more_balls:item/combo_piece_5_1"
+            }
+          },
+          {
+            "when": 6,
+            "model": {
+              "type": "minecraft:model",
+              "model": "more_balls:item/combo_piece_6_1"
+            }
+          },
+          {
+            "when": 7,
+            "model": {
+              "type": "minecraft:model",
+              "model": "more_balls:item/combo_piece_7_1"
+            }
+          },
+          {
+            "when": 8,
+            "model": {
+              "type": "minecraft:model",
+              "model": "more_balls:item/combo_piece_8_1"
+            }
+          },
+          {
+            "when": 9,
+            "model": {
+              "type": "minecraft:model",
+              "model": "more_balls:item/combo_piece_9_1"
+            }
+          },
+          {
+            "when": 10,
+            "model": {
+              "type": "minecraft:model",
+              "model": "more_balls:item/combo_piece_10_1"
+            }
+          }
+        ],
+        "fallback": {
+          "type": "minecraft:model",
+          "model": "more_balls:item/combo_piece_0_1"
+        }
+      },
+      {
+        "type": "minecraft:select",
+        "property": "minecraft:component",
+        "component": "more_balls:combo_slot_2",
+        "cases": [
+          {
+            "when": 0,
+            "model": {
+              "type": "minecraft:model",
+              "model": "more_balls:item/combo_piece_0_2"
+            }
+          },
+          {
+            "when": 1,
+            "model": {
+              "type": "minecraft:model",
+              "model": "more_balls:item/combo_piece_1_2"
+            }
+          },
+          {
+            "when": 2,
+            "model": {
+              "type": "minecraft:model",
+              "model": "more_balls:item/combo_piece_2_2"
+            }
+          },
+          {
+            "when": 3,
+            "model": {
+              "type": "minecraft:model",
+              "model": "more_balls:item/combo_piece_3_2"
+            }
+          },
+          {
+            "when": 4,
+            "model": {
+              "type": "minecraft:model",
+              "model": "more_balls:item/combo_piece_4_2"
+            }
+          },
+          {
+            "when": 5,
+            "model": {
+              "type": "minecraft:model",
+              "model": "more_balls:item/combo_piece_5_2"
+            }
+          },
+          {
+            "when": 6,
+            "model": {
+              "type": "minecraft:model",
+              "model": "more_balls:item/combo_piece_6_2"
+            }
+          },
+          {
+            "when": 7,
+            "model": {
+              "type": "minecraft:model",
+              "model": "more_balls:item/combo_piece_7_2"
+            }
+          },
+          {
+            "when": 8,
+            "model": {
+              "type": "minecraft:model",
+              "model": "more_balls:item/combo_piece_8_2"
+            }
+          },
+          {
+            "when": 9,
+            "model": {
+              "type": "minecraft:model",
+              "model": "more_balls:item/combo_piece_9_2"
+            }
+          },
+          {
+            "when": 10,
+            "model": {
+              "type": "minecraft:model",
+              "model": "more_balls:item/combo_piece_10_2"
+            }
+          }
+        ],
+        "fallback": {
+          "type": "minecraft:model",
+          "model": "more_balls:item/combo_piece_0_2"
+        }
+      },
+      {
+        "type": "minecraft:select",
+        "property": "minecraft:component",
+        "component": "more_balls:combo_slot_3",
+        "cases": [
+          {
+            "when": 0,
+            "model": {
+              "type": "minecraft:model",
+              "model": "more_balls:item/combo_piece_0_3"
+            }
+          },
+          {
+            "when": 1,
+            "model": {
+              "type": "minecraft:model",
+              "model": "more_balls:item/combo_piece_1_3"
+            }
+          },
+          {
+            "when": 2,
+            "model": {
+              "type": "minecraft:model",
+              "model": "more_balls:item/combo_piece_2_3"
+            }
+          },
+          {
+            "when": 3,
+            "model": {
+              "type": "minecraft:model",
+              "model": "more_balls:item/combo_piece_3_3"
+            }
+          },
+          {
+            "when": 4,
+            "model": {
+              "type": "minecraft:model",
+              "model": "more_balls:item/combo_piece_4_3"
+            }
+          },
+          {
+            "when": 5,
+            "model": {
+              "type": "minecraft:model",
+              "model": "more_balls:item/combo_piece_5_3"
+            }
+          },
+          {
+            "when": 6,
+            "model": {
+              "type": "minecraft:model",
+              "model": "more_balls:item/combo_piece_6_3"
+            }
+          },
+          {
+            "when": 7,
+            "model": {
+              "type": "minecraft:model",
+              "model": "more_balls:item/combo_piece_7_3"
+            }
+          },
+          {
+            "when": 8,
+            "model": {
+              "type": "minecraft:model",
+              "model": "more_balls:item/combo_piece_8_3"
+            }
+          },
+          {
+            "when": 9,
+            "model": {
+              "type": "minecraft:model",
+              "model": "more_balls:item/combo_piece_9_3"
+            }
+          },
+          {
+            "when": 10,
+            "model": {
+              "type": "minecraft:model",
+              "model": "more_balls:item/combo_piece_10_3"
+            }
+          }
+        ],
+        "fallback": {
+          "type": "minecraft:model",
+          "model": "more_balls:item/combo_piece_0_3"
+        }
+      },
+      {
+        "type": "minecraft:select",
+        "property": "minecraft:component",
+        "component": "more_balls:combo_slot_4",
+        "cases": [
+          {
+            "when": 0,
+            "model": {
+              "type": "minecraft:model",
+              "model": "more_balls:item/combo_piece_0_4"
+            }
+          },
+          {
+            "when": 1,
+            "model": {
+              "type": "minecraft:model",
+              "model": "more_balls:item/combo_piece_1_4"
+            }
+          },
+          {
+            "when": 2,
+            "model": {
+              "type": "minecraft:model",
+              "model": "more_balls:item/combo_piece_2_4"
+            }
+          },
+          {
+            "when": 3,
+            "model": {
+              "type": "minecraft:model",
+              "model": "more_balls:item/combo_piece_3_4"
+            }
+          },
+          {
+            "when": 4,
+            "model": {
+              "type": "minecraft:model",
+              "model": "more_balls:item/combo_piece_4_4"
+            }
+          },
+          {
+            "when": 5,
+            "model": {
+              "type": "minecraft:model",
+              "model": "more_balls:item/combo_piece_5_4"
+            }
+          },
+          {
+            "when": 6,
+            "model": {
+              "type": "minecraft:model",
+              "model": "more_balls:item/combo_piece_6_4"
+            }
+          },
+          {
+            "when": 7,
+            "model": {
+              "type": "minecraft:model",
+              "model": "more_balls:item/combo_piece_7_4"
+            }
+          },
+          {
+            "when": 8,
+            "model": {
+              "type": "minecraft:model",
+              "model": "more_balls:item/combo_piece_8_4"
+            }
+          },
+          {
+            "when": 9,
+            "model": {
+              "type": "minecraft:model",
+              "model": "more_balls:item/combo_piece_9_4"
+            }
+          },
+          {
+            "when": 10,
+            "model": {
+              "type": "minecraft:model",
+              "model": "more_balls:item/combo_piece_10_4"
+            }
+          }
+        ],
+        "fallback": {
+          "type": "minecraft:model",
+          "model": "more_balls:item/combo_piece_0_4"
+        }
+      }
     ]
   }
 }

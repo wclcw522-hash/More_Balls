@@ -199,6 +199,21 @@ public final class ModItems {
             props -> new BallItem(props.stacksTo(BALL_STACK_SIZE)));
 
     /**
+     * 「青金石球」 —— 实心球，伤害 3、坚固 15、重量 6。
+     *
+     * <p><b>【魔法】</b>（作者 2026-10-10 指定）：命中目标时随机施加 1–20 秒、
+     * 1–5 级的负面效果；被回收成功时对主人随机施加同范围的正面效果
+     * （<b>不含本模组的【不灭】</b>）；另有 <b>0.1%</b> 概率抽中大奖，
+     * 给主人挂 60 秒【不灭】并播放不死图腾的音效与粒子。详见 {@link BallMagic}。</p>
+     *
+     * <p>配方为「64528 青金石块」（十字四臂 + 正中），一次出 4 个；
+     * 碰撞与破碎都走附魔台音效；破碎 60% 掉 3–5 个青金石。</p>
+     */
+    public static final DeferredItem<Item> LAPIS_BALL = ITEMS.registerItem(
+            "lapis_ball",
+            props -> new BallItem(props.stacksTo(BALL_STACK_SIZE)));
+
+    /**
      * 「红石雪球」 —— 不坚固、重量 3、<b>伤害 0</b>、蓄力 6。
      *
      * <p><b>【照明】</b>：飞行时在正下方张开一个四棱锥判定区，区域内的生物持续被染色发光 ——

@@ -37,6 +37,15 @@ public final class ModEffects {
     public static final DeferredHolder<MobEffect, ShockEffect> SHOCK =
             EFFECTS.register(ShockEffect.EFFECT_ID, ShockEffect::new);
 
+    /**
+     * 【不灭】—— 正面效果，持续期间免疫一切伤害（含虚空）且不会死亡，血量下限 1。
+     *
+     * <p>英文 id 作者指定为 {@code immortal}。青金石球的【魔法】词条抽中 0.1% 大奖时
+     * 给主人挂 60 秒；详见 {@link ImmortalEffect}。</p>
+     */
+    public static final DeferredHolder<MobEffect, ImmortalEffect> IMMORTAL =
+            EFFECTS.register(ImmortalEffect.EFFECT_ID, ImmortalEffect::new);
+
     public static void register(IEventBus bus) {
         EFFECTS.register(bus);
     }

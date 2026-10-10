@@ -271,6 +271,17 @@ public final class BallTooltip {
                     line("tooltip.more_balls.desc.lens")));
         }
 
+        // 【魔法】—— 青金石球：命中随机 debuff / 回收随机 buff / 0.1% 大奖
+        //
+        // 大奖的【不灭】走**原版药水格式**（和上面【脉冲】一个做法）——
+        // 名字带效果颜色、时长自动按 tick 速率格式化成 mm:ss，
+        // 而不是在 lang 里写死「（01:00）」（那样时长一改就对不上）。
+        if (profile.hasFlag(BallBehavior.BallProfile.FLAG_MAGIC)) {
+            out.add(Entry.of(line("tooltip.more_balls.entry.magic"), Kind.TRAIT,
+                    Component.translatable("tooltip.more_balls.desc.magic",
+                            effectWithDuration(ModEffects.IMMORTAL, ImmortalEffect.REWARD_TICKS))));
+        }
+
         // 【感应】—— 底层词条，不带数字即 1 级（【感应】与【感应1】是一回事）；
         // 说明只在 Shift 展开时出现
         if (profile.hasSense()) {

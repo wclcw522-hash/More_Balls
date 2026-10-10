@@ -1,0 +1,17 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "category": "misc",
+  "key": {
+    "#": "minecraft:lapis_block"
+  },
+  "pattern": [
+    " # ",
+    "###",
+    " # "
+  ],
+  "result": {
+    "count": 4,
+    "id": "more_balls:lapis_ball"
+  },
+  "show_notification": false
+}

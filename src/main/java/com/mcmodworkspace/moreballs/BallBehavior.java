@@ -431,6 +431,24 @@ public final class BallBehavior {
                 .withSoundType(SoundType.STONE)
                 .withDrops(List.of(new BallDrop(Items.REDSTONE, 5, 7, 0.50F))));
 
+        // ===== 青金石球（作者 2026-10-10 指定）=====
+        // 实心球：伤害 3、坚固 15、重量 6
+        // 【魔法】—— 命中随机给目标 debuff、回收随机给主人 buff、0.1% 大奖给 60 秒【不灭】
+        // 音效：碰撞与破碎都用附魔台的音效（作者指定「碰撞声音为附魔时的声音」）
+        // 破碎 60% 掉 3–5 个青金石
+        override(ModItems.LAPIS_BALL.get(), DEFAULT
+                .withDamage(3.0F)
+                .withWeight(6)
+                .withToughness(15)
+                .withBounce(0)
+                .withRarity(25)
+                .withFlag(BallProfile.FLAG_MAGIC)
+                .withSound(BallSound.of(
+                        SoundEvents.ENCHANTMENT_TABLE_USE,
+                        SoundEvents.ENCHANTMENT_TABLE_USE,
+                        1.0F))
+                .withDrops(List.of(new BallDrop(Items.LAPIS_LAZULI, 3, 5, 0.60F))));
+
         // ===== 红石雪球（作者 2026-10-10 指定）=====
         // 伤害 0、重量 3、蓄力 6；不坚固、无弹射
         // 【照明】飞行时在正下方张开四棱锥判定区，区内生物被按阵营染色的发光 —— 见 BallIlluminate
@@ -665,6 +683,9 @@ public final class BallBehavior {
         // bit2 曾用于【破坏王】—— 它已改成数值类特性词条（独立字段 breaker），该位废弃不再使用
         /** 【透镜】钻石球 —— 白天晴天时给下方范围内的方块与生物积热 */
         public static final int FLAG_LENS = 1 << 3;
+
+        /** 【魔法】—— 命中随机 debuff / 回收随机 buff / 0.1% 大奖（青金石球专属） */
+        public static final int FLAG_MAGIC = 1 << 4;
 
         /** 是否为坚固球（含永久坚固与限次坚固）；不坚固的球碰到就碎，也不会反弹 */
         public boolean isTough() {

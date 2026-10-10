@@ -115,7 +115,12 @@ public final class BallFragments {
                     // ⚠️ 3.0.0（0.3.4.0）追加的三颗，同样**必须排在后面**：
                     //    永远只在末尾追加，中间插入会让所有老存档的来源下标错位。
                     ModItems.REDSTONE_BALL.get(),
-                    ModItems.DIAMOND_BALL.get());
+                    ModItems.DIAMOND_BALL.get(),
+                    // ⚠️ 0.3.5.0 追加的青金石球，同样**只在末尾追加**。
+                    //    它的下标是 10 —— 三张 json 下标表（ball_half / ball_quarter /
+                    //    combo_ball）也必须同步补 when:10，否则碎片与组合球分片会
+                    //    落到 fallback（木球的贴图）。
+                    ModItems.LAPIS_BALL.get());
         }
         return sourcesCache;
     }
@@ -160,7 +165,7 @@ public final class BallFragments {
      */
     public static final List<String> SHORT_NAME =
             List.of("木", "圆石", "铁", "金", "空心铁", "紫水晶", "铜", "空心铜",
-                    "红石", "钻石");
+                    "红石", "钻石", "青金石");
 
     /**
      * 组合球<b>内部 id</b> 里用的短名，与 {@link #sources()} <b>同序、同长度</b>。
@@ -170,7 +175,7 @@ public final class BallFragments {
     public static final List<String> SHORT_ID =
             List.of("wooden", "cobblestone", "iron", "gold", "hollow_iron",
                     "amethyst", "copper", "hollow_copper",
-                    "redstone", "diamond");
+                    "redstone", "diamond", "lapis");
 
     /** 这颗球在 {@link #sources()} 里的下标；不属于其中就返回 -1（雪球会走到这里） */
     public static int indexOf(Item ball) {
