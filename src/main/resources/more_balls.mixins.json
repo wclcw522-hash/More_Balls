@@ -5,6 +5,9 @@
   "mixins": [
     "CrossbowItemMixin"
   ],
+  "client": [
+    "LocalPlayerMixin"
+  ],
   "injectors": {
     "defaultRequire": 1
   }

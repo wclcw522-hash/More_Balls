@@ -19,6 +19,8 @@ import net.minecraft.world.level.Level;
  *   <li><b>轻盈</b> {@code lightness} —— 弹药<b>重量减半向上取整</b>，最低 1（1 级）</li>
  *   <li><b>极速</b> {@code swiftness} —— 每级提升弹药<b>初速度</b>（5 级，累积 +70%）</li>
  *   <li><b>空气动力球</b> {@code aerodynamic_ball} —— 未破碎的弹药静止后自动飞回主人</li>
+ *   <li><b>诸葛连弩</b> {@code repeater_crossbow} —— 按住右键即可连发；每级 −15% 装填时间、
+ *       −30% 装填时的移动速度惩罚。见 {@link BallRepeaterCrossbow}</li>
  * </ul>
  *
  * <p>强弩与极速都作用于「出手速度」，但路子不同：强弩走
@@ -69,6 +71,26 @@ public final class ModEnchantments {
     /** 【空气动力球】回到主人身边时对主人的物理伤害（作者指定：1 滴血） */
     public static final float AERODYNAMIC_SELF_DAMAGE = 1.0F;
 
+    // ===== 诸葛连弩 =====
+
+    /** {@code more_balls:repeater_crossbow} —— 3 级，按住右键连发 */
+    public static final ResourceKey<Enchantment> REPEATER_CROSSBOW = key("repeater_crossbow");
+
+    /** 【诸葛连弩】最高等级 */
+    public static final int REPEATER_MAX_LEVEL = 3;
+
+    /**
+     * <b>原版弩装填期间的移动速度倍率。</b>
+     *
+     * <p>来自 {@code UseEffects.DEFAULT}（{@code speedMultiplier = 0.2}）——
+     * 原版弩与弓都<b>没有</b>覆写这个组件，所以装填时移动速度只有 20%。
+     * 读取它的是 {@code LocalPlayer.itemUseSpeedMultiplier()}。</p>
+     */
+    public static final float VANILLA_CROSSBOW_USE_SPEED = 0.2F;
+
+    /** 【诸葛连弩】每级削掉多少比例的装填移速惩罚（30%） */
+    public static final float REPEATER_PENALTY_PER_LEVEL = 0.30F;
+
     /**
      * 本模组添加的全部附魔，按创造模式里想展示的顺序排。
      *
@@ -76,7 +98,7 @@ public final class ModEnchantments {
      * 组件承载附魔，这里逐个包成 ItemStack 展示。</p>
      */
     public static final List<ResourceKey<Enchantment>> ALL = List.of(
-            POWERFUL_CROSSBOW, LIGHTNESS, SWIFTNESS, AERODYNAMIC_BALL);
+            POWERFUL_CROSSBOW, LIGHTNESS, SWIFTNESS, AERODYNAMIC_BALL, REPEATER_CROSSBOW);
     private static ResourceKey<Enchantment> key(String path) {
         return ResourceKey.create(Registries.ENCHANTMENT,
                 Identifier.fromNamespaceAndPath(MoreBalls.MOD_ID, path));
@@ -162,5 +184,23 @@ public final class ModEnchantments {
     /** 武器上有没有「空气动力球」 */
     public static boolean hasAerodynamicBall(Level level, ItemStack weapon) {
         return levelOf(level, weapon, AERODYNAMIC_BALL) > 0;
+    }
+
+    // ===== 诸葛连弩的效果 =====
+
+    /** 武器上「诸葛连弩」的等级（0 = 没附） */
+    public static int repeaterCrossbowLevel(Level level, ItemStack weapon) {
+        return levelOf(level, weapon, REPEATER_CROSSBOW);
+    }
+
+    /** 等级 → 装填期间的移动速度倍率。 */
+    public static float repeaterUseSpeedMultiplier(float vanilla, int enchantLevel) {
+        if (enchantLevel <= 0) {
+            return vanilla;
+        }
+        int clamped = Math.min(enchantLevel, REPEATER_MAX_LEVEL);
+        float penalty = 1.0F - vanilla;
+        float left = penalty * (1.0F - REPEATER_PENALTY_PER_LEVEL * clamped);
+        return Math.min(1.0F, 1.0F - left);
     }
 }

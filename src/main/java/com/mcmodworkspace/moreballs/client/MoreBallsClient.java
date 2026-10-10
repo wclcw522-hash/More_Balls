@@ -72,7 +72,8 @@ public final class MoreBallsClient {
 
     /** 球的投射物复用原版 ThrownItemRenderer：按实体携带的物品堆渲染，无需写渲染代码 */
     @SubscribeEvent
-    public static void onRegisterRenderers(EntityRenderersEvent.RegisterRenderers event) {        event.registerEntityRenderer(ModEntities.BALL.get(), BallRenderer::new);
+    public static void onRegisterRenderers(EntityRenderersEvent.RegisterRenderers event) {
+        event.registerEntityRenderer(ModEntities.BALL.get(), BallRenderer::new);
         event.registerEntityRenderer(ModEntities.BALL_ENDER_PEARL.get(), ThrownItemRenderer::new);
     }
 

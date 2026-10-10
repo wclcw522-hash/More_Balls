@@ -1,0 +1,31 @@
+{
+  "anvil_cost": 6,
+  "description": {
+    "translate": "enchantment.more_balls.repeater_crossbow"
+  },
+  "effects": {
+    "minecraft:crossbow_charge_time": {
+      "type": "minecraft:multiply",
+      "factor": {
+        "type": "minecraft:linear",
+        "base": 0.85,
+        "per_level_above_first": -0.15
+      }
+    }
+  },
+  "exclusive_set": "#more_balls:exclusive_set/repeater_crossbow",
+  "max_cost": {
+    "base": 60,
+    "per_level_above_first": 0
+  },
+  "max_level": 3,
+  "min_cost": {
+    "base": 20,
+    "per_level_above_first": 12
+  },
+  "slots": [
+    "mainhand"
+  ],
+  "supported_items": "#minecraft:enchantable/crossbow",
+  "weight": 3
+}

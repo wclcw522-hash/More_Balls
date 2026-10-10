@@ -440,7 +440,7 @@ public final class BallBehavior {
                 .withDamage(3.0F)
                 .withWeight(6)
                 .withToughness(15)
-                .withBounce(0)
+                .withBounce(4)
                 .withRarity(25)
                 .withFlag(BallProfile.FLAG_MAGIC)
                 .withSound(BallSound.of(
