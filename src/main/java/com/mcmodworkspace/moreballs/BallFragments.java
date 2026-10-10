@@ -221,10 +221,12 @@ public final class BallFragments {
                            boolean morph, boolean magnetic, boolean glint,
                            int wisdom, boolean kindness, boolean conduction,
                            boolean thunder, boolean shock,
-                           int penetration, int flags) {
+                           int penetration, int flags,
+                           /** 【破坏王N】—— 数值类特性词条：切开均分、激活后相加取整 */
+                           int breaker) {
 
         public static final Fragment EMPTY =
-                new Fragment(0, 0, 0, 0, 0, 0, false, false, false, 0, false, false, false, false, 0, 0);
+                new Fragment(0, 0, 0, 0, 0, 0, false, false, false, 0, false, false, false, false, 0, 0, 0);
 
         /**
          * 按分数缩放一份词条（半球 0.5、四分之一球 0.25）。
@@ -240,15 +242,19 @@ public final class BallFragments {
          * </ul>
          */
         public Fragment scaled(double factor) {
-            return new Fragment(toughness * factor, sense * factor, melt * factor,
-                    molten * factor, magnet * factor, transmute * factor,
+            // ⚠️ melt / molten 是**阈值类**（【融化x】【熔融x】）—— 法则要求「不缩放」。
+            //    缩放了就永远回不到原阈值（【融化 200】切四份变 50，合回来只有 50）。
+            return new Fragment(toughness * factor, sense * factor, melt,
+                    molten, magnet * factor, transmute * factor,
                     morph, magnetic, glint,
                     // ⚠️ 【智慧N】是**带数值的特性**词条 —— 切四份后每份是「1.25，未激活」，
                     //    所以必须 ×factor。否则两份相加会算成 5+5=10（应为 1.25×2=2.5 → 2）。
                     (int) Math.floor(wisdom * factor),
                     kindness, conduction, thunder, shock,
                     (int) Math.floor(penetration * factor),
-                    flags);
+                    flags,
+                    // 【破坏王N】数值类**特性**：切开均分（够不够份数由 combine* 判）
+                    (int) Math.floor(breaker * factor));
         }
 
         /** 叠加 —— 数值相加，特质取「出现过」 */
@@ -262,8 +268,10 @@ public final class BallFragments {
                     shock || other.shock,
                     // 【穿透x】是数值型，和【智慧】一样相加（够份数/取整由 combine* 决定）
                     penetration + other.penetration,
-                    // 位掩码型词条（【脉冲】【照明】【破坏王】【透镜】）取并集
-                    flags | other.flags);
+                    // 位掩码型词条（【脉冲】【照明】【透镜】）取并集
+                    flags | other.flags,
+                    // 【破坏王N】数值类特性：相加（够不够份数由 combine* 判）
+                    breaker + other.breaker);
         }
     }
 
@@ -318,7 +326,8 @@ public final class BallFragments {
                 p.shockDamage(),
                 // 新增：穿透数值 + 位掩码型词条
                 p.penetration(),
-                p.flags());
+                p.flags(),
+                p.breaker());
     }
 
     // ===== 合成球 =====
@@ -333,8 +342,34 @@ public final class BallFragments {
      */
     public static Fragment combinePair(Fragment a, Fragment b) {
         Fragment sum = a.plus(b);
-        // 二合一：特质直接继承（任一份有就算有），数值向下取整
-        return floor(sum);
+        // 二合一：布尔特质直接继承（任一份有就算有），数值向下取整。
+        // 但**阈值类要单独拎出来取最大值** —— 见 withThresholds。
+        return withThresholds(floor(sum), a, b);
+    }
+
+    /**
+     * 把<b>阈值类</b>词条（【融化x】【熔融x】）按「取最大值」写回。
+     *
+     * <p>法则要求阈值类**不参与相加、也不取整**：四份都保留原阈值，合成时取最大。
+     * 例：【引雷 120】切四份都带 120，与【引雷 90】合成仍取 120。</p>
+     */
+    private static Fragment withThresholds(Fragment out, Fragment... parts) {
+        double meltMin = Double.MAX_VALUE;
+        double moltenMax = 0.0D;
+        for (Fragment f : parts) {
+            if (f.melt() > 0) {
+                meltMin = Math.min(meltMin, f.melt());   // 【融化n】取同种最低
+            }
+            if (f.molten() > 0) {
+                moltenMax = Math.max(moltenMax, f.molten());   // 【熔融n】取最高
+            }
+        }
+        double melt = (meltMin == Double.MAX_VALUE) ? 0.0D : meltMin;
+        return new Fragment(out.toughness(), out.sense(), melt, moltenMax,
+                out.magnet(), out.transmute(),
+                out.morph(), out.magnetic(), out.glint(),
+                out.wisdom(), out.kindness(), out.conduction(), out.thunder(), out.shock(),
+                out.penetration(), out.flags(), out.breaker());
     }
 
     /**
@@ -358,6 +393,8 @@ public final class BallFragments {
         int shocks = (a.shock() ? 1 : 0) + (b.shock() ? 1 : 0) + (c.shock() ? 1 : 0) + (d.shock() ? 1 : 0);
         int penetrations = (a.penetration() > 0 ? 1 : 0) + (b.penetration() > 0 ? 1 : 0)
                 + (c.penetration() > 0 ? 1 : 0) + (d.penetration() > 0 ? 1 : 0);
+        int breakers = (a.breaker() > 0 ? 1 : 0) + (b.breaker() > 0 ? 1 : 0)
+                + (c.breaker() > 0 ? 1 : 0) + (d.breaker() > 0 ? 1 : 0);
         // 位掩码型词条：【脉冲】【照明】【破坏王】【透镜】
         // 四合一同样要「≥2 份」才保留 —— 逐位统计份数，各自判一次
         int flagMask = 0;
@@ -371,7 +408,10 @@ public final class BallFragments {
         }
         return new Fragment(
                 Math.floor(sum.toughness()), Math.floor(sum.sense()),
-                Math.floor(sum.melt()), Math.floor(sum.molten()),
+                // 阈值类的两条不同规则（作者六类法则）：
+                //   【融化n】阈值类**基础** → 取同种**最低**（越低越容易化）
+                //   【熔融n】阈值类**特殊** → 取**最高**，且要激活（份数判定在下面）
+                meltPick(a, b, c, d, true), meltPick(a, b, c, d, false),
                 Math.floor(sum.magnet()), sum.transmute(),   // 同上：概率保持小数
                 morphs >= QUAD_TRAIT_THRESHOLD,
                 magnets >= QUAD_TRAIT_THRESHOLD,
@@ -380,12 +420,33 @@ public final class BallFragments {
                 (wisdoms >= QUAD_TRAIT_THRESHOLD) ? (int) Math.max(1, Math.round(sum.wisdom())) : 0,
                 kindnesses >= QUAD_TRAIT_THRESHOLD,
                 conductions >= QUAD_TRAIT_THRESHOLD,
+                // 【引雷x】是**阈值类特殊**词条（作者 2026-10-10 分类）：
+                // 切开不变、**需要激活**（四合一 ≥2 份）、合成取**最高**（阈值由 thunderThresholdFrom 取 max）
                 thunders >= QUAD_TRAIT_THRESHOLD,
                 shocks >= QUAD_TRAIT_THRESHOLD,
                 // 【穿透x】数值型：够份数才保留，保留时给四份之和
                 (penetrations >= QUAD_TRAIT_THRESHOLD)
                         ? (int) Math.round(sum.penetration()) : 0,
-                flagMask);
+                flagMask,
+                // 【破坏王N】数值类特性：够份数才激活，激活时四份之和取整
+                (breakers >= QUAD_TRAIT_THRESHOLD)
+                        ? (int) Math.floor(sum.breaker()) : 0);
+    }
+
+    /**
+     * 四合一里取阈值：{@code wantMelt} 为 true 时取【融化】的**最低值**，
+     * 否则取【熔融】的**最高值**（作者 2026-10-10 的六类法则）。
+     */
+    private static double meltPick(Fragment a, Fragment b, Fragment c, Fragment d, boolean wantMelt) {
+        double best = wantMelt ? Double.MAX_VALUE : 0.0D;
+        for (Fragment f : new Fragment[] { a, b, c, d }) {
+            double v = wantMelt ? f.melt() : f.molten();
+            if (v <= 0) {
+                continue;
+            }
+            best = wantMelt ? Math.min(best, v) : Math.max(best, v);
+        }
+        return (best == Double.MAX_VALUE) ? 0.0D : best;
     }
 
     /** 四合一时，「同种特质」要出现这么多份才算留住（作者指定：两个及以上） */
@@ -535,7 +596,8 @@ public final class BallFragments {
         //    但组合时**没有任何一行把它们写回 profile**。以后加新词条必须回来补这里。
         out = out
                 .withPenetration(merged.penetration())
-                .withFlags(merged.flags());
+                .withFlags(merged.flags())
+                .withBreaker(merged.breaker());
         return out;
     }
 
@@ -562,7 +624,7 @@ public final class BallFragments {
                 Math.floor(f.magnet()), f.transmute(),   // 点金是概率，不能 floor（0.1 -> 0 会整个抹掉）
                 f.morph(), f.magnetic(), f.glint(),
                 f.wisdom(), f.kindness(), f.conduction(), f.thunder(), f.shock(),
-                f.penetration(), f.flags());
+                f.penetration(), f.flags(), f.breaker());
     }
 
     // ===== 组件 ↔ 下标列表 =====

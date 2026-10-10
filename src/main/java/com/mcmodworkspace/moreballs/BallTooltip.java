@@ -258,11 +258,11 @@ public final class BallTooltip {
         }
 
         // 【破坏王x】—— 钻石球：能砸碎 x 个方块
-        if (profile.hasFlag(BallBehavior.BallProfile.FLAG_BREAKER)) {
+        if (profile.hasBreaker()) {
             out.add(Entry.of(
-                    line("tooltip.more_balls.entry.breaker", String.valueOf(BallBehavior.BREAKER_BUDGET)),
+                    line("tooltip.more_balls.entry.breaker", String.valueOf(profile.breaker())),
                     Kind.TRAIT,
-                    line("tooltip.more_balls.desc.breaker", String.valueOf(BallBehavior.BREAKER_BUDGET))));
+                    line("tooltip.more_balls.desc.breaker", String.valueOf(profile.breaker()))));
         }
 
         // 【透镜】—— 钻石球：白天晴天时给下方持续积热

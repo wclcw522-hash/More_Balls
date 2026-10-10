@@ -118,7 +118,7 @@ public class BallProjectile extends ThrowableItemProjectile {
     /**
      * 【破坏王】已经砸掉的方块数。
      *
-     * <p>作者 2026-10-10 指定：【破坏王10】—— 一共只有 {@link BallBehavior#BREAKER_BUDGET}
+     * <p>作者 2026-10-10 指定：【破坏王10】—— 额度取自 profile 的 breaker 字段
      * 次破坏方块的机会，用完就再也砸不动（不再破坏、也不再扣耐久）。</p>
      *
      * <p>另外，速度衰减到静止阈值以下时也会提前收手 —— 免得下一 tick 速度
@@ -1876,8 +1876,8 @@ public class BallProjectile extends ThrowableItemProjectile {
             // ⚠️ 作者 2026-10-10 更正：**砸掉了就不要反弹** ——
             //    原来是砸完照样走下面的 bounceOff()，球被弹开后又被重力带着往下坠，
             //    表现就是「因为反弹老是往下掉」。路已经砸开了，直接放它继续往前飞。
-            if (this.profile().hasFlag(BallBehavior.BallProfile.FLAG_BREAKER)
-                    && this.breakerUsed < BallBehavior.BREAKER_BUDGET
+            if (this.profile().hasBreaker()
+                    && this.breakerUsed < this.profile().breaker()
                     && this.level() instanceof ServerLevel breakerLevel) {
                 if (this.breakerHit(breakerLevel, (BlockHitResult) hitResult)) {
                     return;   // 砸成功 → 沿原方向继续飞，不结算反弹
@@ -2045,7 +2045,7 @@ public class BallProjectile extends ThrowableItemProjectile {
         // 每砸一块掉 15% 速度（BREAKER_SPEED_RETAIN = 0.85，作者要求保留）——
         // 所以连续开路几块之后球自然会慢下来，这时就该收手了。
         if (scaled.lengthSqr() < SETTLE_SPEED_SQR) {
-            this.breakerUsed = BallBehavior.BREAKER_BUDGET;
+            this.breakerUsed = this.profile().breaker();
         }
         return true;
     }
