@@ -1,59 +1,68 @@
 # 许可 · License
 
-**All Rights Reserved（保留所有权利）**
+**MIT License（MIT 许可证）**
 
-Copyright (c) 2026 More Balls contributors
+Copyright (c) 2026 wclcw522-hash
 
 ---
 
 ## 中文说明
 
-本项目的**源代码与编译产物**保留所有权利。
+本项目采用 **MIT 许可证**。简单说：
 
-### 允许
+### 你可以
 
-- **个人游玩使用** —— 放进自己的整合包、服务器里玩，不需要申请
-- **整合包收录** —— 可以在**不修改**本项目文件的前提下打包进整合包，
-  建议在整合包说明里标注来源
-- **查看、学习、参考**本项目代码
-- **提交 issue 与 pull request**
+- **随便用** —— 放进自己的整合包、服务器，不需要申请
+- **随便改** —— 改完自己用、或者再发布，都可以
+- **商用** —— 包括付费整合包、付费服务器
+- **闭源** —— 你的衍生作品不必开源
+- **再授权** —— 可以对衍生作品使用别的许可证
 
-### 需要事先获得许可
+### 你只要做一件事
 
-- **二次分发修改版** —— 改过内容之后再发布（无论是否署名）
-- **商业用途** —— 任何形式的付费分发、付费服务器专属内容等
-- **移植到其它 Minecraft 版本后发布**
+**保留版权声明和这份许可证文本**（放在你的项目里就行）。
 
-### 不允许
+### 免责
 
-- **声称本项目为自己原创**
-- **移除或篡改版权声明**
-- **把本项目的贴图/资源单独提取出来用于其它项目**
+本软件按「现状」提供，不附带任何明示或暗示的担保。作者不对使用本软件
+产生的任何损失负责。
 
----
-
-## 关于「本 mod 由 AI 完成」
-
-本项目在开发过程中使用了 AI 辅助生成代码与文档。
-许可条款不因为这一点而改变 —— **版权归项目的维护者持有**。
-
-如果你打算在自己的项目里复用本项目的代码，请看上面的「需要事先获得许可」一栏，
-并在 issue 里说一声，通常都会同意。
+**完整的法律条款以下面的英文原文为准。**
 
 ---
 
-## English Summary
+## License (English)
 
-**All Rights Reserved.**
+```
+MIT License
 
-You **may**: play it, include it unmodified in modpacks, read and learn from the source,
-open issues and pull requests.
+Copyright (c) 2026 wclcw522-hash
 
-You **must ask first** to: redistribute a modified version, use it commercially,
-or port it to another Minecraft version and publish that.
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
 
-You **may not**: claim it as your own work, remove copyright notices, or reuse its
-textures/assets in unrelated projects.
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
 
-Portions of this project were produced with AI assistance; this does not change the
-licensing terms — copyright remains with the maintainers.
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+```
+
+---
+
+## 关于「本 mod 使用了 AI 辅助」
+
+本项目在开发过程中使用了 AI 辅助生成代码与文档。**这不改变上述许可条款** ——
+著作权仍归项目的维护者持有，MIT 的全部授权照常适用。
+
+> 换句话说：**AI 辅助这件事不影响你按 MIT 来用本项目**，
+> 你依然可以自由地使用、修改、分发、商用。
