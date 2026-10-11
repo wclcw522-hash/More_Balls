@@ -5,6 +5,43 @@
 > 26.3 线已冻结（那边 Curios 与 NeoForge 不兼容，饰品功能没法测）。
 > 26.3 线的历史见 `[26.3更多球]_More_Balls\CHANGELOG.md`。
 
+## 0.4.0.21 — 投弹叠加幻翼速度 + 提前量瞄准
+
+作者 2026-10-11 指定：**扔出的球除了原本指定的蓄力层数，还要再叠加上幻翼速度；
+并且让幻翼瞄得更准。**
+
+### 实现上没有改 `throwBall` 的签名
+
+`throwBall` **已经把球返回回来了** —— 所以直接在这颗球上改速度即可，
+投掷时按蓄力层数算好的那套**原样保留**，这里是**叠加**：
+
+```java
+BallProjectile thrown = throwBall(phantom, hand, target, maxLevel, mobAimDrop(target));
+```
+
+### ① 叠加速度
+
+```
+新速度 = 原速度（蓄力层数算出来的） × (1 + 幻翼速度 × PHANTOM_SPEED_BONUS)
+```
+
+`PHANTOM_SPEED_BONUS = 0.5` —— 幻翼俯冲速度常见 1~3 格/刻，即额外 **+50% ~ +150%**。
+**俯冲越猛、球打得越狠。**
+
+### ② 瞄得更准：加提前量
+
+原来瞄的是玩家**现在**的位置。但幻翼俯冲时球相对玩家是**高速接近**的，
+按当前位置瞄会**系统性地打在人后面**。改成瞄「再过 `PHANTOM_LEAD_TICKS` 刻的位置」：
+
+```java
+Vec3 aimAt = target.position().add(0, target.getBbHeight() * 0.5, 0)
+        .add(target.getDeltaMovement().scale(PHANTOM_LEAD_TICKS));   // 8 刻 ≈ 0.4 秒
+```
+
+8 刻覆盖了 4 格距离上球的飞行时间。**两个数（`PHANTOM_SPEED_BONUS` / `PHANTOM_LEAD_TICKS`）
+都是独立常量** —— 觉得打得过猛或过前，各调一个数即可。
+
+---
 ## 0.4.0.20 — 幻翼捡完球后的回归高度：8 → 30
 
 作者 2026-10-11 指定：**捡完球之后爬回的高度改成 30 格**（原来 8 格）。
