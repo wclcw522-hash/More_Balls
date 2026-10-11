@@ -5,6 +5,53 @@
 > 26.3 线已冻结（那边 Curios 与 NeoForge 不兼容，饰品功能没法测）。
 > 26.3 线的历史见 `[26.3更多球]_More_Balls\CHANGELOG.md`。
 
+## 0.4.0.7 — 修【智慧】变向 + 展示图标朝向
+
+### ① 【智慧】「第一次锁定之后不会变向」
+
+**是我 0.4.0.3 那一版修出来的**。当时为了治「没反弹就不回收」，
+在「空追 5 秒」和「停稳」两处把 `wisdomUsesLeft` **直接清零** ——
+而次数是【智慧】**追踪能力的本体**：清零之后球就**永久失去追踪能力**，
+之后哪怕再出现目标也不会变向。
+
+**现在的判据**（次数**一个字都不动**）：
+
+```
+要在「最近还在锁目标」时才拦着不让回家：
+  没在回家的路上 && 还剩次数 && 没停稳 && 最近锁到过目标（< 5 秒）
+```
+
+- 刚锁到过目标 → 还在追，别拉回家 ✓
+- **空追 5 秒** → 这一轮没戏了，放它回家 ✓（但追踪能力**完好**，下次遇到目标照样锁）
+- 停稳 → 放它回家 ✓
+- `homingBack`（已经在飞回家）→ 一路走完，不再重判 —— 否则 §`setSettled(false)` 会让
+  「停稳」那条立刻失效、来回震荡
+
+### ② 环绕的球图标「卡成侧面转不过来」
+
+**球图标是一个 `ItemDisplay` 实体，而原版它的 billboard 默认是 `FIXED`（固定朝向）** ——
+见 `Display.readAdditionalSaveData` 里的 `.orElse(BillboardConstraints.FIXED)`。
+我从没设过它，于是图标是一张**固定世界朝向的薄片**：正对着看没事，
+但球绕着烈焰人转的时候从侧面看就**只剩一条边**。
+
+**修法**：设成 `CENTER` = **永远正对镜头**。
+
+`setBillboardConstraints` 和 `setTransformation` 一样是 **private**，
+所以在 `accesstransformer.cfg` 里再放开一条：
+
+```
+public net.minecraft.world.entity.Display setBillboardConstraints(Lnet/minecraft/world/entity/Display$BillboardConstraints;)V
+```
+
+> `Display.BillboardConstraints` 本身是 **public enum**，所以不用再加第二条。
+
+三条展示路径（头顶 / 身体内部那套已删 / 烈焰人十二肢）现在统一走 `applyLook()`，
+`CENTER` 只在这一处设。
+
+> 顺带一提：**头顶那一批（蜘蛛 / 苦力怕 / 幻翼 / 嘎枝 / 史莱姆）之前也是 FIXED** ——
+> 它们同样会被这个修复救到。
+
+---
 ## 0.4.0.6 — 烈焰人改用「球袋」：能混装、不再丢球
 
 **症状**（作者 2026-10-11 报）：持有球大于 3 时**只打出来 3 发**，而且**剩下的球掉出来**；
