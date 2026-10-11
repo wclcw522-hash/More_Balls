@@ -5,6 +5,41 @@
 > 26.3 线已冻结（那边 Curios 与 NeoForge 不兼容，饰品功能没法测）。
 > 26.3 线的历史见 `[26.3更多球]_More_Balls\CHANGELOG.md`。
 
+## 0.4.0.25 — 修 0.4.0.24 的崩服（NPE）
+
+**这是 0.4.0.24 我加「滞留图标清理」时写出来的崩溃，责任在我。**
+
+崩溃报告（`crash-2026-10-11_22.59.43-server.txt`）直接点名：
+
+```
+java.lang.NullPointerException: Cannot invoke "net.minecraft.world.entity.Entity.entityTags()" because "e" is null
+    at more_balls@0.4.0.24/com.mcmodworkspace.moreballs.BallMobAI.onServerTickSweepDisplays(BallMobAI.java:868)
+    at net.minecraft.server.MinecraftServer.tickServer(MinecraftServer.java:1015)
+```
+
+### 根因
+
+那版在**开服第一刻**就遍历 `level.getAllEntities()` 去清图标 ——
+而**刚开服那几刻实体还没全加载，这个访问器会吐出 `null`**，
+直接调 `e.entityTags()` 就是那个 NPE，**整个 server tick 循环崩掉**。
+
+**我加这段时没有验证过 `getAllEntities()` 在开服初期是否安全** ——
+这正是我一直被提醒的那类错误：**没读、没验，直接上**。
+
+### 修法（三道）
+
+1. **延迟**：开服后等 `DISPLAY_SWEEP_DELAY_TICKS = 60` 刻再扫；
+2. **null 守卫**：`if (e != null && ...)`；
+3. **先收集快照、再统一 discard** —— 遍历实体的过程中改实体列表是另一条禁区
+   （AGENTS 里「不要在遍历中增删实体」那条）。
+
+漏任何一道都可能再崩一次。
+
+> ⚠️ **自测的局限**：`runClient` 只走到主菜单，**不会进世界**，
+> 而这段代码跑在 **server tick** 里 —— 所以**启动自测覆盖不到它**。
+> 这次靠的是「三道防护 + 崩溃报告的行号」，不是自测。
+
+---
 ## 0.4.0.24 — 幻翼的球没伤害 + 重进游戏后图标滞留
 
 ### ① 球没伤害：整段飞行都落在「2 刻无害期」里
