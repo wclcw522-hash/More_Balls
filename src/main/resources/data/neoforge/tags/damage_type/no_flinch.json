@@ -1,0 +1,8 @@
+{
+  "__comment": "「空气动力球」回收时打给主人的那一下不该让镜头晃。NeoForge 在 GameRenderer.bobHurt 里留了开关：cameraState.entityRenderState.preventFlinch 为真就直接 return（Camera.java:148 由 lastDamage.is(Tags.DamageTypes.NO_FLINCH) 算出）。把本模组的伤害类型塞进这个标签即可。",
+  "__replace_note": "⚠️ 「replace\": false」是必须的 —— 它让本文件与其它模组/原版的同名标签**合并**而不是**替换**。",
+  "replace": false,
+  "values": [
+    "more_balls:ball_return"
+  ]
+}

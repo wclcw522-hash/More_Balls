@@ -5,7 +5,21 @@
 > 26.3 线已冻结（那边 Curios 与 NeoForge 不兼容，饰品功能没法测）。
 > 26.3 线的历史见 `[26.3更多球]_More_Balls\CHANGELOG.md`。
 
-### 0.3.6.3
+### 0.3.6.4
+
+### 【空气动力球】回收时连镜头摇晃也没了
+
+上一版去掉了击退，这一版把**视角摇晃**也一并去掉 —— 被自己的球砸到时画面不再歪一下。
+
+> NeoForge 在 `GameRenderer.bobHurt` 里留了开关：`Camera` 会由
+> `lastDamage.is(Tags.DamageTypes.NO_FLINCH)` 算出 `preventFlinch`，
+> `bobHurt` 见到它就**直接 return**。把 `more_balls:ball_return`
+> 加进 `neoforge:no_flinch` 标签即可。
+>
+> 这个标签**只关镜头**，角色模型挨打的那一下抽动仍然照常。
+
+---
+## 0.3.6.3
 
 ### 【空气动力球】回收不再击退、也不打断疾跑
 
