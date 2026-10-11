@@ -5,6 +5,78 @@
 > 26.3 线已冻结（那边 Curios 与 NeoForge 不兼容，饰品功能没法测）。
 > 26.3 线的历史见 `[26.3更多球]_More_Balls\CHANGELOG.md`。
 
+## 0.4.0.19 — 幻翼三处一起修（含**被指出的审题错误**）
+
+作者指出我上一版**只修「不会带球」，把带球那两条用「下游」一句话糊过去了** ——
+那两条其实是**各自独立的 bug**。这一版三处一起处理，并且**所有数值都来自实读的源码行号**。
+
+### ⚠️ 先纠正我自己的一个错误引用
+
+我上一版写过「原版 `Phantom.travel()` 每刻 `scale(0.91)`」—— **位置说错了**。
+实际读完源码：
+
+```java
+// Phantom.java L148-150
+public void travel(Vec3 input) {
+    this.travelFlying(input, 0.2F);
+}
+
+// LivingEntity.java L2561-2564 —— 0.91 在这里
+} else {
+    this.moveRelative(airSpeed, input);
+    this.move(MoverType.SELF, this.getDeltaMovement());
+    this.setDeltaMovement(this.getDeltaMovement().scale(0.91F));
+}
+```
+
+**结论对（确有 ×0.91），引用错（在 `travelFlying`，不在 `Phantom.travel`）。**
+而且**算漏了第二道衰减**：
+
+```java
+// Phantom.java L429-430，PhantomSweepAttackGoal.tick
+Vec3 movement = Phantom.this.getDeltaMovement();
+Phantom.this.setDeltaMovement(movement.add(new Vec3(txd, tyd, tzd).subtract(movement).scale(0.2)));
+```
+
+原版每刻还会朝 `moveTargetPoint`**再拉走 20%**（即 ×0.8）。
+（L495：俯冲时 `moveTargetPoint` 就是玩家位置。）
+
+### ① 加速度：盈亏线是 1.37，原来两版都在线下
+
+| 项 | 值 |
+|---|---|
+| 0.91 阻尼 | ×0.91 |
+| 20% lerp | ×0.8 |
+| **净保留** | **≈ 0.73** |
+| **维持速度所需** | **> 1/0.73 ≈ 1.37** |
+
+- 原值 **1.03** → 净 ×0.75：**减速**
+- 上一版 **1.30** → 仍低于 1.37：**还是减速**
+- 现在 **1.60** → 净 ×1.17，约 4~5 刻翻一倍
+
+### ② 投弹俯冲不朝玩家飞 → 永远进不了 4 格 → 扔不出球
+
+爬升结束时速度是**朝上**的，而原来只做 `scale(PHANTOM_BOMB_ACCEL)` —— **只乘系数、不掰方向**，
+加速只会让「朝上」越来越快。现在**每刻强制把方向指向玩家**再按系数加大小：
+
+```java
+Vec3 toPlayer = target.position().add(0, target.getBbHeight() * 0.5, 0).subtract(phantom.position());
+double speed = Math.min(MAX, Math.max(phantom.getDeltaMovement().length() * ACCEL, MIN));
+phantom.setDeltaMovement(toPlayer.normalize().scale(speed));
+```
+
+**每刻重写方向这件事本身就是必需的** —— 原版那条 lerp 每刻都会把方向拽回 `moveTargetPoint`。
+（`EntityTickEvent.Post` 跑在原版 `aiStep` 之后，写进去就是当刻最终速度。）
+
+### ③ 去捡球：`MoveControl` 被原版俯冲盖掉
+
+原来只有 `getMoveControl().setWantedPosition(...)`，被原版每刻重设的移动目标盖掉。
+改成在 Post 里**直接写 `deltaMovement`**。
+
+> 作者日志给的实测：55 行 `[ball][幻翼]` **全是 `手里=空`**，而 **`算俯冲=true` 一直是 true** ——
+> 所以**俯冲判定（`phantomIsDiving`）是好的，我上一轮怀疑它是错的**。
+
+---
 ## 0.4.0.16 — 幻翼改成三阶段状态机（按作者完整规格重做）
 
 作者 2026-10-11 给出的完整规格：
