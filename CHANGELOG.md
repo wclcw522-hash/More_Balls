@@ -5,6 +5,37 @@
 > 26.3 线已冻结（那边 Curios 与 NeoForge 不兼容，饰品功能没法测）。
 > 26.3 线的历史见 `[26.3更多球]_More_Balls\CHANGELOG.md`。
 
+## 0.4.0.10 — 四条投掷路径统一压低瞄准点
+
+`0.4.0.9` 只改了烈焰人，作者随后说「一块改了」—— 这版把**所有怪物**一起处理。
+
+| 投掷路径 | 位置 |
+|---|---|
+| 通用怪 | `BallMobAI:990` |
+| 幻翼 | `BallMobAI:1248` |
+| 烈焰人 | `BallMobAI:1407` |
+| 嘎枝 | `BallMobAI:1497` |
+
+**苦力怕那条本来就已经传了压低量**（`CreeperBallBehavior:255` 走 6 参数重载），不用动。
+**玩家与弩那两条不受影响**（`BallThrowHandler` 用的是玩家自己的投掷参数）。
+
+### 统一成一个 helper
+
+```java
+private static double mobAimDrop(LivingEntity target) {
+    return target == null ? 0.0D : target.getBbHeight() * AIM_DROP_RATIO;   // 0.5
+}
+```
+
+⚠️ **必须 null 安全**：`target` 为空时 `throwBall` 走的是「照视线扔」那条路、
+`aimDrop` 根本用不上，直接写 `target.getBbHeight()` 会 **NPE**。
+
+### 顺带：诊断日志全部摘掉
+
+`0.4.0.8` 加的三条（两条逐发 + 一条每 20 刻的状态）**已全部删除** ——
+作者确认索敌正常了，日志不该留在正式版里刷屏。
+
+---
 ## 0.4.0.9 — 修：烈焰人投掷「从头上飞过去」
 
 **症状**（作者 2026-10-11）：索敌正常了，但**球打得偏高，老是从头上飞过去**。
