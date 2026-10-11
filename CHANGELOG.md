@@ -5,6 +5,46 @@
 > 26.3 线已冻结（那边 Curios 与 NeoForge 不兼容，饰品功能没法测）。
 > 26.3 线的历史见 `[26.3更多球]_More_Balls\CHANGELOG.md`。
 
+## 0.4.0.22 — 幻翼的球「不像扔球、像用球打了一下」
+
+**症状**（作者 2026-10-11）：幻翼扔出的球，伤害和行为都不像「扔出去」，
+更像**用球打了一下然后消耗掉**。
+
+### 根因：球是在**幻翼身体正中间**出生的
+
+`throwBall` 算出生点的两行：
+
+```java
+Vec3 origin = new Vec3(mob.getX(), mob.getY() + mob.getBbHeight() * 2.0D / 3.0D, mob.getZ());
+Vec3 start  = origin.add(forward.scale(forwardOffset));
+```
+
+**前几条怪物调用都把 `forwardOffset` 传 0** —— 也就是球**从身体正中出生**。
+别的怪丢出去就飞走了，看不出问题；但幻翼是**高速俯冲**下来的，
+上一版又刚给它叠了 +50%~150% 的速度 —— **球出生当刻就已经贴在玩家身上**，
+于是看起来像「打了一下」而不是「扔出去」。
+
+**`forwardOffset` 这个参数本来就是为这件事准备的** —— 苦力怕那条一直在用
+（`CreeperBallBehavior` 的 `THROW_FORWARD_OFFSET`），幻翼这条从来没用过。
+
+**修法**：出生点前移 `PHANTOM_THROW_FORWARD_OFFSET = 1.2` 格（略大于幻翼的碰撞半径）。
+
+### 顺带修：伤害没跟上速度
+
+`throwBall` 里那句：
+
+```java
+ball.setDamage(profile.damage() * (velocity / baseVelocity));
+```
+
+是按**加成之前**的速度算的。而上一版的速度叠加是在**返回之后**才做的 ——
+所以**速度加了、伤害没加**，等于白加。现在补上：
+
+```java
+thrown.setDamage(thrown.getDamage() * (float) factor);
+```
+
+---
 ## 0.4.0.21 — 投弹叠加幻翼速度 + 提前量瞄准
 
 作者 2026-10-11 指定：**扔出的球除了原本指定的蓄力层数，还要再叠加上幻翼速度；
