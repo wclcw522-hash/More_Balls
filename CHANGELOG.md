@@ -5,6 +5,43 @@
 > 26.3 线已冻结（那边 Curios 与 NeoForge 不兼容，饰品功能没法测）。
 > 26.3 线的历史见 `[26.3更多球]_More_Balls\CHANGELOG.md`。
 
+## 0.4.0.2 — 权重调整 + 雪球系命名统一
+
+### 权重
+
+| 球 | 旧 | 新 |
+|---|---|---|
+| **木球** | 100 | **500** |
+| **青金石球** | 25 | **15** |
+
+木球从「常见」变成了**压倒性的常见** —— 现在占随机抽取的 **65%**，圆石球 5.2%，
+其余大多 2.6%，青金石球降到 1.95%。
+
+> 权重只影响**怪物生成时携带**与**掠夺者改用球做弹药**这两处抽取（`BallBehavior.randomBall`）。
+> 空心铁球仍然是 **0 —— 永不出现**。
+
+### 雪球系命名统一
+
+`redstone_snowball` 的显示名一直是「红石雪球」，没跟上「雪球-xx」的格式，现在改成：
+
+| 物品 id | 旧名 | 新名 |
+|---|---|---|
+| `redstone_snowball` | 红石雪球 / Redstone Snowball | **雪球-红石** / **Snowball-Redstone** |
+
+顺手把英文侧的两处下划线也统一成空格（跟后来加的「雪球-铜粒」保持一致）：
+
+| 物品 id | 旧 | 新 |
+|---|---|---|
+| `snowball_iron_nugget` | Snowball-Iron_Nugget | Snowball-Iron Nugget |
+| `snowball_gold_nugget` | Snowball-Gold_Nugget | Snowball-Gold Nugget |
+
+现在雪球系五个是齐的：**雪球-碎石 · 雪球-铁粒 · 雪球-金粒 · 雪球-铜粒 · 雪球-红石**
+
+> ⚠️ **只改了显示名**。物品 id（`redstone_snowball`）与 Java 常量名（`REDSTONE_SNOWBALL`）
+> **一律没动** —— 物品 id 会进存档，改了老存档里的球就变成未知物品了。
+> 代码注释与文档里的名字一并对齐了。
+
+---
 ## 0.4.0.1 — 可持球生物标签
 
 ### 联动口子：#more_balls:ball_carriers
