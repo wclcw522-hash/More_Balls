@@ -1,6 +1,7 @@
 package com.mcmodworkspace.moreballs.mixin;
 
 import com.mcmodworkspace.moreballs.BallAmmo;
+import com.mcmodworkspace.moreballs.ModEnchantments;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.projectile.Projectile;
@@ -120,5 +121,47 @@ public abstract class CrossbowItemMixin {
                                             ItemStack weapon, float velocity, float inaccuracy,
                                             LivingEntity target, CallbackInfo ci) {
         BallAmmo.endShootingRound();
+    }
+
+    /**
+     * <b>【诸葛连弩】与【快速装填】并存时，把装填时长改成确定的「乘算」。</b>
+     *
+     * <h2>要解决的问题</h2>
+     * <p>两个附魔改的是同一个量，运算符却不同（快速装填是 {@code add}、诸葛连弩是 {@code multiply}），
+     * 而原版按 {@code ItemEnchantments} 的遍历顺序依次作用 ——
+     * 那是个 {@code Reference2IntOpenHashMap}，<b>无序</b>。于是同一把弩可能算出：</p>
+     *
+     * <pre>
+     * 快速装填先算：(1.25 − 0.75) × 0.55 = 0.275 秒  →  5 刻
+     * 诸葛连弩先算：(1.25 × 0.55) − 0.75 = −0.0625    →  被夹成 0 刻（瞬发）
+     * </pre>
+     *
+     * <h2>为什么只在这种情况下接管</h2>
+     * <p>只有一个附魔时，原版与数据包给出的结果<b>本来就是乘算形式</b>，不用插手：</p>
+     *
+     * <ul>
+     *   <li>只有【快速装填】：{@code 1.25 − 0.25L} ≡ {@code 1.25 × (1 − 0.2L)} —— 完全等价</li>
+     *   <li>只有【诸葛连弩】：json 里的 {@code multiply} 就是 {@code 1.25 × (1 − 0.15L)}</li>
+     * </ul>
+     *
+     * <p>所以这一处注入只在<b>两者同时存在</b>时生效，其余情况一概不碰，原版行为零影响。</p>
+     *
+     * <h2>注入方式</h2>
+     * <p>RETURN 注入 + 改返回值，带 {@code require = 0}。
+     * 注意 {@code getChargeDuration} 是 {@code public static}，所以这个处理器也必须是 {@code static}。</p>
+     */
+    @Inject(method = "getChargeDuration", at = @At("RETURN"), cancellable = true, require = 0)
+    private static void moreBalls$multiplicativeChargeTime(ItemStack crossbow, LivingEntity user,
+                                                          CallbackInfoReturnable<Integer> cir) {
+        Level level = user.level();
+        int quick = ModEnchantments.quickChargeLevel(level, crossbow);
+        if (quick <= 0) {
+            return;
+        }
+        int repeater = ModEnchantments.repeaterCrossbowLevel(level, crossbow);
+        if (repeater <= 0) {
+            return;
+        }
+        cir.setReturnValue(ModEnchantments.combinedChargeTicks(quick, repeater));
     }
 }

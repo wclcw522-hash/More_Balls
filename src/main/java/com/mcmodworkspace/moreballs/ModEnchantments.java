@@ -4,6 +4,7 @@ import net.minecraft.core.registries.Registries;
 import java.util.List;
 import net.minecraft.resources.Identifier;
 import net.minecraft.resources.ResourceKey;
+import net.minecraft.util.Mth;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.enchantment.Enchantment;
 import net.minecraft.world.level.Level;
@@ -90,6 +91,53 @@ public final class ModEnchantments {
 
     /** 【诸葛连弩】每级削掉多少比例的装填移速惩罚（30%） */
     public static final float REPEATER_PENALTY_PER_LEVEL = 0.30F;
+
+    // ---- 装填时长：与【快速装填】并存时的「乘算」----
+
+    /**
+     * <b>原版弩的基础装填时长（秒）。</b>
+     *
+     * <p>出处是 {@code CrossbowItem.getChargeDuration}：</p>
+     *
+     * <pre>
+     * float duration = EnchantmentHelper.modifyCrossbowChargingTime(crossbow, user, 1.25F);
+     * return Mth.floor(duration * 20.0F);
+     * </pre>
+     *
+     * <p>那个 {@code 1.25F} 原版没有公开访问器，只能在这里记一份。
+     * 它只在「两个附魔并存」时才会被用到（见 {@link #combinedChargeTicks}）。</p>
+     */
+    public static final float VANILLA_CHARGE_SECONDS = 1.25F;
+
+    /**
+     * <b>原版【快速装填】每级削掉的比例。</b>
+     *
+     * <p>原版 {@code quick_charge} 的写法是 {@code add -0.25/级}，而基础值是 1.25 ——
+     * 而 {@code 1.25 − 0.25L} 跟 {@code 1.25 × (1 − 0.2L)} 是<b>完全等价</b>的。
+     * 所以它完全可以当成「每级 ×0.8 的倍率」来看，这正是下面乘算公式的依据。</p>
+     */
+    public static final float QUICK_CHARGE_PER_LEVEL = 0.2F;
+
+    /**
+     * <b>【诸葛连弩】每级对装填时长的削减比例。</b>
+     *
+     * <p>⚠️ 必须与 {@code data/more_balls/enchantment/repeater_crossbow.json} 里
+     * {@code crossbow_charge_time} 的 {@code factor.per_level_above_first}（{@code -0.15}）
+     * 保持一致 —— <b>改一边就要改另一边</b>。</p>
+     */
+    public static final float REPEATER_CHARGE_PER_LEVEL = 0.15F;
+
+    /**
+     * 装填刻数的硬下限。
+     *
+     * <p>纯属防御：乘算公式在满配下的最低值是 {@code floor(1.25 × 0.4 × 0.55 × 20) = 5}，
+     * 正常够不到这个下限。留着是防将来有人把某个系数调成 0。</p>
+     */
+    public static final int MIN_CHARGE_TICKS = 1;
+
+    /** 原版 {@code minecraft:quick_charge} */
+    public static final ResourceKey<Enchantment> QUICK_CHARGE = ResourceKey.create(
+            Registries.ENCHANTMENT, Identifier.fromNamespaceAndPath("minecraft", "quick_charge"));
 
     /**
      * 本模组添加的全部附魔，按创造模式里想展示的顺序排。
@@ -202,5 +250,55 @@ public final class ModEnchantments {
         float penalty = 1.0F - vanilla;
         float left = penalty * (1.0F - REPEATER_PENALTY_PER_LEVEL * clamped);
         return Math.min(1.0F, 1.0F - left);
+    }
+
+    // ===== 装填时长：乘算 =====
+
+    /** 武器上原版【快速装填】的等级（0 = 没附） */
+    public static int quickChargeLevel(Level level, ItemStack weapon) {
+        return levelOf(level, weapon, QUICK_CHARGE);
+    }
+
+    /** 【诸葛连弩】等级 → 装填时间倍率（1 − 0.15L）；无附魔时为 1.0 */
+    public static float repeaterChargeFactor(int enchantLevel) {
+        int clamped = Math.max(0, Math.min(enchantLevel, REPEATER_MAX_LEVEL));
+        return 1.0F - REPEATER_CHARGE_PER_LEVEL * clamped;
+    }
+
+    /**
+     * <b>【诸葛连弩】与【快速装填】并存时的装填刻数 —— 乘算。</b>
+     *
+     * <h2>为什么必须有这个方法</h2>
+     * <p>两个附魔改的是同一个量，但用的运算不同、又都由原版按「附魔在物品上的顺序」依次作用：</p>
+     *
+     * <pre>
+     * 【快速装填】是 add：       time += -0.25 × L
+     * 【诸葛连弩】是 multiply：  time *= 1 − 0.15 × L
+     * </pre>
+     *
+     * <p>而 {@code EnchantmentHelper.runIterationOnItem} 遍历的是
+     * {@code ItemEnchantments} 底层的 {@code Reference2IntOpenHashMap} —— <b>无序</b>。
+     * 于是同一把武器可能算出两种结果：</p>
+     *
+     * <pre>
+     * 快速装填先算：(1.25 − 0.75) × 0.55 = 0.275 秒
+     * 诸葛连弩先算：(1.25 × 0.55) − 0.75 = −0.0625 → 被原版 Math.max(0, ·) 夹成 0
+     * </pre>
+     *
+     * <p><b>乘算就没有这个问题</b>——乘法可交换，顺序无关：</p>
+     *
+     * <pre>
+     * 装填时长 = 1.25 × (1 − 0.2 × 快速装填级) × (1 − 0.15 × 诸葛连弩级)
+     * </pre>
+     *
+     * <p>满配（两边各 3 级）= {@code 1.25 × 0.4 × 0.55 = 0.275 秒 → 5 刻}，
+     * 既不会出现 0 刻瞬发，也不会因附魔顺序而变。</p>
+     *
+     * @param quickLevel    原版【快速装填】等级
+     * @param repeaterLevel 【诸葛连弩】等级
+     */
+    public static int combinedChargeTicks(int quickLevel, int repeaterLevel) {
+        float factor = (1.0F - QUICK_CHARGE_PER_LEVEL * quickLevel) * repeaterChargeFactor(repeaterLevel);
+        return Math.max(MIN_CHARGE_TICKS, Mth.floor(VANILLA_CHARGE_SECONDS * factor * 20.0F));
     }
 }
