@@ -57,6 +57,7 @@
   "effect.more_balls.immortal": "不灭",
   "message.more_balls.transit_full": "当前中转区已满，本次替换弹药进入背包",
   "death.attack.moltenBurn": "%1$s 融化了",
+  "death.attack.ballReturn.player": "%1$s 被自己投出的球砸死了",
   "death.attack.moltenBurn.player": "%1$s 被 %2$s 融化了",
   "tooltip.more_balls.entry.damage": "【基础伤害】%1$s",
   "tooltip.more_balls.entry.weight": "【重量】%1$s",

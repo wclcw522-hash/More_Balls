@@ -5,6 +5,9 @@ import java.util.List;
 import net.minecraft.resources.Identifier;
 import net.minecraft.resources.ResourceKey;
 import net.minecraft.util.Mth;
+import net.minecraft.world.damagesource.DamageSource;
+import net.minecraft.world.damagesource.DamageType;
+import net.minecraft.world.entity.Entity;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.enchantment.Enchantment;
 import net.minecraft.world.level.Level;
@@ -71,6 +74,44 @@ public final class ModEnchantments {
 
     /** 【空气动力球】回到主人身边时对主人的物理伤害（作者指定：1 滴血） */
     public static final float AERODYNAMIC_SELF_DAMAGE = 1.0F;
+
+    /**
+     * <b>「空气动力球」回收时打给主人的那一下，用它自己的伤害类型。</b>
+     *
+     * <h2>为什么要单独开一个伤害类型</h2>
+     * <p>目的是<b>不产生击退</b>。原版 {@code LivingEntity.hurtServer} 里写着：</p>
+     *
+     * <pre>
+     * if (!source.is(DamageTypeTags.NO_KNOCKBACK)) {
+     *     this.dealDefaultKnockback(source, damage, blocked);
+     * }
+     * </pre>
+     *
+     * <p>而 {@code dealDefaultKnockback → knockback()} 一定会做两件事：</p>
+     *
+     * <pre>
+     * this.setDeltaMovement(
+     *     deltaMovement.x / 2.0 - deltaVector.x,                            // ← 水平速度减半
+     *     this.onGround() ? Math.min(0.4, deltaMovement.y / 2.0 + power) : deltaMovement.y,
+     *     deltaMovement.z / 2.0 - deltaVector.z);
+     * </pre>
+     *
+     * <p><b>水平速度减半就是「疾跑被打断」的原因</b>；那个向上的分量就是推人的手感。
+     * 所以只要让这一下落在 {@code minecraft:no_knockback} 标签里，整段就跳过了
+     * （见 {@code data/minecraft/tags/damage_type/no_knockback.json}）。</p>
+     *
+     * <h2>为什么不用 LivingKnockBackEvent</h2>
+     * <p>那个事件（{@code LivingEntity.knockback} 开头会 fire，cancel 掉就 return）
+     * <b>不带 DamageSource</b> —— 实测它的 class 里既没有 {@code DamageSource} 也没有
+     * {@code getSource}，拿不到「是不是这一下」的信息。要用它就得加一个「正在结算回收伤害」
+     * 的旗标来配对，比开一个伤害类型更绕。</p>
+     *
+     * <p>这个做法与本项目已有的 {@code more_balls:molten_burn} 完全一致
+     * （自有伤害类型 + 往原版 damage_type 标签里追加）。</p>
+     */
+    public static final ResourceKey<DamageType> RETURN_DAMAGE_TYPE = ResourceKey.create(
+            Registries.DAMAGE_TYPE,
+            Identifier.fromNamespaceAndPath(MoreBalls.MOD_ID, "ball_return"));
 
     // ===== 诸葛连弩 =====
 
@@ -232,6 +273,15 @@ public final class ModEnchantments {
     /** 武器上有没有「空气动力球」 */
     public static boolean hasAerodynamicBall(Level level, ItemStack weapon) {
         return levelOf(level, weapon, AERODYNAMIC_BALL) > 0;
+    }
+
+    /**
+     * 回收伤害的 {@link DamageSource} —— <b>归属仍然是主人</b>，
+     * 所以「被自己的球砸死」这类击杀照记在他头上，成就判定不受影响。
+     */
+    public static DamageSource returnDamage(Level level, Entity owner) {
+        var types = level.registryAccess().lookupOrThrow(Registries.DAMAGE_TYPE);
+        return new DamageSource(types.getOrThrow(RETURN_DAMAGE_TYPE), owner);
     }
 
     // ===== 诸葛连弩的效果 =====

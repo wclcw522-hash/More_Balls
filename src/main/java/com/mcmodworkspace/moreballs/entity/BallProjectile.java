@@ -2933,7 +2933,11 @@ public class BallProjectile extends ThrowableItemProjectile {
         // 作者指定：回归时对主人造成 1 滴血的物理伤害；
         // 本来就没伤害的球（伤害为 0）不造成
         if (this.getDamage() > 0.0F) {
-            boolean hurt = owner.hurtServer(level, this.damageFromOwner(),
+            // ⚠️ 这一下**不能**用 damageFromOwner()（那是打受害者用的 playerAttack / mobAttack）。
+            //    playerAttack 的来源实体就是主人自己，dealDefaultKnockback 算出来的方向是 (0,0)，
+            //    但 knockback() 会用随机方向补一个 0.4 的推力、并把水平速度减半 —— 疾跑就是这么断的。
+            //    这里改用专属伤害类型，它在 no_knockback 标签里，整段击退会被原版跳过。
+            boolean hurt = owner.hurtServer(level, ModEnchantments.returnDamage(level, owner),
                     ModEnchantments.AERODYNAMIC_SELF_DAMAGE);
 
             // ===== 这一对成就共用同一个判定点：**回收受伤的那一刻**（作者指定）=====

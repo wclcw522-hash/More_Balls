@@ -57,6 +57,7 @@
   "effect.more_balls.immortal": "Immortal",
   "message.more_balls.transit_full": "Transit is full - the swapped ammo went to your inventory",
   "death.attack.moltenBurn": "%1$s melted",
+  "death.attack.ballReturn.player": "%1$s was struck down by their own returning ball",
   "death.attack.moltenBurn.player": "%1$s was melted by %2$s",
   "tooltip.more_balls.entry.damage": "[Damage] %1$s",
   "tooltip.more_balls.entry.weight": "[Weight] %1$s",

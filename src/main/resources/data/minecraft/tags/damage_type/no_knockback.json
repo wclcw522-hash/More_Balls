@@ -1,0 +1,8 @@
+{
+  "__comment": "「空气动力球」回收时打给主人的那一下不该有击退。原版的击退判定挂在 minecraft:no_knockback 这个标签上（LivingEntity.hurtServer 里 if (!source.is(NO_KNOCKBACK)) dealDefaultKnockback(...)），把本模组的伤害类型塞进来即可整段跳过。跳过之后水平速度不会被 deltaMovement.x / 2.0 减半 —— 那正是「疾跑被打断」的原因。",
+  "__replace_note": "⚠️ 「replace\": false」是必须的 —— 它让本文件与原版标签**合并**而不是**替换**。少了它，原版那一长串（火焰、虚空、溺水、闪电……）会被本模组整个挤掉。",
+  "replace": false,
+  "values": [
+    "more_balls:ball_return"
+  ]
+}
