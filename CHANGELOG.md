@@ -5,6 +5,40 @@
 > 26.3 线已冻结（那边 Curios 与 NeoForge 不兼容，饰品功能没法测）。
 > 26.3 线的历史见 `[26.3更多球]_More_Balls\CHANGELOG.md`。
 
+## 0.4.0.14 — 修：幻翼的「俯冲去找球」对掉落物视而不见
+
+**症状**（作者 2026-10-11）：幻翼那套机制**像是没实现**，它还是**一直对玩家俯冲**。
+
+### 根因：寻球只认「球实体」，漏了「掉落物」
+
+```java
+List<BallProjectile> found = phantom.level().getEntitiesOfClass(
+        BallProjectile.class, area, BallProjectile::isAlive);   // ← 只查 BallProjectile
+```
+
+而模组里**其它所有捡球路径都是两种形态一起认**（见 `tryPickUpBall` 的注释：
+「飞行中 / 已停下的**球实体**」+「**掉落物形态的球**」）——
+**唯独幻翼这条漏了掉落物**。于是地上那种「被打飞 / 碎裂滚出来」的球，
+它**永远看不见** → 找不到球 → 继续俯冲玩家。
+
+### 修法
+
+`findBallNear` 改成认两种形态，返回类型从 `BallProjectile` 放宽到 `Entity`，
+判据提成一个复用的小函数：
+
+```java
+private static boolean isPickableBall(Entity e) {
+    if (e instanceof BallProjectile ball) {
+        return ball.isAlive();
+    }
+    return e instanceof ItemEntity item && item.isAlive() && BallAmmo.isBall(item.getItem());
+}
+```
+
+调用处按类型分流到两个已有的拾取入口（`pickUpBall` / `pickUpDroppedBall`）——
+**这两个函数本来就在，只是幻翼这条从来没能调到掉落物那个**。
+
+---
 ## 0.4.0.13 — 修：攻击间隔中攒满 12 球不会立即开火
 
 **症状**（作者 2026-10-11）：在**攻击间隔里**（还没进入着火形态时）攒满 12 颗球，
