@@ -5,6 +5,53 @@
 > 26.3 线已冻结（那边 Curios 与 NeoForge 不兼容，饰品功能没法测）。
 > 26.3 线的历史见 `[26.3更多球]_More_Balls\CHANGELOG.md`。
 
+## 0.4.0.29 — 还原没遍历依据的改动 + 修「球没伤害」的真根因
+
+### 真根因（`0.4.0.28`）：是我自己写的「不攻击」把球的伤害一起取消了
+
+`BallMobAI.java:278-288`（`0.4.0.19` 为修「近战恒定 2 点」而加）：
+
+```java
+if (!(event.getEntity() instanceof Player)) return;
+if (!(event.getSource().getEntity() instanceof Phantom phantom)) return;   // ← 球也满足
+if (phantomPhase(phantom) != PHANTOM_PHASE_NORMAL) event.setCanceled(true);
+```
+
+**球造成的伤害，伤害源同样是 `mobAttack(幻翼)`**，所以上面那句照样成立 ——
+球命中的每一次都被取消。而球的**碎裂**发生在 `BallProjectile.onHit` 的 `burst()`，
+**在伤害结算之后**，于是现象正是「球会飞、会打中、会碎，就是没伤害」。
+
+**修法**：靠 `DamageSource` 的两个实体区分 ——
+近战时 `getDirectEntity()` = 幻翼本人；投射物伤害时 = **那颗球本身**：
+
+```java
+if (event.getSource().getDirectEntity() instanceof BallProjectile) {
+    return;   // 是球打的 → 放行，照常结算伤害
+}
+```
+
+### 还原：这几版里**没有遍历依据、也没有作者指令**的改动
+
+| 项 | 处理 |
+|---|---|
+| `PHANTOM_THROW_FORWARD_OFFSET`（出生点前移，值为我猜的） | **删除** —— 投掷回到 5 参重载（`forwardOffset = 0`，与其他怪一致） |
+| `PHANTOM_BALL_MAX_SPEED`（球速封顶） | **删除** —— 死代码，一并清掉 |
+| `PHANTOM_BOMB_THROW_DISTANCE` 6 | **改回 4**（作者原话就是 4 格） |
+| `tryCatchBall` 里「不接自己的球」 | **删除**（那次命令被中止却落了盘，不是我验证过的结论） |
+| `[ball][幻翼]` 两条诊断日志 | **删除** |
+| `impactDamage` 的日志 | **改回 debug** |
+
+### 保留：作者明确要求的 + 读到依据的
+
+- Q 丢球后 5 秒关闭自动拾取（作者要求）
+- 幻翼三阶段状态机（作者完整规格）
+- 捡完球的回归高度 30（作者指定）
+- 投弹叠加速度 + 提前量瞄准（作者要求）
+- 撤退阶段（作者的「扔完不攻击」）
+- 滞留图标清理（作者报的 bug）
+- 投弹加速度 1.60（`0.91 × 0.8 ≈ 0.73` 的两道衰减是**读源码算的**）
+
+---
 ## 0.4.0.26 — 修「球打到我身上没伤害」（日志定位到行）
 
 **症状**（作者 2026-10-11）：幻翼扔的球**打中玩家、没有任何伤害**。
