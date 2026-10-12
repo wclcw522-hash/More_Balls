@@ -63,10 +63,13 @@ public final class BallMorph {
         if (ball == ModItems.AMETHYST_BALL.get()) {
             return Blocks.AMETHYST_BLOCK;
         }
-        // ⚠️ 铜球暂不参与【变形】：26.2 的 {@code Blocks.COPPER_BLOCK} 是
-        //    WeatheringCopperCollection<Block>（按氧化程度打包的一组方块），
-        //    不是单个 Block，没法直接当候选方块用。要支持它得先确定
-        //    「用哪一档氧化程度」，属于设计决策 —— 留待作者指定。
+        if (ball == ModItems.COPPER_BALL.get() || ball == ModItems.HOLLOW_COPPER_BALL.get()) {
+            // 26.2 的 Blocks.COPPER_BLOCK 是 WeatheringCopperCollection<Block>
+            // （按氧化程度打包的一组方块），不是单个 Block —— 这里按作者指定
+            // 取**未氧化**的那一颗（WeatherState.UNAFFECTED）。
+            return Blocks.COPPER_BLOCK.weathering()
+                    .pick(net.minecraft.world.level.block.WeatheringCopper.WeatherState.UNAFFECTED);
+        }
         if (ball == ModItems.REDSTONE_BALL.get()) {
             return Blocks.REDSTONE_BLOCK;
         }

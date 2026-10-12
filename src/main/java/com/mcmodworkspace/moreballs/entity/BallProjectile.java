@@ -1796,6 +1796,17 @@ public class BallProjectile extends ThrowableItemProjectile {
      * <p>双向的三个入口（球自身、金属矿、生物）都走这一个函数，
      * 保证「热量的叠加是双向的、且两侧同速」。</p>
      */
+    /**
+     * 【感应N】的积热倍率（作者 2026-10-12 指定）。
+     *
+     * <p>不带【感应】或 1 级 → 按原版速度积累（×1）；n 级就是 <b>n 倍</b>速度。
+     * 没有【感应】的球压根走不到积热代码（调用点前有 {@code profile().hasSense()} 早退），
+     * 所以这里只需把 1 当作下限兜底。</p>
+     */
+    private float senseMultiplier() {
+        return Math.max(1, this.profile().sense());
+    }
+
     private float heatEfficiency() {
         // 分母 = **0 级蓄力的出手速度**（作者 2026-10-08 明确指定）。
         //
@@ -2594,7 +2605,9 @@ public class BallProjectile extends ThrowableItemProjectile {
         // 这修掉了一个历史遗留问题 —— 停在【感应】球也会一直积热。
         // 球停下来后速度为 0，效率也就是 0，于是热量不再增长；飞得越快积得越快。
         // 双向的两个来源（方块侧、生物侧）都乘同一个系数，保持对称。
-        this.heat += totalGain * heatEfficiency();
+        // 【感应N】倍率（作者 2026-10-12 指定）：不带或 1 级按原版速度积累，n 级就是 n 倍。
+        // 原先这个倍率完全没接进热链 —— sense 只在 tooltip 与切分缩放里出现过。
+        this.heat += totalGain * heatEfficiency() * senseMultiplier();
 
         // 同时给范围内的矿升温：每格每刻 +（1 + 紧邻六面矿物数），攒到阈值会被炸开。
         // 这里只负责升温，降温与爆破交给 BallHeatHandler 的世界 tick —— 球飞走后余热也该继续散
@@ -2666,7 +2679,7 @@ public class BallProjectile extends ThrowableItemProjectile {
             living.setData(ModAttachments.LAST_HEATED_TICK.get(), living.tickCount);
 
             float heat = living.getData(ModAttachments.PROSPECTING_HEAT.get())
-                    + metal * heatEfficiency();
+                    + metal * heatEfficiency() * senseMultiplier();
             living.setData(ModAttachments.PROSPECTING_HEAT.get(), heat);
 
             if (heat > BallProspecting.PLAYER_HEAT_IGNITE) {

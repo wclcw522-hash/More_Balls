@@ -1,3 +1,43 @@
+## 1.0.0.2 — 按作者裁定落实四项
+
+### ① 铜球参与【变形】—— 用未氧化的原版铜块
+
+26.2 的 `Blocks.COPPER_BLOCK` 是 `WeatheringCopperCollection<Block>`（按氧化程度打包的一组方块），
+不是单个 `Block`。按作者指定取**未氧化**那一颗：
+
+```java
+return Blocks.COPPER_BLOCK.weathering()
+        .pick(WeatheringCopper.WeatherState.UNAFFECTED);
+```
+
+至此 `blockOf` 覆盖 `sources()` 的**全部 11 颗球**，`candidatesOf` 里那条「丢掉 null」的兜底
+只剩 `sources()` 之外的球（雪球系）会走到。
+
+### ② 【感应N】的积热倍率 —— **原来根本没接上**
+
+作者 2026-10-12 指出：【感应N】的数值代表**热量积累效率**，不带或 1 级按原版速度积累、n 级就是 n 倍。
+核查结果：**`sense()` 在整个热链里零出现** —— 它此前只在 tooltip 显示与半成品切分缩放里被用到，
+所以「感应 2」在运行时与「感应 1」**完全一样**。
+
+已补上统一倍率并接到两处积热写点（自身积热、以及给范围内生物升温）：
+
+```java
+private float senseMultiplier() {
+    return Math.max(1, this.profile().sense());
+}
+```
+
+### ③ 四合一 / 二合一的取整口径统一为「先相加再向下取整」
+
+作者确认口径是**先相加、再向下取整**。核查下来大多数字段本来就是 `Math.floor`
+（坚固 / 感应 / 磁吸 / 破坏王 / 二合一的 `floor(Fragment)` 三个数值字段），
+**只有两处写成了 `Math.round`**：四合一里的【智慧】与【穿透】。已改为 `Math.floor`。
+
+### ④ 相邻弹药格判定圆重叠 —— 不改
+
+按作者裁定保持原样（改成「取最近的」会改变手感）。
+
+---
 ## 1.0.0.1 — 清掉已知问题
 
 ### 修掉的
