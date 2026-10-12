@@ -105,6 +105,51 @@ public class BallProjectile extends ThrowableItemProjectile {
     /** 判定为静止的速度平方阈值（约 0.03 格/刻） */
     private static final double SETTLE_SPEED_SQR = 0.0009D;
 
+    // ===== 特性类词条的「触发概率闸门」（作者 2026-10-13 统一口径）=====
+    //
+    // 每个常量只控制「它自己那一个词条的那一次触发」，口径全文件统一：
+    //   随机源   —— 一律 this.level().getRandom()
+    //   比较方向 —— 一律 nextFloat() < 常量
+    //   闸门位置 —— 一律包在原触发逻辑的最外层，原逻辑一字不动
+    // 当前全部为 1.0F = 100% 必触发，与加闸门之前的行为完全一致。
+    // 以后要削弱某个词条，只调它自己那一个常量（调小即按概率触发），
+    // 不要动其它常量，也不要把比较方向改反 —— 改反会变成「概率不触发」。
+    //
+    // 注：照明 / 透镜 / 魔法 / 点金 / 脉冲 / 导电 / 金光闪闪 这几个词条的闸门
+    //     落在各自的 helper 类里（BallIlluminate / BallLens / BallMagic /
+    //     BallTransmute / RedstonePulse / BallConduction / PiglinLure），
+    //     本文件只是调用方，故不在此重复加闸门（否则同一效果会被乘两次概率）。
+
+    /** 【穿透】命中实体后穿过它并继续飞的触发概率 */
+    public static final float TRAIT_CHANCE_PIERCE = 1.0F;
+
+    /** 【反弹】坚固球命中实体后弹开（而不是碎裂）的触发概率 */
+    public static final float TRAIT_CHANCE_BOUNCE = 1.0F;
+
+    /** 【破坏王】碰到方块时真的把它砸掉的触发概率 */
+    public static final float TRAIT_CHANCE_BREAKER = 1.0F;
+
+    /** 【善良】命中同阵营时弹开、不结算伤害的触发概率 */
+    public static final float TRAIT_CHANCE_KINDNESS = 1.0F;
+
+    /** 【智慧】成功锁定目标（扣一次次数、把航向改朝目标）的触发概率 */
+    public static final float TRAIT_CHANCE_WISDOM = 1.0F;
+
+    /** 【熔融】热量达标时，命中目标给它挂「熔融物烧伤」的触发概率 */
+    public static final float TRAIT_CHANCE_MOLTEN = 1.0F;
+
+    /** 【引雷】热量攒到阈值时释放一次雷电（并清空热量）的触发概率 */
+    public static final float TRAIT_CHANCE_THUNDER = 1.0F;
+
+    /** 【融化】热量攒到融化阈值时把球化掉的触发概率 */
+    public static final float TRAIT_CHANCE_MELT = 1.0F;
+
+    /** 【电击】这颗球直接造成的伤害按「闪电类型」结算的触发概率 */
+    public static final float TRAIT_CHANCE_SHOCK = 1.0F;
+
+    /** 【变形】耐久耗尽时不变碎、改成原地变方块的触发概率 */
+    public static final float TRAIT_CHANCE_MORPH = 1.0F;
+
     /**
      * 【破坏王】砸掉方块后保留的速度比例。
      *
@@ -1668,21 +1713,24 @@ public class BallProjectile extends ThrowableItemProjectile {
         //    此时**不弹开、照常结算伤害**。
         //    否则 owner 为 null 会让 isSameSide 恒返回 true，那颗球就谁都不打
         //    （作者 2026-10-09 实测：苦力怕扔的紫水晶球打玩家不掉血）。
-        if (this.getOwner() != null
-                && this.profile().kindness()
-                && entity instanceof LivingEntity other
-                && other != this.getOwner()
-                && isSameSide(this.getOwner(), other)) {
-            MoreBalls.LOGGER.debug("[ball][伤害] 早退：{}（kindness={}）判定为「同阵营」被弹开，不结算伤害。"
-                            + " 发射者={} 是敌对={}，目标={} 是敌对={}",
-                    other.getName().getString(), this.profile().kindness(),
-                    String.valueOf(this.getOwner()),
-                    this.getOwner() instanceof net.minecraft.world.entity.monster.Enemy,
-                    other.getName().getString(),
-                    other instanceof net.minecraft.world.entity.monster.Enemy);
-            this.bounceOffEntity(other);
-            this.friendlyBounced = true;   // 见 onHit：别让二次 bounceBack 覆盖它
-            return;
+        // 【善良】触发概率（当前 100% 必触发；以后调这个常量即可）
+        if (this.level().getRandom().nextFloat() < TRAIT_CHANCE_KINDNESS) {
+            if (this.getOwner() != null
+                    && this.profile().kindness()
+                    && entity instanceof LivingEntity other
+                    && other != this.getOwner()
+                    && isSameSide(this.getOwner(), other)) {
+                MoreBalls.LOGGER.debug("[ball][伤害] 早退：{}（kindness={}）判定为「同阵营」被弹开，不结算伤害。"
+                                + " 发射者={} 是敌对={}，目标={} 是敌对={}",
+                        other.getName().getString(), this.profile().kindness(),
+                        String.valueOf(this.getOwner()),
+                        this.getOwner() instanceof net.minecraft.world.entity.monster.Enemy,
+                        other.getName().getString(),
+                        other instanceof net.minecraft.world.entity.monster.Enemy);
+                this.bounceOffEntity(other);
+                this.friendlyBounced = true;   // 见 onHit：别让二次 bounceBack 覆盖它
+                return;
+            }
         }
 
         if (this.level() instanceof ServerLevel serverLevel) {
@@ -1705,14 +1753,17 @@ public class BallProjectile extends ThrowableItemProjectile {
                 }
             }
 
-            // 【熔融】：热量攒够阈值后，这一击会给目标挂上「熔融物烧伤」。
-            // 空心铁球那颗是 120 —— 得先在矿脉附近飞一会儿把矿石烤热、自己攒够热量才行。
-            BallBehavior.BallProfile moltenProfile = this.profile();
-            if (moltenProfile.hasMolten() && this.heat >= moltenProfile.moltenThreshold()
-                    && entity instanceof LivingEntity livingTarget) {
-                MoltenBurnEffect.applyMoltenBurn(serverLevel, livingTarget,
-                        this.getOwner() instanceof LivingEntity livingOwner ? livingOwner : null,
-                        BallBehavior.MOLTEN_BURN_TICKS);
+            // 【熔融】触发概率（当前 100% 必触发；以后调这个常量即可）
+            if (this.level().getRandom().nextFloat() < TRAIT_CHANCE_MOLTEN) {
+                // 【熔融】：热量攒够阈值后，这一击会给目标挂上「熔融物烧伤」。
+                // 空心铁球那颗是 120 —— 得先在矿脉附近飞一会儿把矿石烤热、自己攒够热量才行。
+                BallBehavior.BallProfile moltenProfile = this.profile();
+                if (moltenProfile.hasMolten() && this.heat >= moltenProfile.moltenThreshold()
+                        && entity instanceof LivingEntity livingTarget) {
+                    MoltenBurnEffect.applyMoltenBurn(serverLevel, livingTarget,
+                            this.getOwner() instanceof LivingEntity livingOwner ? livingOwner : null,
+                            BallBehavior.MOLTEN_BURN_TICKS);
+                }
             }
 
             // 【魔法】（青金石球）—— 命中目标时随机施加一个负面效果。
@@ -1881,41 +1932,47 @@ public class BallProjectile extends ThrowableItemProjectile {
         if (hitResult.getType() == HitResult.Type.ENTITY) {
             EntityHitResult entityHit = (EntityHitResult) hitResult;
 
-            if (this.getPierceLevel() > 0) {
-                if (this.piercingIgnoreEntityIds == null) {
-                    this.piercingIgnoreEntityIds = new IntOpenHashSet(5);
-                }
-                if (this.piercingIgnoreEntityIds.size() >= this.getPierceLevel() + 1) {
-                    if (this.isTough()) {
-                        super.onHit(hitResult);
-                        // 同上：善良已经反射过就不要覆盖
-                        if (this.friendlyBounced) {
-                            this.friendlyBounced = false;
+            // 【穿透】触发概率（当前 100% 必触发；以后调这个常量即可）
+            if (this.level().getRandom().nextFloat() < TRAIT_CHANCE_PIERCE) {
+                if (this.getPierceLevel() > 0) {
+                    if (this.piercingIgnoreEntityIds == null) {
+                        this.piercingIgnoreEntityIds = new IntOpenHashSet(5);
+                    }
+                    if (this.piercingIgnoreEntityIds.size() >= this.getPierceLevel() + 1) {
+                        if (this.isTough()) {
+                            super.onHit(hitResult);
+                            // 同上：善良已经反射过就不要覆盖
+                            if (this.friendlyBounced) {
+                                this.friendlyBounced = false;
+                            } else {
+                                this.bounceBack();
+                            }
                         } else {
-                            this.bounceBack();
+                            this.burst();
                         }
+                        return;
+                    }
+                    this.piercingIgnoreEntityIds.add(entityHit.getEntity().getId());
+                    super.onHit(hitResult);
+                    this.consumeDurability("穿透");
+                    return;
+                }
+            }
+
+            // 【反弹】触发概率（当前 100% 必触发；以后调这个常量即可）
+            if (this.level().getRandom().nextFloat() < TRAIT_CHANCE_BOUNCE) {
+                if (this.isTough()) {
+                    super.onHit(hitResult);
+                    // ⚠️ 【善良】命中友好生物时 super.onHit 已经走过 bounceOffEntity
+                    //    做过标准向量反射；这里再无条件 bounceBack()（水平整体取反）
+                    //    会把那次反射**覆盖成原路折回** —— 表现就是「善良的反弹不生效」。
+                    if (this.friendlyBounced) {
+                        this.friendlyBounced = false;   // 用完即清，别影响后续命中
                     } else {
-                        this.burst();
+                        this.bounceBack();
                     }
                     return;
                 }
-                this.piercingIgnoreEntityIds.add(entityHit.getEntity().getId());
-                super.onHit(hitResult);
-                this.consumeDurability("穿透");
-                return;
-            }
-
-            if (this.isTough()) {
-                super.onHit(hitResult);
-                // ⚠️ 【善良】命中友好生物时 super.onHit 已经走过 bounceOffEntity
-                //    做过标准向量反射；这里再无条件 bounceBack()（水平整体取反）
-                //    会把那次反射**覆盖成原路折回** —— 表现就是「善良的反弹不生效」。
-                if (this.friendlyBounced) {
-                    this.friendlyBounced = false;   // 用完即清，别影响后续命中
-                } else {
-                    this.bounceBack();
-                }
-                return;
             }
         } else if (hitResult.getType() == HitResult.Type.BLOCK) {
             // ===== 【破坏王】钻石球：把撞到的方块砸掉 =====
@@ -1926,11 +1983,14 @@ public class BallProjectile extends ThrowableItemProjectile {
             // ⚠️ 作者 2026-10-10 更正：**砸掉了就不要反弹** ——
             //    原来是砸完照样走下面的 bounceOff()，球被弹开后又被重力带着往下坠，
             //    表现就是「因为反弹老是往下掉」。路已经砸开了，直接放它继续往前飞。
-            if (this.profile().hasBreaker()
-                    && this.breakerUsed < this.profile().breaker()
-                    && this.level() instanceof ServerLevel breakerLevel) {
-                if (this.breakerHit(breakerLevel, (BlockHitResult) hitResult)) {
-                    return;   // 砸成功 → 沿原方向继续飞，不结算反弹
+            // 【破坏王】触发概率（当前 100% 必触发；以后调这个常量即可）
+            if (this.level().getRandom().nextFloat() < TRAIT_CHANCE_BREAKER) {
+                if (this.profile().hasBreaker()
+                        && this.breakerUsed < this.profile().breaker()
+                        && this.level() instanceof ServerLevel breakerLevel) {
+                    if (this.breakerHit(breakerLevel, (BlockHitResult) hitResult)) {
+                        return;   // 砸成功 → 沿原方向继续飞，不结算反弹
+                    }
                 }
             }
 
@@ -2385,36 +2445,39 @@ public class BallProjectile extends ThrowableItemProjectile {
      */
     private void lockOnto(LivingEntity target) {
 
-        // 【智慧N】每次成功锁定扣一次 —— 扣到 0 就不再追踪
-        // （作者 2026-10-09：数值代表可追踪次数，消耗完就不再锁定）
-        if (this.wisdomUsesLeft > 0) {
-            this.wisdomUsesLeft--;
-        }
-        // 命中后设一段宽限期：这期间不做静止判定，免得被按在地上滑行
-        this.wisdomHitGrace = WISDOM_HIT_GRACE_TICKS;
+        // 【智慧】触发概率（当前 100% 必触发；以后调这个常量即可）
+        if (this.level().getRandom().nextFloat() < TRAIT_CHANCE_WISDOM) {
+            // 【智慧N】每次成功锁定扣一次 —— 扣到 0 就不再追踪
+            // （作者 2026-10-09：数值代表可追踪次数，消耗完就不再锁定）
+            if (this.wisdomUsesLeft > 0) {
+                this.wisdomUsesLeft--;
+            }
+            // 命中后设一段宽限期：这期间不做静止判定，免得被按在地上滑行
+            this.wisdomHitGrace = WISDOM_HIT_GRACE_TICKS;
 
-        // 【智慧】成就：首次触发锁定 —— 记在**投掷者**头上（怪物扔的不算，
-        // 它没有成就页；作者给出的文案也是给玩家看的）
-        if (this.getOwner() instanceof Player wisdomOwner) {
-            ModAdvancements.award(wisdomOwner, ModAdvancements.WISDOM);
-        }
+            // 【智慧】成就：首次触发锁定 —— 记在**投掷者**头上（怪物扔的不算，
+            // 它没有成就页；作者给出的文案也是给玩家看的）
+            if (this.getOwner() instanceof Player wisdomOwner) {
+                ModAdvancements.award(wisdomOwner, ModAdvancements.WISDOM);
+            }
 
-        // 【智慧】瞄**上半身**（作者 2026-10-09 指定）—— 原来的 0.5 是身体中部，
-        // 锁定瞬间几乎没有抬升动作，看起来不像「抬头锁定」。
-        // 取 0.8 倍身高（接近胸部/头部），锁定时会有一个明显的上抬。
-        Vec3 aim = target.position().add(0.0, target.getBbHeight() * 0.8, 0.0);
-        Vec3 direction = aim.subtract(this.position());
-        if (direction.lengthSqr() < 1.0E-6) {
-            return;
+            // 【智慧】瞄**上半身**（作者 2026-10-09 指定）—— 原来的 0.5 是身体中部，
+            // 锁定瞬间几乎没有抬升动作，看起来不像「抬头锁定」。
+            // 取 0.8 倍身高（接近胸部/头部），锁定时会有一个明显的上抬。
+            Vec3 aim = target.position().add(0.0, target.getBbHeight() * 0.8, 0.0);
+            Vec3 direction = aim.subtract(this.position());
+            if (direction.lengthSqr() < 1.0E-6) {
+                return;
+            }
+            // 【智慧】的锁定 = **只把方向转向目标，速度大小原样保留**。
+            //
+            // ⚠️ 这里**不要**加任何「向上抬升」之类的人为修正。
+            //    作者 2026-10-09 明确：智慧就该是「反弹之后保留速度、无视重力、让球自己飞」——
+            //    球在追踪期间本来就不吃重力（见 tick 里的三段式），它会自然保持高度飞过去。
+            //    我之前加的上抬分量反而是「直接往天上飞」的元凶，已删除。
+            double speed = Math.max(0.6, this.getDeltaMovement().length());
+            this.setDeltaMovement(direction.normalize().scale(speed));
         }
-        // 【智慧】的锁定 = **只把方向转向目标，速度大小原样保留**。
-        //
-        // ⚠️ 这里**不要**加任何「向上抬升」之类的人为修正。
-        //    作者 2026-10-09 明确：智慧就该是「反弹之后保留速度、无视重力、让球自己飞」——
-        //    球在追踪期间本来就不吃重力（见 tick 里的三段式），它会自然保持高度飞过去。
-        //    我之前加的上抬分量反而是「直接往天上飞」的元凶，已删除。
-        double speed = Math.max(0.6, this.getDeltaMovement().length());
-        this.setDeltaMovement(direction.normalize().scale(speed));
     }
 
     /**
@@ -2641,17 +2704,23 @@ public class BallProjectile extends ThrowableItemProjectile {
             }
         }
 
-        if (profile.hasMelt() && this.heat >= profile.meltThreshold()) {
-            this.melt(serverLevel);
+        // 【融化】触发概率（当前 100% 必触发；以后调这个常量即可）
+        if (this.level().getRandom().nextFloat() < TRAIT_CHANCE_MELT) {
+            if (profile.hasMelt() && this.heat >= profile.meltThreshold()) {
+                this.melt(serverLevel);
+            }
         }
 
         // 【引雷】—— 空心铜球：热量攒够阈值就释放一次雷电，并<b>清空自身热量</b>。
         //
         // 和【融化】并列放在这里判断 —— 两者都是热量系词条，区别是
         // 融化让自己消失，引雷把自己打出去（球留着，热量清零重新攒）。
-        if (profile.hasThunder() && this.heat >= profile.thunderThreshold()) {
-            this.heat = 0;
-            BallThunder.release(serverLevel, this);
+        // 【引雷】触发概率（当前 100% 必触发；以后调这个常量即可）
+        if (this.level().getRandom().nextFloat() < TRAIT_CHANCE_THUNDER) {
+            if (profile.hasThunder() && this.heat >= profile.thunderThreshold()) {
+                this.heat = 0;
+                BallThunder.release(serverLevel, this);
+            }
         }
     }
 
@@ -2976,9 +3045,12 @@ public class BallProjectile extends ThrowableItemProjectile {
         // ⚠️ 不能直接用 damageSources().lightningBolt() —— 那样会把归属丢掉，
         //    于是击杀不计在投掷者头上、仇恨也记到「闪电」身上。
         //    这里用 source(类型, 归属) 两样都保住：伤害类型是闪电，归属仍是投掷者。
-        if (this.profile().shockDamage()) {
-            return this.damageSources().source(
-                    net.minecraft.world.damagesource.DamageTypes.LIGHTNING_BOLT, owner);
+        // 【电击】触发概率（当前 100% 必触发；以后调这个常量即可）
+        if (this.level().getRandom().nextFloat() < TRAIT_CHANCE_SHOCK) {
+            if (this.profile().shockDamage()) {
+                return this.damageSources().source(
+                        net.minecraft.world.damagesource.DamageTypes.LIGHTNING_BOLT, owner);
+            }
         }
 
         if (owner instanceof Player player) {
@@ -3099,11 +3171,14 @@ public class BallProjectile extends ThrowableItemProjectile {
         //
         // ⚠️ 多重射击的**附属弹不变形**（作者指定）：附属弹连掉落物都没有，
         //    会变成方块反而更奇怪。所以这里把它排除掉。
-        if (!this.multishotSide
-                && profile.morphBlock() != null
-                && this.level() instanceof ServerLevel serverLevel) {
-            this.morphIntoBlock(serverLevel, profile.morphBlock());
-            return;
+        // 【变形】触发概率（当前 100% 必触发；以后调这个常量即可）
+        if (this.level().getRandom().nextFloat() < TRAIT_CHANCE_MORPH) {
+            if (!this.multishotSide
+                    && profile.morphBlock() != null
+                    && this.level() instanceof ServerLevel serverLevel) {
+                this.morphIntoBlock(serverLevel, profile.morphBlock());
+                return;
+            }
         }
 
         // 破碎音按每个球的音效配置取，音量由配置决定

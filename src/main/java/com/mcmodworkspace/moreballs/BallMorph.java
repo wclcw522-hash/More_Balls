@@ -89,8 +89,8 @@ public final class BallMorph {
      *
      * <p>来源列表里的每一颗球都要过 {@link #blockOf}；认不出的返回 {@code null}，
      * 这里直接把 Null 的那一项<b>丢掉</b>（不是替换成别的方块）。
-     * {@code blockOf} 现已覆盖 {@link BallFragments#sources()} 里 11 颗中的 9 颗
-     * （铜球与空心铜球除外，见 {@link #blockOf} 里的说明），所以那句话对当前来源球基本成立；
+     * {@code blockOf} 现已覆盖 {@link BallFragments#sources()} 的**全部 11 颗**
+     * （含铜球与空心铜球 —— 它们映射到未氧化的原版铜块），所以那句话对当前所有来源球都成立；
      * 「丢掉 null」这条兜底只剩下 {@code sources()} 之外的球（雪球系）会走到。</p>
      */
     public static List<Block> candidatesOf(ItemStack ball) {

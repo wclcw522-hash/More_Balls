@@ -56,6 +56,15 @@ public final class RedstonePulse {
     public static final int ARMOR_FOR_STRONG = 40;
 
     /**
+     * 【脉冲】的触发概率 —— 控制<strong>每一个合格目标</strong>被施加【震荡】的几率。
+     *
+     * <p>掷骰位置在 {@link #detonate} 的逐目标循环里、合格判定之后：当前
+     * {@code 1.0F}（100% 必触发）。作者以后要削弱这个特性，只调这一个常量即可，
+     * 不用碰任何逻辑。粒子和粗筛不受它影响 —— 概率调低时依然能看到脉冲炸开。</p>
+     */
+    public static final float TRAIT_CHANCE_PULSE = 1.0F;
+
+    /**
      * 在给定位置引爆一次【脉冲】。
      *
      * @param level  服务端世界
@@ -93,10 +102,13 @@ public final class RedstonePulse {
 
             // 装备够厚 → 升级成震荡 2
             boolean strong = metal >= METAL_FOR_STRONG || armor >= ARMOR_FOR_STRONG;
-            target.addEffect(new MobEffectInstance(
-                    ModEffects.SHOCK,
-                    strong ? DURATION_STRONG : DURATION_BASE,
-                    strong ? 1 : 0));
+            // 【脉冲】触发概率（当前 100% 必触发；以后调这个常量即可）
+            if (level.getRandom().nextFloat() < TRAIT_CHANCE_PULSE) {
+                target.addEffect(new MobEffectInstance(
+                        ModEffects.SHOCK,
+                        strong ? DURATION_STRONG : DURATION_BASE,
+                        strong ? 1 : 0));
+            }
         }
     }
 }

@@ -31,6 +31,15 @@ public final class BallConduction {
     /** 导电球的引雷半径（格）—— 作者指定 32 */
     public static final double RADIUS = 32.0;
 
+    /**
+     * 【导电】的触发概率 —— 控制<strong>一次自然闪电被搬到铜球上</strong>的几率。
+     *
+     * <p>掷骰位置在 {@link #onEntityJoin} 里、已经确定「最近的导电球」之后：
+     * 当前 {@code 1.0F}（100% 必触发，与加闸门之前的行为完全一致）。
+     * 作者以后要削弱这个特性只调这一个常量即可；掷不中时闪电留在原落点。</p>
+     */
+    public static final float TRAIT_CHANCE_CONDUCTION = 1.0F;
+
     private BallConduction() {
     }
 
@@ -42,12 +51,9 @@ public final class BallConduction {
         if (!(event.getLevel() instanceof ServerLevel level)) {
             return;   // 客户端那边不用管
         }
-        // ⚠️ 2026-10-12 审计修正：【引雷】自己召唤的闪电是「视觉实体」（visualOnly），
-        //    它**必须劈在目标身上**，不能被附近的导电铜球吸过去 ——
-        //    否则铜球会白白吃一发雷、还要扣 1 点耐久。
-        if (bolt.visualOnly) {
-            return;
-        }
+        // ⚠️ 2026-10-12 作者裁定：【引雷】自己召唤的雷（visualOnly）**同样要作用于铜球**，
+        //    铜球该被劈、该按 onStruckByLightning 扣 1 点耐久。
+        //    （一度加过 `if (bolt.visualOnly) return;` 把它挡掉，那是错的，已撤。）
 
         BallProjectile best = null;
         double bestDistance = RADIUS;
@@ -66,9 +72,12 @@ public final class BallConduction {
             return;
         }
 
-        // 把落点搬到球身上，然后扣它 1 点耐久
-        bolt.setPos(best.getX(), best.getY(), best.getZ());
-        best.onStruckByLightning();
+        // 【导电】触发概率（当前 100% 必触发；以后调这个常量即可）
+        if (level.getRandom().nextFloat() < TRAIT_CHANCE_CONDUCTION) {
+            // 把落点搬到球身上，然后扣它 1 点耐久
+            bolt.setPos(best.getX(), best.getY(), best.getZ());
+            best.onStruckByLightning();
+        }
     }
 
     /** 这颗实体状态的球是不是【导电】的 */

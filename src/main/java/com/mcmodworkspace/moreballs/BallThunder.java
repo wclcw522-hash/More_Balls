@@ -102,6 +102,7 @@ public final class BallThunder {
      * @param source 作为闪电起点的空心铜球
      */
     public static void release(ServerLevel level, BallProjectile source) {
+        // 【引雷120】触发概率（当前 100% 必触发；以后调这个常量即可）
         RandomSource random = level.getRandom();
         int boltCount = MIN_BOLTS + random.nextInt(MAX_BOLTS - MIN_BOLTS + 1);
 

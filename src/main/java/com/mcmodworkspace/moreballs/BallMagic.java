@@ -72,6 +72,31 @@ public final class BallMagic {
      */
     private static final int JACKPOT_DENOMINATOR = 1000;
 
+    /**
+     * 【魔法】命中给 debuff 的触发概率 —— 控制 {@link #applyToVictim}
+     * （青金石球命中目标 → 随机施加一个 1–20 秒、1–5 级的负面效果）那一处。
+     *
+     * <p><b>当前 1.0F = 100% 必触发</b>；以后想让「打中也不一定上 debuff」，改这个数即可。</p>
+     */
+    public static final float TRAIT_CHANCE_MAGIC = 1.0F;
+
+    /**
+     * 【魔法】回收给 buff 的触发概率 —— 控制 {@link #applyToOwner}
+     * （球飞回主人身上 → 随机施加一个正面效果）那一处。
+     *
+     * <p><b>当前 1.0F = 100% 必触发</b>；调小它等于「球回来了也不一定给 buff」。</p>
+     */
+    public static final float TRAIT_CHANCE_MAGIC_RECOVER = 1.0F;
+
+    /**
+     * 【魔法】0.1% 大奖（60 秒【不灭】+ 不死图腾音效粒子）的额外闸门 ——
+     * 套在 {@link #JACKPOT_DENOMINATOR} 那道 0.1% 判定<b>外面</b>。
+     *
+     * <p><b>当前 1.0F = 100% 必判定</b>：先过这道闸，再按 1/1000 掷骰。
+     * 调成 0 就等于「大奖整个关掉」，而不必去动分母。</p>
+     */
+    public static final float TRAIT_CHANCE_MAGIC_JACKPOT = 1.0F;
+
     /** 这些效果虽然分类是对的，但不适合由球随机施加（事件状态标记） */
     private static final List<String> EXCLUDED = List.of(
             "bad_omen",
@@ -86,12 +111,16 @@ public final class BallMagic {
      * @return 实际施加的效果（没施加则返回 {@code null}，便于调用方决定要不要出粒子）
      */
     public static MobEffectInstance applyToVictim(ServerLevel level, LivingEntity target) {
-        MobEffectInstance picked = roll(level.getRandom(), MobEffectCategory.HARMFUL);
-        if (picked == null) {
-            return null;
+        // 【魔法】触发概率（当前 100% 必触发；以后调这个常量即可）
+        if (level.getRandom().nextFloat() < TRAIT_CHANCE_MAGIC) {
+            MobEffectInstance picked = roll(level.getRandom(), MobEffectCategory.HARMFUL);
+            if (picked == null) {
+                return null;
+            }
+            target.addEffect(picked);
+            return picked;
         }
-        target.addEffect(picked);
-        return picked;
+        return null;
     }
 
     /**
@@ -102,14 +131,20 @@ public final class BallMagic {
      * @return 抽中大奖时为 {@code true}
      */
     public static boolean applyToOwner(ServerLevel level, LivingEntity owner) {
-        if (level.getRandom().nextInt(JACKPOT_DENOMINATOR) == 0) {
-            grantJackpot(level, owner);
-            return true;
-        }
+        // 【魔法】回收触发的概率（当前 100% 必触发；以后调这个常量即可）
+        if (level.getRandom().nextFloat() < TRAIT_CHANCE_MAGIC_RECOVER) {
+            // 【魔法】0.1% 大奖的额外闸门（当前 100% 必判定；以后调这个常量即可）
+            if (level.getRandom().nextFloat() < TRAIT_CHANCE_MAGIC_JACKPOT) {
+                if (level.getRandom().nextInt(JACKPOT_DENOMINATOR) == 0) {
+                    grantJackpot(level, owner);
+                    return true;
+                }
+            }
 
-        MobEffectInstance picked = roll(level.getRandom(), MobEffectCategory.BENEFICIAL);
-        if (picked != null) {
-            owner.addEffect(picked);
+            MobEffectInstance picked = roll(level.getRandom(), MobEffectCategory.BENEFICIAL);
+            if (picked != null) {
+                owner.addEffect(picked);
+            }
         }
         return false;
     }

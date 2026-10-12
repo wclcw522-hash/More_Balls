@@ -59,6 +59,13 @@ public final class BallLens {
     private static final float LIVING_HEAT_PER_STEP = 1.0F;
 
     /**
+     * 【透镜】词条的触发概率 —— 控制透镜的两处加热触发：
+     * ①给球下方 5×5×2 的方块积热、②给同一片区域里的生物升温，以及③热量达标后的「真的烧起来」。
+     * 当前 1.0F = 100% 必触发（口径与其它特性词条统一）；以后要削弱透镜就调小这个常量。
+     */
+    public static final float TRAIT_CHANCE_LENS = 1.0F;
+
+    /**
      * 每刻调用一次（由 {@code BallProjectile} 在实体状态时调）。
      *
      * <p><b>不判 {@code isSettled()}</b> —— 作者明确「即使钻石球静止」也要积热。</p>
@@ -106,7 +113,10 @@ public final class BallLens {
                     //    而且只有空串才**不覆盖**已有来源。传 "lens" 会顶掉玩家用球烤热时
                     //    写进去的真实 UUID → 矿被烤熟时反查不到人 → 成就「这真的科学吗？」发不出去。
                     //    透镜攒的热照常生效，只是不认领归属（真正烤熟它的人是球的主人）。
-                    data.addHeat(pos, HEAT_PER_STEP, now, "");
+                    // 【透镜】触发概率（当前 100% 必触发；以后调这个常量即可）
+                    if (level.getRandom().nextFloat() < TRAIT_CHANCE_LENS) {
+                        data.addHeat(pos, HEAT_PER_STEP, now, "");
+                    }
 
                     // 金属与矿物方块只积热，不冒火也不点燃（作者指定）
                     if (BallProspecting.isMetalOre(level, state) || BallProspecting.isHeatAbsorbing(level, state)) {
@@ -115,7 +125,10 @@ public final class BallLens {
 
                     float heat = data.getHeat(pos);
                     if (heat >= IGNITE_HEAT) {
-                        lightFire(level, pos, state);
+                        // 【透镜】触发概率（当前 100% 必触发；以后调这个常量即可）
+                        if (level.getRandom().nextFloat() < TRAIT_CHANCE_LENS) {
+                            lightFire(level, pos, state);
+                        }
                     } else if (heat >= FLAME_PARTICLE_HEAT) {
                         // 冒火焰粒子：从方块顶面往上飘
                         level.sendParticles(ParticleTypes.FLAME,
@@ -135,12 +148,15 @@ public final class BallLens {
             if (!living.isAlive()) {
                 continue;
             }
-            float heat = living.getData(ModAttachments.PROSPECTING_HEAT.get());
-            float next = Math.min(heat + LIVING_HEAT_PER_STEP, BallHeatHandler.MAX_LIVING_HEAT);
-            living.setData(ModAttachments.PROSPECTING_HEAT.get(), next);
-            // ⚠️ 必须刷新「最后加热刻」—— 否则既有系统会立刻把它当成「没在被加热」，
-            //    按降温处理，等于白加热（玩家热量那条链路靠这个时间戳判断升温还是降温）。
-            living.setData(ModAttachments.LAST_HEATED_TICK.get(), living.tickCount);
+            // 【透镜】触发概率（当前 100% 必触发；以后调这个常量即可）
+            if (level.getRandom().nextFloat() < TRAIT_CHANCE_LENS) {
+                float heat = living.getData(ModAttachments.PROSPECTING_HEAT.get());
+                float next = Math.min(heat + LIVING_HEAT_PER_STEP, BallHeatHandler.MAX_LIVING_HEAT);
+                living.setData(ModAttachments.PROSPECTING_HEAT.get(), next);
+                // ⚠️ 必须刷新「最后加热刻」—— 否则既有系统会立刻把它当成「没在被加热」，
+                //    按降温处理，等于白加热（玩家热量那条链路靠这个时间戳判断升温还是降温）。
+                living.setData(ModAttachments.LAST_HEATED_TICK.get(), living.tickCount);
+            }
         }
     }
 
