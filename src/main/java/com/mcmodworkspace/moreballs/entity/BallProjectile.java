@@ -264,7 +264,31 @@ public class BallProjectile extends ThrowableItemProjectile {
         return 1.0F;
     }
 
-    /** 每趟投掷只判一次：每个特性按**它自己的概率**各掷一次。 */
+    /**
+     * **伪随机保底**：按「球的来源 + 词条」记账的连续未触发次数（作者 2026-10-13 规格）。
+     *
+     * <p>键是**扔出这颗球的那个实体**的 UUID（玩家与怪物一视同仁），值是 16 个计数 ——
+     * <b>每个特性位各自一个计数器</b>，互不影响。</p>
+     *
+     * <p>触发后该位清零；全部为 0 时整个条目会被移除，避免长跑后越攒越多。</p>
+     */
+    private static final java.util.Map<java.util.UUID, int[]> TRAIT_MISS_STREAKS =
+            new java.util.concurrent.ConcurrentHashMap<>();
+
+    /**
+     * **保底次数**：{@code round(1 / p × 1.5)}，最小 1。
+     *
+     * <p>例：25% → 1/0.25 = 4，×1.5 = 6 → 连续 5 次没中就第 6 次必中；
+     * 50% → 3；75% → 2。</p>
+     */
+    private static int pityLimit(float chance) {
+        return Math.max(1, Math.round(1.0F / chance * 1.5F));
+    }
+
+    /**
+     * 每趟投掷**只判一次**：把球带着的每个特性各掷一次，
+     * 每个特性用它**自己的概率**、并享受**它自己的保底计数**。
+     */
     private void rollTraitsOnce() {
         if (this.traitsRolled) {
             return;
@@ -275,6 +299,10 @@ public class BallProjectile extends ThrowableItemProjectile {
             return;
         }
         RandomSource random = this.getRandom();
+        Entity owner = this.getOwner();
+        int[] misses = owner == null
+                ? null
+                : TRAIT_MISS_STREAKS.computeIfAbsent(owner.getUUID(), key -> new int[16]);
         int fired = 0;
         for (int bit = 0; bit < 16; bit++) {
             int unit = 1 << bit;
@@ -282,11 +310,38 @@ public class BallProjectile extends ThrowableItemProjectile {
                 continue;
             }
             float chance = this.traitChance(unit);
-            if (chance > 0.0F && random.nextFloat() < chance) {
+            if (chance <= 0.0F) {
+                continue;
+            }
+            boolean hit;
+            if (chance >= 1.0F) {
+                hit = true;                                  // 100%：本来必中，不参与保底
+            } else if (misses != null && misses[bit] + 1 >= pityLimit(chance)) {
+                hit = true;                                  // 保底：连续没够次数 → 这次必中
+            } else {
+                hit = random.nextFloat() < chance;
+            }
+            if (misses != null) {
+                misses[bit] = hit ? 0 : misses[bit] + 1;
+            }
+            if (hit) {
                 fired |= unit;
             }
         }
         this.firedTraits = fired;
+        // 全清零就整条移除，别让 Map 无限长
+        if (misses != null) {
+            boolean anyLeft = false;
+            for (int value : misses) {
+                if (value != 0) {
+                    anyLeft = true;
+                    break;
+                }
+            }
+            if (!anyLeft) {
+                TRAIT_MISS_STREAKS.remove(owner.getUUID());
+            }
+        }
     }
 
     /** 本趟投掷里，这个特性生不生效（{@code TRAIT_*} 之一）。 */
