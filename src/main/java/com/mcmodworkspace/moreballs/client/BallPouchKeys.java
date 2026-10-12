@@ -20,7 +20,7 @@ import net.neoforged.neoforge.client.network.ClientPacketDistributor;
  * <ul>
  *   <li><b>G</b> —— 打开<b>饰品栏里</b>的收纳袋。<b>只认饰品栏</b>：袋子拿在手里
  *       （主手或副手）时按 G 不生效 —— 手持想开界面，用主手右键</li>
- *   <li><b>R</b> —— <b>长按 0.5 秒</b>展开径向菜单（挑弹药）。身上有收纳袋才弹，
+ *   <li><b>R</b> —— <b>长按 0.2 秒</b>展开径向菜单（挑弹药）。身上有收纳袋才弹，
  *       袋子在背包 / 快捷栏 / <b>副手</b> / 饰品栏都算</li>
  * </ul>
  *
@@ -118,7 +118,7 @@ public final class BallPouchKeys {
                     && held >= HOLD_MILLIS
                     && minecraft.gui.screen() == null) {     // 已经在别的界面里就不弹
                 // 留一条诊断：万一轮盘还是没出来，日志里能看到按下判定走了多远、身上有几个袋子
-                MoreBalls.LOGGER.info("[pouch] 长按 R 达标，弹轮盘（身上袋子数 {}）",
+                MoreBalls.LOGGER.debug("[pouch] 长按 R 达标，弹轮盘（身上袋子数 {}）",
                         BallPouchHelper.allPouchStacks(minecraft.player).size());
                 minecraft.setScreenAndShow(new RadialMenuScreen());
                 radialOpened = true;

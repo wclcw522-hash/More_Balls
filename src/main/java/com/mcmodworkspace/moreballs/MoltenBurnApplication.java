@@ -26,8 +26,11 @@ import net.neoforged.neoforge.event.entity.living.MobEffectEvent;
  * <ul>
  *   <li><b>等级</b>：在<b>已有等级</b>上提升 {@code ⌊护甲值 / 10⌋}，总等级不超过 5
  *       （即 amplifier 上限 4）</li>
- *   <li><b>时长</b>：<b>原有时长</b> × {@code (1 + 金属装备数量)}</li>
+ *   <li><b>时长</b>：<b>原有时长</b> × {@code (1 + 金属装备数量)}
+ *       —— 这一项在本类里<b>不再乘</b>，由 {@code MoltenBurnEffect.applyMoltenBurn} 自己算</li>
  * </ul>
+ * <p>也就是说本事件只重算<b>等级</b>；时长只在走模组那两条路径（球命中、热辐射）时被放大过，
+ * 而 {@code /effect give} 挂上来的时长就是原样。</p>
  * <p>「原有时长」取的是<b>这一次挂载本身带的时长</b>（{@code getEffectInstance().getDuration()}），
  * 而不是某个写死的常量 —— 这样 {@code /effect give @s ... 60 1} 挂上来也会被正确放大。</p>
  */
@@ -45,10 +48,13 @@ public final class MoltenBurnApplication {
         }
         LivingEntity target = event.getEntity();
 
-        // ===== 时长：原有时长 × (1 + 金属装备数) =====
-        int metal = BallProspecting.countMetalEquipment(target);
-        int baseDuration = added.getDuration();
-        added.duration = baseDuration * (1 + metal);
+        // ===== 时长：这里**不再**乘金属装备数 =====
+        //
+        // ⚠️ 2026-10-12 审计修正：这里**不再乘**，时长由 applyMoltenBurn 算。
+        //    MoltenBurnEffect.applyMoltenBurn 已经在它那边乘过一次 (1 + 金属件数)，
+        //    这里再乘就是平方；更糟的是那边用的是 Math.max(新, 旧) —— 旧值又是被放大过的，
+        //    反复命中会**指数级增长**（4 件金属就是 ×25 而不是 ×5）。
+        //    所以这一处只保留「等级」逻辑，时长不碰。
 
         // ===== 等级：已有等级 + ⌊护甲值 / 10⌋，封顶 5 级 =====
         //

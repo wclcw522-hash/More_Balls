@@ -45,12 +45,15 @@ import net.minecraft.util.Mth;
  * </pre>
  *
  * <p>代入几个典型场景（基准重量 4、水平初速 1 格/刻）：</p>
+ * <p>⚠️ <b>重量 0 那一行是不可达的</b>：重量 0 的球没重力，{@link #shouldRoll} 在
+ * {@code gravity <= 0} 时直接返回 {@code false}，它根本不会进入滚动阶段
+ * —— 表里那个数值只是把公式代进去的结果，实战中取不到，别当参考值用。</p>
  * <table border="1">
  *   <caption>方块与重量的滚动表现</caption>
  *   <tr><th>方块</th><th>摩擦 μ</th><th>重量</th><th>速度保留</th><th>大致滚动距离</th></tr>
  *   <tr><td>石头</td><td>0.6</td><td>4</td><td>0.90</td><td>约 10 格</td></tr>
  *   <tr><td>石头</td><td>0.6</td><td>10</td><td>0.75</td><td>约 4 格</td></tr>
- *   <tr><td>石头</td><td>0.6</td><td>0</td><td>0.97</td><td>约 33 格</td></tr>
+ *   <tr><td>石头</td><td>0.6</td><td>0（不可达）</td><td>—</td><td>—</td></tr>
  *   <tr><td>冰</td><td>0.98</td><td>4</td><td>0.982</td><td>约 55 格</td></tr>
  *   <tr><td>蓝冰</td><td>0.989</td><td>4</td><td>0.984</td><td>约 62 格</td></tr>
  * </table>

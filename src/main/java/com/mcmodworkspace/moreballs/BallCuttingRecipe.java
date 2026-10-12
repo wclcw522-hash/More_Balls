@@ -44,12 +44,16 @@ import net.minecraft.world.item.crafting.StonecutterRecipe;
  * 继承之后 {@code getType()} 已经是 {@code RecipeType.STONECUTTING}，天然满足。</p>
  *
  * <h2>配方怎么做到「只写一份」</h2>
- * <p>json 的 {@code ingredient} 直接写标签 {@code #more_balls:balls} —— <b>任何</b>球都能切。
+ * <p>json 的 {@code ingredient} 写的是汇总标签 {@code #more_balls:balls/cuttable}
+ * —— 它本身不含具体物品，只引用两个子分类
+ * （{@code #more_balls:balls/solid} 与 {@code #more_balls:balls/hollow}），
+ * 所以球<b>必须进对应子分类</b>才切得动；只进 {@code #more_balls:balls} 是不够的。
  * 产物模板写 {@code ball_half} 或 {@code ball_quarter}，其中 {@code fragment_source}
  * 的占位值会被 {@link #assemble} 换成真实来源。</p>
  *
- * <p>结论：<b>加新球只要进 {@code #more_balls:balls} 标签 + 进
- * {@link BallFragments#sources()}，切割自动就有</b>，不用再写任何 json。</p>
+ * <p>结论：<b>加新球只要进对应的子分类标签（实心球进 {@code balls/solid}、
+ * 空心球进 {@code balls/hollow}）+ 进 {@link BallFragments#sources()}，
+ * 切割自动就有</b>，不用再写任何 json。</p>
  */
 public class BallCuttingRecipe extends StonecutterRecipe {
 

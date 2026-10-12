@@ -82,6 +82,21 @@ public class ShockEffect extends MobEffect {
         return INTERVAL_TICKS[Mth.clamp(amplifier, 0, INTERVAL_TICKS.length - 1)];
     }
 
+    /**
+     * 效果自身的 tick 节拍判定 —— <b>⚠️ 这里是空转的，实际不产生任何作用</b>。
+     *
+     * <p>它只决定「原版要不要调 {@link #applyEffectTick}」，而那个回调里什么都不做
+     * （只 {@code return true} 维持效果存在），所以本方法算得再准也影响不到转向节拍。</p>
+     *
+     * <p><b>真正的节拍在 {@link #onEntityTickPost} 里</b>：那里每刻用
+     * {@code instance.getDuration() % intervalFor(amplifier)} 取模判断该不该扭。
+     * 也就是说间隔由<span>效果剩余时长</span>驱动、而不是由实体 tick 数驱动 ——
+     * 两处即使间隔数值相同也互不干涉；效果被刷新或被 {@code /effect} 重挂时，
+     * 相位会随剩余时长重新对齐（这正是想要的：重挂即立刻扭一下）。</p>
+     *
+     * <p>本方法保持现在的实现只为不动行为（原版契约要求有这个判定入口），
+     * 不影响实际表现。</p>
+     */
     @Override
     public boolean shouldApplyEffectTickThisTick(int tickCount, int amplifier) {
         return tickCount % intervalFor(amplifier) == 0;
@@ -141,8 +156,9 @@ public class ShockEffect extends MobEffect {
     /**
      * 施加一次随机转向 —— 视角与运动方向一起扭。
      *
-     * <p>抽出来做成 public static，是为了让【脉冲】等地方能在<b>挂上效果的瞬间</b>
-     * 也立刻扭一下（不然要等满一个间隔才看得出反应）。</p>
+     * <p>⚠️ 2026-10-12 审计订正：全项目搜 {@code applyShock} <b>只有本类自己调用</b>（{@code onEntityTickPost}），
+     * 【脉冲】那边只负责挂效果、并没有在挂上时补扭一下 —— 原来那句「为了让【脉冲】等地方立刻扭一下」
+     * 的理由在现代码里已经不成立。方法保持 {@code public static} 以备外部复用。</p>
      */
     public static void applyShock(LivingEntity mob) {
         if (mob instanceof ServerPlayer player) {

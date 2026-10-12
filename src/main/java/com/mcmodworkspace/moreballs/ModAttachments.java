@@ -15,7 +15,7 @@ import java.util.function.Supplier;
  * 本模组的数据附加（Attachment）—— 挂在玩家身上的自定义数据。
  *
  * <h2>为什么用 Attachment 而不是 ItemStack 组件</h2>
- * 「探寻」要在玩家身上累积热量（穿金属盔甲、拿金属武器会被加热），
+ * 【感应】要在玩家身上累积热量（穿金属盔甲、拿金属武器会被加热），
  * 这个热量属于<b>玩家本身</b>、跟任何物品无关，也不该因为换装而丢失，
  * 所以用 NeoForge 的 Attachment 系统存在玩家实体上。
  *
@@ -30,10 +30,12 @@ public final class ModAttachments {
             DeferredRegister.create(NeoForgeRegistries.ATTACHMENT_TYPES, MoreBalls.MOD_ID);
 
     /**
-     * 玩家身上的「探寻热量」。
+     * 玩家身上的【感应】热量。
      *
-     * <p>穿着/持有金属装备时被附近的球持续加热，脱离检测范围后每刻自然消退 2 点；
-     * 超过 50 点会被点燃。</p>
+     * <p>穿着/持有金属装备时被附近的球持续加热；脱离检测满 1 秒
+     * （{@code HEAT_DECAY_DELAY_TICKS} 宽限）后每刻自然消退
+     * {@link BallProspecting#PLAYER_HEAT_DECAY}（0.2）点；超过
+     * {@link BallProspecting#PLAYER_HEAT_IGNITE}（100）点会被点燃。</p>
      */
     public static final Supplier<AttachmentType<Float>> PROSPECTING_HEAT = ATTACHMENTS.register(
             "prospecting_heat",
@@ -44,7 +46,8 @@ public final class ModAttachments {
     /**
      * 上一次被加热的游戏刻。
      *
-     * <p>用来区分「本刻正被球加热」（应该继续升温）与「已经脱离检测」（该按每刻 2 点消退）——
+     * <p>用来区分「本刻正被球加热」（应该继续升温）与「已经脱离检测」（该按每刻
+     * {@link BallProspecting#PLAYER_HEAT_DECAY}（0.2）点消退）——
      * 衰退由玩家自身的 tick 事件统一处理，不需要球一直存在。</p>
      */
     public static final Supplier<AttachmentType<Integer>> LAST_HEATED_TICK = ATTACHMENTS.register(
@@ -130,6 +133,40 @@ public final class ModAttachments {
             () -> AttachmentType.<List<ItemStack>>builder(() -> List.of())
                     .serialize(ItemStack.CODEC.listOf().fieldOf("selected_ammo_stack"))
                     .sync(ItemStack.STREAM_CODEC.apply(ByteBufCodecs.list()))
+                    .build());
+
+    /**
+     * 怪物捡球时，从主手上<b>收起来</b>的那件东西（空列表 = 没收着）。
+     *
+     * <p>作者 2026-10-11 指定：捡球不再把原来手里的东西丢在地上，而是<b>收起来</b>，
+     * 等这颗球扔出去之后再原样拿出。丢在地上的话会被别的怪或玩家捡走 ——
+     * 那等于把猪灵的金剑、骷髅的弓弄丢了。</p>
+     *
+     * <p>⚠️ 同 {@link #SELECTED_AMMO}，用 {@code List} 而不是裸 {@code ItemStack} ——
+     * {@code ItemStack.CODEC} 拒绝空栈，而这里必须能表示「没收着」。</p>
+     *
+     * <p>不需要同步到客户端：纯服务端状态，客户端看不到也无所谓。</p>
+     */
+    public static final Supplier<AttachmentType<List<ItemStack>>> STASHED_MAINHAND = ATTACHMENTS.register(
+            "stashed_mainhand",
+            () -> AttachmentType.<List<ItemStack>>builder(() -> List.of())
+                    .serialize(ItemStack.CODEC.listOf().fieldOf("stashed_mainhand"))
+                    .build());
+
+    /**
+     * <b>烈焰人的球袋</b> —— 它持有的球（作者 2026-10-11 指定：混装、最多 12 颗）。
+     *
+     * <p>为什么要单独存：烈焰人要能**同时拿不同种类**的球，
+     * 而主手只有**一个物品栈**，一叠只能装同一种。所以球袋用
+     * {@code List<ItemStack>}，每个元素是<b>单独一颗</b>（count 恒为 1）——
+     * 这样每颗球各自带着自己的耐久与组件，投出去时也不会互相干扰。</p>
+     *
+     * <p>⚠️ 又一次是「{@code ItemStack.CODEC} 拒绝空栈」那个老问题 —— 用列表表示「没了」。</p>
+     */
+    public static final Supplier<AttachmentType<List<ItemStack>>> BLAZE_BALLS = ATTACHMENTS.register(
+            "blaze_balls",
+            () -> AttachmentType.<List<ItemStack>>builder(() -> List.of())
+                    .serialize(ItemStack.CODEC.listOf().fieldOf("blaze_balls"))
                     .build());
 
     // （这里原本有个 CREEPER_CHARGE_START attachment —— 用来记「持球苦力怕蓄了多久」。

@@ -19,7 +19,9 @@ import java.util.List;
  *   <li><b>转运格（transit）</b> —— 只放用过的球（耐久有消耗的）</li>
  * </ul>
  *
- * <p>两段各占 {@code tier.ammoSlots()} 格，所以弹药段的第 i 格和转运段的第 i 格
+ * <p>两段<b>各存</b> {@code FIXED_SEGMENT_SIZE}（54）格；其中该等级真正可用的格数由
+ * {@link BallPouchTier} 决定（弹药 {@code ammoSlots()} / 转运 {@code transitSlots()}）。
+ * 弹药段的第 i 格和转运段的第 i 格
  * 是两回事 —— 用<b>两个独立的列表</b>存，而不是「一个大列表切两半」，
  * 这样界面拖动、容量变化时都不容易串位。</p>
  *
@@ -34,17 +36,14 @@ public record BallPouchContents(List<ItemStack> ammo, List<ItemStack> transit) {
     public static final BallPouchContents EMPTY = new BallPouchContents(List.of(), List.of());
 
     /**
-     * 每段的<b>固定</b>格数 —— 就按满级（下界合金）的 27 格存。
-     *
-     * <p>作者的方案：界面尺寸永远按满级来（原版箱子那么大），等级只决定
-     * <b>哪些格子解锁</b>、没用到的格子盖灰禁用。所以容器的格子数也固定，
-     * 不必随等级伸缩 —— 这样升级时不需要重建界面，纹理也永远对得齐。</p>
-     */
-    /**
-     * 每段的<b>存储上限</b>（不是实际可用格数 —— 那个由 {@link BallPouchTier} 决定）。
+     * 每段的<b>存储</b>格数（不是实际可用格数 —— 那个由 {@link BallPouchTier} 决定）。
      *
      * <p>⚠️ 2026-10-10 作者要求「中转区容量翻倍」后，满级转运段要用到
      * {@code 27 × 2 = 54} 格，所以这里从 27 扩到 54。</p>
+     *
+     * <p>⚠️ 固定的只是<b>存储</b>格数，界面尺寸<b>不</b>恒定：{@link BallPouchMenu}
+     * 按各等级的实际格数排行，高度随等级变（见 {@code guiHeight()}），等级决定
+     * 「哪些格子解锁」、没解锁的在界面上盖灰禁用。升级不必重建容器。</p>
      *
      * <p>旧存档里的段还是按当时的长度存的，读取时由 {@link #resize} 补齐 —— 不会丢东西。</p>
      */

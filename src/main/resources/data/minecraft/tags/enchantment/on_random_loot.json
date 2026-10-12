@@ -1,7 +1,10 @@
 {
   "replace": false,
   "values": [
+    "more_balls:powerful_crossbow",
     "more_balls:lightness",
-    "more_balls:aerodynamic_ball"
+    "more_balls:swiftness",
+    "more_balls:aerodynamic_ball",
+    "more_balls:repeater_crossbow"
   ]
 }

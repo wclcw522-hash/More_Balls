@@ -20,22 +20,23 @@ import net.minecraft.world.level.block.Block;
  * <ul>
  *   <li>切石机把完整球切成 <b>2 个半球</b>或 <b>4 个四分之一球</b></li>
  *   <li>半球与四分之一球<b>不能投掷、不能当弩弹药</b> —— 它们不进 {@code #more_balls:balls} 标签</li>
- *   <li><b>数值词条</b>（坚固、感应、融化、熔融、磁吸、点金）在半成品上按 1/2、1/4 缩放，
- *       <b>暂时不取整</b> —— 所以这里一律用 {@code double} 运算，不能落回 int</li>
- *   <li><b>无数值特性</b>（变形、磁性、金光闪闪）由半球<b>直接继承</b>；
- *       <b>四分之一球把它们藏起来</b>，到四合一才重新判断</li>
+ *   <li><b>数值词条</b>（坚固、感应、磁吸、点金）在半成品上按 1/2、1/4 缩放，
+ *       <b>暂时不取整</b> —— 所以这里一律用 {@code double} 运算，不能落回 int。
+ *       <b>例外：融化 / 熔融是阈值类，不缩放</b>（见 {@code Fragment#scaled}）</li>
+ *   <li><b>无数值特性</b>（变形、磁性）由半球<b>直接继承</b>；
+ *       <b>四分之一球把它们藏起来</b>，到四合一才重新判断。
+ *       <b>例外：【金光闪闪】不参与合成</b>，被切开即永久失效</li>
  *   <li><b>二合一</b>：数值与特质<b>相叠加</b>，数值<b>向下取整</b></li>
  *   <li><b>四合一</b>：数值取四份之和后向下取整；同种特质要<b>存在 ≥2 份才显示并生效</b>，
  *       否则视为失去该特质</li>
- *   <li><b>三种雪球不参与</b>（作者指定）</li>
+ *   <li><b>雪球系 5 颗都不参与</b>（碎石 / 铁粒 / 金粒 / 红石 / 铜粒；作者指定）</li>
  * </ul>
  *
  * <h2>为什么半成品的词条不进 BallProfile</h2>
  * <p>{@link BallProfile} 的数值字段都是 {@code int}，而作者要求求半成品「暂时不用取整」。
  * 所以半成品另走一条路：物品上只存「来源球 id + 分数」，词条每次由
  * {@link #scaled} 现算 —— 既保住了小数，也不污染球本身的数据结构。</p>
- */
-/**
+ *
  * <h2>★ 切球 / 重组的三类词条法则（作者 2026-10-10 定，底层准则 —— 改这里之前先读这一节）</h2>
  *
  * <p>一颗球被切开再合回去，词条不是简单「除一下再乘回来」。按词条的<b>性质</b>分成三类，各走各的规则：</p>
@@ -65,6 +66,8 @@ import net.minecraft.world.level.block.Block;
  * <ul>
  *   <li>切开：<b>四份都保留原阈值</b>（不是 120/4 = 30）—— 缩放了就永远回不到 120</li>
  *   <li>合成：<b>取最大值</b>。例：【引雷 120】+【引雷 90】→ <b>【引雷 120】</b></li>
+ *   <li>另有【融化x】【熔融x】两个阈值词条走各自的取端规则
+ *       （<b>融化取最低、熔融取最高</b>），见 {@code withThresholds}</li>
  * </ul>
  *
  * <h3>④ 布尔 / 位掩码类 —— 按份数激活</h3>
@@ -87,6 +90,8 @@ public final class BallFragments {
 
     /**
      * 参与切割的球 —— 「所有类型的雪球不参与」（作者指定）。
+     *
+     * <p>当前共 <b>11 颗</b>（雪球系 5 颗全部不参与：碎石 / 铁粒 / 金粒 / 红石 / 铜粒）。</p>
      *
      * <p>这里的顺序同时也是：组合球取名的顺序、组合球 id 里各段的先后、
      * 以及「同一种组合只做一件物品」时用来归一化的排序键。
@@ -112,7 +117,7 @@ public final class BallFragments {
                     ModItems.AMETHYST_BALL.get(),
                     ModItems.COPPER_BALL.get(),
                     ModItems.HOLLOW_COPPER_BALL.get(),
-                    // ⚠️ 3.0.0（0.3.4.0）追加的三颗，同样**必须排在后面**：
+                    // ⚠️ 3.0.0（0.3.4.0）追加的两颗，同样**必须排在后面**：
                     //    永远只在末尾追加，中间插入会让所有老存档的来源下标错位。
                     ModItems.REDSTONE_BALL.get(),
                     ModItems.DIAMOND_BALL.get(),
@@ -185,23 +190,19 @@ public final class BallFragments {
     // ===== 词条快照 =====
 
     /**
+     * 坚固值里的「永不碎裂」在**加法阶段**的替身。
+     *
+     * <p>{@code TOUGH_FOREVER} 是 {@code -1}，直接参与算术会算出 {@code -2}
+     * （一个比「永不碎裂」还强的怪值）。合成时先抬成这个足够大的数，
+     * 落回 profile 时再按阈值还原成哨兵。</p>
+     */
+    public static final double TOUGH_FOREVER_MARK = 100000.0D;
+
+    /**
      * 一个「碎片」的词条快照 —— 全部用 {@code double}。
      *
      * <p>{@code 0} 一律表示<b>没有这条词条</b>（对应 {@code BallProfile} 里那些
      * {@code NOT_XXX} 哨兵值，这里统一归零好做加法）。</p>
-     *
-     * @param toughness 坚固（可反弹次数）
-     * @param sense     感应等级
-     * @param melt      融化阈值
-     * @param molten    熔融阈值
-     * @param magnet    磁吸半径
-     * @param transmute 点金概率
-     * @param morph     【变形】特质（无数值，看有没有）
-     * @param magnetic  【磁性】特质（无数值，看有没有）
-     * @param glint     【金光闪闪】特质（无数值，金球专属）
-     */
-    /**
-     * 一颗球的全部词条。
      *
      * <p>数值项走「相加」，特质项走「出现过 / 四合一要 ≥2 份」。</p>
      *
@@ -211,16 +212,25 @@ public final class BallFragments {
      * 在合成时被整个丢掉 —— 表现就是「紫水晶球 + 别的球合出来的组合球
      * 没有【智慧】【善良】」（作者 2026-10-08 报的）。加新词条时这里和
      * {@link #of(BallProfile, boolean)}、{@code comboProfile} 三处要一起改。</p>
-     */
-    /**
-     * 坚固值里的「永不碎裂」在**加法阶段**的替身。
      *
-     * <p>{@code TOUGH_FOREVER} 是 {@code -1}，直接参与算术会算出 {@code -2}
-     * （一个比「永不碎裂」还强的怪值）。合成时先抬成这个足够大的数，
-     * 落回 profile 时再按阈值还原成哨兵。</p>
+     * @param toughness 坚固（可反弹次数）
+     * @param sense     感应等级
+     * @param melt      融化阈值
+     * @param molten    熔融阈值
+     * @param magnet    磁吸半径
+     * @param transmute 点金概率
+     * @param morph     【变形】特质（无数值，看有没有）
+     * @param magnetic  【磁性】特质（无数值，看有没有）
+     * @param glint     【金光闪闪】特质（无数值，金球专属；不参与合成）
+     * @param wisdom    【智慧N】（数值特性，切开均分、够份数才激活）
+     * @param kindness  【善良】特质
+     * @param conduction 【导电】特质
+     * @param thunder   【引雷x】阈值类：切开不缩放、合成取最高，且要激活
+     * @param shock     【电击】特质
+     * @param penetration 【穿透N】（数值特性）
+     * @param flags     位掩码型词条（脉冲 / 照明 / 透镜）
+     * @param breaker   【破坏王N】（数值特性：切开均分、激活后相加取整）
      */
-    public static final double TOUGH_FOREVER_MARK = 100000.0D;
-
     public record Fragment(double toughness, double sense, double melt, double molten,
                            double magnet, double transmute,
                            boolean morph, boolean magnetic, boolean glint,
@@ -238,10 +248,11 @@ public final class BallFragments {
          *
          * <p><b>按「切球 / 重组的三类词条法则」（作者 2026-10-10 定）：</b></p>
          * <ul>
-         *   <li><b>数值类</b>一律 ×factor —— 包含**基础**（坚固/感应/融化/熔融/磁吸/点金）
-         *       与**特性**（【智慧N】【穿透N】）。</li>
-         *   <li><b>阈值类</b>（【引雷x】）**不缩放**：四份都保留原阈值，合成时取最大值。
-         *       缩放成 30 再取最大值就永远回不到 120 了。</li>
+         *   <li><b>数值类</b>一律 ×factor —— 包含**基础**（坚固/感应/磁吸/点金）
+         *       与**特性**（【智慧N】【穿透N】【破坏王N】）。</li>
+         *   <li><b>阈值类</b>（【融化x】【熔融x】【引雷x】）**不缩放**：各份都保留原阈值。
+         *       引雷合成取最大值；融化 / 熔融见 {@code withThresholds}
+         *       （融化取最低、熔融取最高）。缩放成 30 就永远回不到 120 了。</li>
          *   <li><b>布尔 / 位掩码类</b>（变形/磁性/善良/导电/电击、脉冲/照明/破坏王/透镜）原样透传 ——
          *       「要够几份才激活」由 combine* 判定，不在这里动。</li>
          * </ul>
@@ -294,8 +305,8 @@ public final class BallFragments {
     /**
      * 把某颗球的 profile 读成 {@link Fragment}。
      *
-     * <p>【金光闪闪】不在 {@link BallProfile} 上（它是金球专属、由物品本身决定的行为），
-     * 所以这里单独看物品。</p>
+     * <p>【金光闪闪】虽然已经是 {@link BallProfile} 上的词条，但组合球一律不继承它
+     * （见 {@code comboProfile}），所以这里仍按「是不是完整金球」单独判定。</p>
      */
     public static Fragment of(Item ball) {
         return of(BallBehavior.profileFor(new ItemStack(ball)), ball == ModItems.GOLD_BALL.get());
@@ -348,15 +359,19 @@ public final class BallFragments {
     public static Fragment combinePair(Fragment a, Fragment b) {
         Fragment sum = a.plus(b);
         // 二合一：布尔特质直接继承（任一份有就算有），数值向下取整。
-        // 但**阈值类要单独拎出来取最大值** —— 见 withThresholds。
+        // 但**阈值类要单独拎出来**：【融化n】取最低、【熔融n】取最高 —— 见 withThresholds。
         return withThresholds(floor(sum), a, b);
     }
 
     /**
-     * 把<b>阈值类</b>词条（【融化x】【熔融x】）按「取最大值」写回。
+     * 把<b>阈值类</b>词条（【融化x】【熔融x】）按「融化取最低、熔融取最高」写回。
      *
-     * <p>法则要求阈值类**不参与相加、也不取整**：四份都保留原阈值，合成时取最大。
-     * 例：【引雷 120】切四份都带 120，与【引雷 90】合成仍取 120。</p>
+     * <p>阈值类<b>不参与相加、也不取整</b>：各份都保留原阈值，合成时按上面两条各取一端。
+     * 例：【融化 200】+【融化 150】→ 取最低 150（越容易化越优先）；
+     * 【熔融 120】+【熔融 90】→ 取最高 120。</p>
+     *
+     * <p>【引雷x】也属阈值类，但它走另一条路（份数激活 + 取最高），
+     * 见 {@code combineQuad} 与 {@code thunderThresholdFrom}。</p>
      */
     private static Fragment withThresholds(Fragment out, Fragment... parts) {
         double meltMin = Double.MAX_VALUE;
@@ -468,7 +483,7 @@ public final class BallFragments {
      *
      * <h2>哪些词条走合成规则、哪些走平均</h2>
      * <ul>
-     *   <li><b>六个数值词条 + 三个特质</b>：按作者定的规则合成
+     *   <li><b>六个数值词条 + 特质</b>（【金光闪闪】除外，它不参与合成）：按作者定的规则合成
      *       （二合一叠加取整；四合一数值取和取整、特质要 ≥2 份）</li>
      *   <li><b>伤害 / 重量 / 弹射 / 蓄力</b>：取<b>算术平均</b> ——
      *       这些是「球本身的物理属性」，不是词条，取平均才不会炸掉数值</li>
@@ -610,7 +625,6 @@ public final class BallFragments {
         return out;
     }
 
-    /** 数值向下取整（特质原样透传） */
     /**
      * 从各来源里找「带引雷那一份」的阈值。
      *
@@ -626,6 +640,7 @@ public final class BallFragments {
         }
         return best;
     }
+    /** 数值向下取整（特质原样透传） */
     private static Fragment floor(Fragment f) {
         return new Fragment(
                 Math.floor(f.toughness()), Math.floor(f.sense()),
@@ -669,17 +684,6 @@ public final class BallFragments {
         return sb.toString();
     }
 
-    /**
-     * 造一颗带来源组件的组合球 —— 合成配方的产物就是它。
-     *
-     * <p>{@code indexes} 的顺序即摆放位置顺序，会原样写进
-     * {@link ModComponents#COMBO_SOURCES}，随后决定这颗球的<b>名字</b>与<b>词条</b>。</p>
-     *
-     * <p><b>同时</b>把每一块的来源写进四个 {@code combo_slot_N} 组件（2.6.0 加）——
-     * 那是<b>渲染层</b>用的：物品模型靠它按象限分别选图，再把四块叠起来。
-     * 拆成四个 int 是因为 {@code minecraft:select} 只能按某个组件的整值匹配，
-     * 没法「取字符串的第 n 段」。两个层面由这里一次性写入，所以永远一致。</p>
-     */
     /** 这一串来源是不是全部同一个（用来判断「拼回去 = 原本那颗球」） */
     private static boolean allSame(List<Integer> indexes) {
         int first = indexes.get(0);
@@ -691,6 +695,17 @@ public final class BallFragments {
         return true;
     }
 
+    /**
+     * 造一颗带来源组件的组合球 —— 合成配方的产物就是它。
+     *
+     * <p>{@code indexes} 的顺序即摆放位置顺序，会原样写进
+     * {@link ModComponents#COMBO_SOURCES}，随后决定这颗球的<b>名字</b>与<b>词条</b>。</p>
+     *
+     * <p><b>同时</b>把每一块的来源写进四个 {@code combo_slot_N} 组件（2.6.0 加）——
+     * 那是<b>渲染层</b>用的：物品模型靠它按象限分别选图，再把四块叠起来。
+     * 拆成四个 int 是因为 {@code minecraft:select} 只能按某个组件的整值匹配，
+     * 没法「取字符串的第 n 段」。两个层面由这里一次性写入，所以永远一致。</p>
+     */
     public static ItemStack makeComboBall(List<Integer> indexes) {
         // 【作者指定】来源**全部相同**时，合出来的就是那颗**原本的实心球**，
         // 而不是拼出来的组合球 —— 两个同种半球拼回去 = 一颗完整的球。
@@ -810,12 +825,10 @@ public final class BallFragments {
      * <p>{@code profileFor} 会被极频繁地调用（每刻、每次渲染、每次 tooltip），
      * 而组合球的参数要靠合成规则现算，不缓存的话代价太高。
      * 组合的种类是有限的（同一个下标串永远是同一颗球），所以缓存上限自然有界。</p>
-     */
-    /**
-     * 组合球来源串 → 合成后的 profile。
      *
-     * <p>键是来源下标串（如 {@code "0,2,3,5"}），可能的取值是 8 颗球的二合一与四合一，
-     * 数量有限但**没有硬上界**。加个 LRU 限住 —— 免得被数据包刷出一堆垃圾键。</p>
+     * <p>键是来源下标串（如 {@code "0,2,3,5"}），可能的取值是 {@link #sources()} 里
+     * <b>11 颗球</b>的二合一与四合一，数量有限但**没有硬上界**。
+     * 加个 LRU 限住 —— 免得被数据包刷出一堆垃圾键。</p>
      */
     private static final int COMBO_CACHE_CAPACITY = 512;
 

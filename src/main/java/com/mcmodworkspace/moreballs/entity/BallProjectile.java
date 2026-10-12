@@ -20,6 +20,7 @@ import com.mcmodworkspace.moreballs.BallRoll;
 import com.mcmodworkspace.moreballs.BallWeight;
 import com.mcmodworkspace.moreballs.BallMobAI;
 import com.mcmodworkspace.moreballs.BallMorph;
+import com.mcmodworkspace.moreballs.MobBallSpecials;
 import com.mcmodworkspace.moreballs.BallThunder;
 import com.mcmodworkspace.moreballs.BallTransmute;
 import com.mcmodworkspace.moreballs.PiglinLure;
@@ -104,7 +105,6 @@ public class BallProjectile extends ThrowableItemProjectile {
     /** 判定为静止的速度平方阈值（约 0.03 格/刻） */
     private static final double SETTLE_SPEED_SQR = 0.0009D;
 
-    /** 【破坏王】每砸掉一个方块后保留的速度比例（作者指定：降到当前的 85%） */
     /**
      * 【破坏王】砸掉方块后保留的速度比例。
      *
@@ -289,9 +289,8 @@ public class BallProjectile extends ThrowableItemProjectile {
      */
     private boolean multishotSide;
 
-    /** 感应累积的热量；攒到配置的「融化」阈值（雪球类默认 200）就化掉 */
     /**
-     * 球自身的热量。
+     * 球自身的热量 —— 感应累积的热量；攒到配置的「融化」阈值（雪球类默认 200）就化掉。
      *
      * <p><b>是 float 而不是 int</b>（2.8.0 改）：热量按「当前速度 / 初速度」折算效率，
      * 慢速飞行时每刻的增量可能远小于 1，用 int 会被直接截成 0 —— 表现就是
@@ -360,6 +359,9 @@ public class BallProjectile extends ThrowableItemProjectile {
         // 诊断日志：这条链上有好几个量（基础伤害、出手速度、击中速度），
         // 光看画面分不清是哪一环不对 —— 打出来一看就知道。
         // 降级为 debug —— 这条每次命中都打，实测一局刷了 24 条 INFO（作者反馈刷屏）
+        // ⚠️ 已改回 debug —— 每命中一次打一条，会刷屏。
+        //    而这条正好能把「基础伤害 / 出手速度 / 击中速度」三个量一次摊开。
+        //    查清后改回 debug（原来就是 debug —— 每命中一次打一条，会刷屏）。
         MoreBalls.LOGGER.debug("[ball] 命中伤害 {} = 基础 {} × 速度比 {}（击中速度 {} / 出手速度 {}）",
                 result, this.damage, ratio, hitSpeed, base);
         return result;
@@ -539,15 +541,6 @@ public class BallProjectile extends ThrowableItemProjectile {
     }
 
     /**
-     * 能否被玩家的准星选中做交互。
-     *
-     * <p><b>必须覆写</b>：原版 {@code Projectile} 把它写死成
-     * {@code this.is(EntityTypeTags.REDIRECTABLE_PROJECTILE)}，普通投射物一律返回 false，
-     * 于是球根本不在射线候选里、右键完全没反应。</p>
-     *
-     * <p>这里对所有存活的球都返回 true —— 地上的球要能捡，飞在空中的球要能接。</p>
-     */
-    /**
      * 一律不显示名字标签 —— 任何情况都不显示（作者指定）。
      *
      * <p>名字只存在于 {@link #getName()} 这一层（给信息面板读），
@@ -558,6 +551,15 @@ public class BallProjectile extends ThrowableItemProjectile {
         return false;
     }
 
+    /**
+     * 能否被玩家的准星选中做交互。
+     *
+     * <p><b>必须覆写</b>：原版 {@code Projectile} 把它写死成
+     * {@code this.is(EntityTypeTags.REDIRECTABLE_PROJECTILE)}，普通投射物一律返回 false，
+     * 于是球根本不在射线候选里、右键完全没反应。</p>
+     *
+     * <p>这里对所有存活的球都返回 true —— 地上的球要能捡，飞在空中的球要能接。</p>
+     */
     @Override
     public boolean isPickable() {
         return this.isAlive();
@@ -870,8 +872,8 @@ public class BallProjectile extends ThrowableItemProjectile {
     private void ballTickPre() {
         // 【实体上限】本维度的球超过上限时，从最旧的开始清掉。
         //
-        // 每 20 刻（1 秒）才查一次 —— 逐刻遍历整个维度的实体没意义，
-        // 而这个上限本身是「防堆积」用的，晚一秒清理完全够。
+        // 每 100 刻（5 秒）才查一次 —— 逐刻遍历整个维度的实体没意义，
+        // 而这个上限本身是「防堆积」用的，晚五秒清理完全够。
         // 只在服务端做：客户端的实体列表不完整，也轮不到它决定谁该消失。
         //
         // ⚠️ **同一个刻只让一个球跑**（`ballCapLastCheckTick` 是全局静态的）。
@@ -989,7 +991,23 @@ public class BallProjectile extends ThrowableItemProjectile {
             if (!this.isSettled() && this.wisdomUsesLeft > 0) {
                 if (this.wisdomRelockCooldown-- <= 0) {
                     this.wisdomRelockCooldown = WISDOM_RELOCK_INTERVAL;
+                    // 比对尝试前后的剩余次数就知道这一轮有没有锁到（tryWisdomLock 是 void）
+                    int usesBefore = this.wisdomUsesLeft;
                     this.tryWisdomLock();
+                    if (this.wisdomUsesLeft < usesBefore) {
+                        this.wisdomNoTargetTicks = 0;        // 锁到了 —— 重新计时
+                    } else {
+                        // ⚠️ **只累计，绝不作废剩余次数**（作者 2026-10-11 报的
+                        //    「第一次锁定之后不会变向」）。
+                        //
+                        //    0.4.0.3 那版在这里把 `wisdomUsesLeft` 清零，于是球只要
+                        //    空追 5 秒就**永久失去追踪能力**。次数是【智慧】的本体，不能动。
+                        //
+                        //    这个计数现在的唯一用途是给「要不要放它回家」当判据
+                        //    （见 homingToOwner0）—— 空追够久就把球收回来，
+                        //    但**追踪能力仍然完好**，下次再遇到目标照样锁定。
+                        this.wisdomNoTargetTicks += WISDOM_RELOCK_INTERVAL;
+                    }
                 }
             }
             boolean tracked = this.wisdomUsesLeft < this.profile().wisdom();   // 已经命中过至少一次
@@ -1028,7 +1046,7 @@ public class BallProjectile extends ThrowableItemProjectile {
         // ===== 【照明】/【透镜】：必须在「不坚固就早退」之前 =====
         //
         // ⚠️ 作者 2026-10-10 报「【照明】未生效」—— 根因就是位置。
-        //    红石雪球是 **不坚固** 的，而下面那句 `if (!this.isTough()) return;`
+        //    雪球-红石是 **不坚固** 的，而下面那句 `if (!this.isTough()) return;`
         //    会把它直接挡回去，挂在后面的照明逻辑永远执行不到。
         //    这两个词条与「坚固与否」无关，本来就该放在早退之前。
         if (this.profile().hasFlag(BallBehavior.BallProfile.FLAG_ILLUMINATE)
@@ -1126,8 +1144,8 @@ public class BallProjectile extends ThrowableItemProjectile {
                     return;
                 }
                 // 【智慧x】次数未耗尽时**不触发【空气动力球】回收** —— 它还在追目标，
-    // 不该被拽回主人身边（作者 2026-10-09 指定：次数耗尽后才正常掉落并可被回收）。
-    // 【空气动力球】：本该停下的球，改成起飞回家
+                // 不该被拽回主人身边（作者 2026-10-09 指定：次数耗尽后才正常掉落并可被回收）。
+                // 【空气动力球】：本该停下的球，改成起飞回家
                 if (this.returnToOwner && this.homingToOwner()) {
                     return;
                 }
@@ -1193,7 +1211,7 @@ public class BallProjectile extends ThrowableItemProjectile {
                 this.settledTicks = 0;
             } else if (++this.settledTicks >= SETTLED_LIFETIME_TICKS) {
                 // 停够 2 分钟没人来捡就自动消失。
-                // 捡球由怪物那边负责（见 BallMobAI#tryPickUpBall：1.5 格 / 每刻 / 2%）。
+                // 捡球由怪物那边负责（见 BallMobAI#tryPickUpBall：1.5 格 / 每 2 刻一次 / 4%）。
                 this.discard();
             }
 
@@ -1207,25 +1225,6 @@ public class BallProjectile extends ThrowableItemProjectile {
     }
 
     /**
-     * 「磁吸」：飞行过程中把身边的金属拽向自己（空心铁球）。
-     *
-     * <h2>规则（作者指定）</h2>
-     * <ul>
-     *   <li>作用半径 {@link BallProspecting#MAGNET_RADIUS}（2.5 格）</li>
-     *   <li>范围内<b>任何金属</b>——含粗矿、矿石、矿块、矿粉、以及用金属做出来的装备 ——
-     *       都会获得一个<b>指向球、大小等于球速一半</b>的瞬间速度</li>
-     *   <li>脱离范围就不再施加（本来就是逐刻检查，天然如此）</li>
-     *   <li><b>球静止后停止施加</b></li>
-     * </ul>
-     *
-     * <p>拽得动的有两类：</p>
-     * <ul>
-     *   <li><b>金属掉落物</b>（{@code ItemEntity}）—— 已经摆在世界里的金属方块拽不动，
-     *       能移动的金属形态就是掉在地上的那些</li>
-     *   <li><b>生物</b>（2026-10-09 新增）—— 按身上的金属装备数加权（见方法内说明）</li>
-     * </ul>
-     */
-    /**
      * 【照明】的飞行拖尾 —— 红色粒子，每颗滞留约 1 秒。
      *
      * <p>用 {@code DustParticleOptions} 撒红色尘埃：原版这类粒子的存活时间就在 1 秒上下，
@@ -1238,7 +1237,7 @@ public class BallProjectile extends ThrowableItemProjectile {
             return;
         }
         if (!this.profile().hasFlag(BallBehavior.BallProfile.FLAG_ILLUMINATE)) {
-            return;   // 只有红石雪球有拖尾
+            return;   // 只有雪球-红石有拖尾
         }
         if (this.tickCount % 2 != 0) {
             return;
@@ -1264,6 +1263,25 @@ public class BallProjectile extends ThrowableItemProjectile {
                 1, 0.0D, 0.0D, 0.0D, 0.0D);
     }
 
+    /**
+     * 「磁吸」：飞行过程中把身边的金属拽向自己（空心铁球）。
+     *
+     * <h2>规则（作者指定）</h2>
+     * <ul>
+     *   <li>作用半径 {@link BallProspecting#MAGNET_RADIUS}（2.5 格）</li>
+     *   <li>范围内<b>任何金属</b>——含粗矿、矿石、矿块、矿粉、以及用金属做出来的装备 ——
+     *       都会获得一个<b>指向球、大小等于球速一半</b>的瞬间速度</li>
+     *   <li>脱离范围就不再施加（本来就是逐刻检查，天然如此）</li>
+     *   <li><b>球静止后停止施加</b></li>
+     * </ul>
+     *
+     * <p>拽得动的有两类：</p>
+     * <ul>
+     *   <li><b>金属掉落物</b>（{@code ItemEntity}）—— 已经摆在世界里的金属方块拽不动，
+     *       能移动的金属形态就是掉在地上的那些</li>
+     *   <li><b>生物</b>（2026-10-09 新增）—— 按身上的金属装备数加权（见方法内说明）</li>
+     * </ul>
+     */
     private void magnetTick(ServerLevel level) {
         BallBehavior.BallProfile profile = this.profile();
         if (!profile.hasMagnet() || this.isSettled()) {
@@ -1315,11 +1333,11 @@ public class BallProjectile extends ThrowableItemProjectile {
         }
     }
 
-    /** 脚下是否有可站立的碰撞箱（滚到悬崖边、或者还飞在半空时都会是 false） */
     /** 一 tick 内方块状态不会变，缓存免得重复扫 */
     private int supportCachedTick = -1;
     private boolean supportCachedResult;
 
+    /** 脚下是否有可站立的碰撞箱（滚到悬崖边、或者还飞在半空时都会是 false） */
     private boolean hasSupportBelow() {
         if (this.supportCachedTick == this.tickCount) {
             return this.supportCachedResult;
@@ -1377,9 +1395,9 @@ public class BallProjectile extends ThrowableItemProjectile {
      * <b>弹性系数取两球弹射的平均值</b>（弹射 6 → e = 0.6）。
      * 每对球只在 id 较小的一方处理，避免算两遍。</p>
      *
-     * <p>球撞球同样算一次碰撞，<b>两边各消耗 1 点耐久</b>（作者指定）——
-     * 弹性系数只决定动能怎么分配，不代表这一下不损伤球体。
-     * 已经在分离的两球不重复处理，所以接触一次只会扣一次。</p>
+     * <p>球撞球<b>不再消耗耐久</b>（作者 2026-10-09 修正）—— 两球会持续接触，
+     * 记账的话不到一秒就把耐久耗光当场炸掉；动能传递照旧，耐久只由撞墙 / 撞生物消耗。
+     * 已经在分离的两球不重复处理，所以同一次接触只会处理一次。</p>
      */
     private void collideWithNearbyBalls() {
         // ===== 连续碰撞检测 =====
@@ -1436,8 +1454,6 @@ public class BallProjectile extends ThrowableItemProjectile {
             this.setDeltaMovement(this.getDeltaMovement().add(normal.scale(u1 - v1)));
             other.setDeltaMovement(other.getDeltaMovement().add(normal.scale(u2 - v2)));
 
-            // 球撞球同样算一次碰撞：两边各消耗 1 点耐久（作者指定）——
-            // 弹性系数只决定动能怎么分配，不代表这一下不损伤球体
             // ⚠️ **球撞球不再扣耐久**（作者 2026-10-09 修正）。
             //
             //    原来的规则是「两边各扣 1 点耐久」，但球是会互相持续接触的 ——
@@ -1527,6 +1543,10 @@ public class BallProjectile extends ThrowableItemProjectile {
         // 投掷者不能把自己<b>刚出手</b>的球立刻收回来（那等于白扔一下）。
         // 但球飞出去一段之后就允许接回来 —— 不设这道时限的话，自己扔的球永远接不到。
         if (player == this.getOwner() && this.tickCount < OWNER_SELF_PICKUP_DELAY_TICKS) {
+            return InteractionResult.PASS;
+        }
+        // 同一条规矩：刚 Q 丢过球 → 5 秒内不许把它接回来（作者 2026-10-11 指定）
+        if (com.mcmodworkspace.moreballs.BallPickupHandler.isDropLocked(player)) {
             return InteractionResult.PASS;
         }
 
@@ -1621,7 +1641,7 @@ public class BallProjectile extends ThrowableItemProjectile {
 
         // 出手后的 0.1 秒内不结算伤害：防止贴脸投掷、反弹回来把自己打死
         if (this.tickCount < SPAWN_GRACE_TICKS) {
-            MoreBalls.LOGGER.info("[ball][伤害] 早退：出手宽限期内（tick={} < {}），目标={}",
+            MoreBalls.LOGGER.debug("[ball][伤害] 早退：出手宽限期内（tick={} < {}），目标={}",
                     this.tickCount, SPAWN_GRACE_TICKS, hitResult.getEntity().getName().getString());
             return;
         }
@@ -1630,7 +1650,7 @@ public class BallProjectile extends ThrowableItemProjectile {
         // 会打架的怪物有可能把球接下来（按难度掷概率），接着蓄力扔回来 ——
         // 接住了就整颗球归它，命中伤害自然不结算
         if (entity instanceof Mob mob && BallMobAI.tryCatchBall(mob, this)) {
-            MoreBalls.LOGGER.info("[ball][伤害] 早退：{} 接住了球（Mob 接球），不结算伤害", mob.getName().getString());
+            MoreBalls.LOGGER.debug("[ball][伤害] 早退：{} 接住了球（Mob 接球），不结算伤害", mob.getName().getString());
             return;
         }
 
@@ -1653,7 +1673,7 @@ public class BallProjectile extends ThrowableItemProjectile {
                 && entity instanceof LivingEntity other
                 && other != this.getOwner()
                 && isSameSide(this.getOwner(), other)) {
-            MoreBalls.LOGGER.info("[ball][伤害] 早退：{}（kindness={}）判定为「同阵营」被弹开，不结算伤害。"
+            MoreBalls.LOGGER.debug("[ball][伤害] 早退：{}（kindness={}）判定为「同阵营」被弹开，不结算伤害。"
                             + " 发射者={} 是敌对={}，目标={} 是敌对={}",
                     other.getName().getString(), this.profile().kindness(),
                     String.valueOf(this.getOwner()),
@@ -1686,7 +1706,7 @@ public class BallProjectile extends ThrowableItemProjectile {
             }
 
             // 【熔融】：热量攒够阈值后，这一击会给目标挂上「熔融物烧伤」。
-            // 空心铁球那颗是 1000 —— 得先在矿脉附近飞一会儿把矿石烤热、自己攒够热量才行。
+            // 空心铁球那颗是 120 —— 得先在矿脉附近飞一会儿把矿石烤热、自己攒够热量才行。
             BallBehavior.BallProfile moltenProfile = this.profile();
             if (moltenProfile.hasMolten() && this.heat >= moltenProfile.moltenThreshold()
                     && entity instanceof LivingEntity livingTarget) {
@@ -1716,6 +1736,11 @@ public class BallProjectile extends ThrowableItemProjectile {
                 piglin.setData(ModAttachments.GOLD_BALL_HURT.get(), true);
                 PiglinLure.forgetAnger(piglin);
             }
+
+            // 【敌对球 · 蜘蛛系】（作者 2026-10-11 指定）
+            // 蜘蛛扔出的球击中任意生物 → 缓慢 IV（5 秒）；洞穴蜘蛛再加中毒 II（5 秒）。
+            // 判据只看「投掷者是不是蜘蛛系」，所以玩家自己扔的球不受影响。
+            MobBallSpecials.onBallHitCreature(this, serverLevel, entity);
         }
     }
 
@@ -1764,7 +1789,7 @@ public class BallProjectile extends ThrowableItemProjectile {
      * <ul>
      *   <li><b>停住的球效率为 0</b> —— 不再凭空积热（修掉的历史遗留问题）</li>
      *   <li>飞得越快积得越快，扔出去的那一下增量最大</li>
-     *   <li>初速度取球自己的 {@code profile.velocity()}，所以慢球（雪球那类）与
+     *   <li>初速度取球自己的 {@code profile.physicalVelocity()}，所以慢球（雪球那类）与
      *       快球各自以「自己扔出去时的速度」为基准</li>
      * </ul>
      *
@@ -1990,16 +2015,10 @@ public class BallProjectile extends ThrowableItemProjectile {
     }
 
     /**
-     * 限次坚固：每次碰撞扣 1 点耐久，归零即碎裂。
-     *
-     * <p>同一 tick 内只结算一次 —— 球在方块表面抖动时可能连续触发碰撞，
-     * 那种重复绝不该算成「弹了两次」。</p>
-     */
-    /**
      * 【破坏王】：砸掉撞到的那个方块。
      *
      * <p>三件事按顺序做：<b>碎块 → 扣耐久 → 降速</b>（并消耗一次【破坏王】额度）；降速之后如果掉到静止阈值以下，
-     * 就把 {@link #breakerSpent} 立起来 —— 从此不再破坏，让球按正常流程落定。</p>
+     * 就把 {@link #breakerUsed} 立起来 —— 从此不再破坏，让球按正常流程落定。</p>
      *
      * <p><b>两个刻意的取舍</b>（作者没细说，这里按「最符合直觉」定）：</p>
      * <ul>
@@ -2008,12 +2027,11 @@ public class BallProjectile extends ThrowableItemProjectile {
      *   <li><b>硬度为负的方块砸不动</b>（基岩 / 结界方块那种 {@code getDestroySpeed < 0}）——
      *       原版把这些定义为「不可破坏」，球不该绕过它</li>
      * </ul>
-     */
-    /**
-     * 砸掉运动路径上的下一块方块。
+     *
+     * <p>砸掉的是<b>运动路径上的下一块方块</b>；没砸掉（额度用完 / 硬度 &lt; 0 /
+     * 钻石工具挖不动）就返回 false，走正常的反弹流程。</p>
      *
      * @return <b>true 表示真的砸掉了</b> —— 调用方据此决定「不反弹、继续飞」。
-     *         没砸掉（额度用完 / 硬度 &lt; 0 / 钻石工具挖不动）返回 false，走正常的反弹流程。
      */
     private boolean breakerHit(ServerLevel level, BlockHitResult hit) {
         // ===== 破坏目标是「运动路径上的**下一块方块**」，既不是当前命中格、也不是固定往前一格 =====
@@ -2067,8 +2085,6 @@ public class BallProjectile extends ThrowableItemProjectile {
     /** 沿运动方向最多往前扫多少格找「路径上的下一块方块」 */
     private static final double BREAKER_SCAN_MAX = 4.0D;
 
-    /** 扫描步长（格）—— 0.25 足够细，不会跨过一格 */
-    private static final double BREAKER_SCAN_STEP = 0.25D;
 
     /**
      * 找<b>运动路径上的下一块方块</b>。
@@ -2135,6 +2151,12 @@ public class BallProjectile extends ThrowableItemProjectile {
         return !state.is(BlockTags.INCORRECT_FOR_DIAMOND_TOOL);
     }
 
+    /**
+     * 限次坚固：每次碰撞扣 1 点耐久，归零即碎裂。
+     *
+     * <p>同一 tick 内只结算一次 —— 球在方块表面抖动时可能连续触发碰撞，
+     * 那种重复绝不该算成「弹了两次」。</p>
+     */
     private void consumeDurability(String cause) {
         int toughness = this.getToughness();
         if (toughness == BallBehavior.TOUGH_FOREVER || toughness <= BallBehavior.NOT_TOUGH) {
@@ -2175,10 +2197,7 @@ public class BallProjectile extends ThrowableItemProjectile {
 
 
 
-    /** 【智慧】发射后持续尝试多少刻；过了这段还没找到就算了，别一直扫 */
-    private static final int WISDOM_SCAN_TICKS = 40;
 
-    /** 【智慧】是否已经锁定过 */
     /** tick 起始位置 —— 前段记下、后段用（原来用局部变量，拆成两段后要跨方法传） */
     private Vec3 tickTickStartPos = Vec3.ZERO;
 
@@ -2203,7 +2222,6 @@ public class BallProjectile extends ThrowableItemProjectile {
     /** 本球上一次被别的球撞到的游戏刻 */
     private long lastBallCollideTick = Long.MIN_VALUE / 2;
 
-    private boolean wisdomLocked;   // 只表示「当前处于锁定态」，不再是一道永久闸门
 
     /**
      * 【智慧N】的<b>剩余追踪次数</b>。
@@ -2229,10 +2247,37 @@ public class BallProjectile extends ThrowableItemProjectile {
     /** 【智慧】的重锁倒计时（刻）—— 归零时重新搜索并锁定目标 */
     private int wisdomRelockCooldown;
 
-    /** 【智慧】多久重新锁定一次目标（刻）。原来是「只锁一次」，那对怪物扔回的球几乎无效 */
-    /** 重锁间隔 —— 作者指定 0.5 秒（10 刻） */
-    /** 重锁间隔 —— 作者指定 <b>0.5 秒</b>（10 刻） */
+    /** 【智慧】连续没锁到目标的累计刻数（锁到就清零）—— 见 {@link #WISDOM_GIVEUP_TICKS} */
+    private int wisdomNoTargetTicks;
+
+    /**
+     * 【智慧】多久重新锁定一次目标（刻）—— 作者指定 <b>0.5 秒</b>（10 刻）。
+     *
+     * <p>原来是「只锁一次」，那对怪物扔回的球几乎无效。</p>
+     */
     private static final int WISDOM_RELOCK_INTERVAL = 10;
+
+    /**
+     * 【智慧】连续多久没锁到任何目标就<b>放弃这一轮追踪</b>（刻）。
+     *
+     * <p>⚠️ <b>只影响「要不要放它回家」，绝不动 {@code wisdomUsesLeft}</b> ——
+     * 次数是追踪能力的本体，动了就会出现「第一次锁定之后不会变向」。</p>
+     *
+     * <p>⚠️ 这是「路径 B」的兜底，作者 2026-10-11 报的回收 bug 有两条路：</p>
+     * <ul>
+     *   <li><b>路径 A</b>：一次都没锁到 → 次数不扣 → {@code wisdomStillTracking()} 恒为真 →
+     *       {@code homingToOwner0()} 被永久拦住（那里已加「停稳即作废」）</li>
+     *   <li><b>路径 B</b>：<b>锁到过一次</b>之后再没目标 → 次数只剩一部分、扣不完 →
+     *       {@code tracked && usesLeft > 0} 让球<b>永远保持无重力</b>，
+     *       而 {@code setSettled()} 在 {@code isNoGravity()} 时<b>拒绝进入静止态</b>
+     *       （见 L528）→ 球既不落地也不静止，于是<b>永远走不到回收那一步</b>，
+     *       就那么无重力地在空中一直飞</li>
+     * </ul>
+     *
+     * <p>5 秒：锁定尝试每 10 刻一次，5 秒 = 10 次都没锁到 —— 已经够说明这一趟没戏了。
+     * 场上有目标时会不断重置这个计时（见 tick），所以只在真的空追时才触发。</p>
+     */
+    private static final int WISDOM_GIVEUP_TICKS = 100;
 
     /**
      * 【智慧】的扫描与锁定。
@@ -2310,14 +2355,6 @@ public class BallProjectile extends ThrowableItemProjectile {
     }
 
     /**
-     * 锁定到指定目标 —— 把速度改成朝它飞。
-     *
-     * <p>瞄<b>胸口</b>高度而不是脚底：不然贴地球飞过去会从腿边擦过。</p>
-     *
-     * <p><b>保留当前速度大小、只换方向</b> —— 球飞得快的还是快，
-     * 不会因为锁定突然减速或加速。</p>
-     */
-    /**
      * 【智慧x】是否还在追踪中（次数未耗尽）。
      *
      * <p>追踪期间这颗球<b>不受重力</b>、也<b>不被【空气动力球】回收</b> ——
@@ -2327,8 +2364,15 @@ public class BallProjectile extends ThrowableItemProjectile {
         return this.profile().wisdom() > 0 && this.wisdomUsesLeft > 0;
     }
 
+    /**
+     * 锁定到指定目标 —— 把速度改成朝它飞。
+     *
+     * <p>瞄<b>胸口</b>高度而不是脚底：不然贴地球飞过去会从腿边擦过。</p>
+     *
+     * <p><b>保留当前速度大小、只换方向</b> —— 球飞得快的还是快，
+     * 不会因为锁定突然减速或加速。</p>
+     */
     private void lockOnto(LivingEntity target) {
-        this.wisdomLocked = true;
 
         // 【智慧N】每次成功锁定扣一次 —— 扣到 0 就不再追踪
         // （作者 2026-10-09：数值代表可追踪次数，消耗完就不再锁定）
@@ -2363,21 +2407,6 @@ public class BallProjectile extends ThrowableItemProjectile {
     }
 
     /**
-     * 这颗生物算不算【智慧】的目标。
-     *
-     * <p>三个来源：<b>敌对生物</b>（原版 {@link Enemy} 接口，自动涵盖模组生物）、
-     * <b>有仇恨目标的中立生物</b>，以及<b>玩家</b>。</p>
-     *
-     * <p>为什么玩家也算 —— 作者 2026-10-08 报的：怪物拿【智慧】球扔玩家时，
-     * 球完全不会锁定。原因是玩家既不是 {@link Enemy}、也不是 {@link Mob}，
-     * 在上面两条判据里全部落空。把玩家放进来之后：</p>
-     * <ul>
-     *   <li>玩家扔的球 —— 自己会被 {@code candidate == getOwner()} 排除，不会自锁</li>
-     *   <li>怪物扔的球 —— 锁定最近的玩家，正是想要的行为</li>
-     *   <li>玩家之间互扔 —— 会互相锁定（相当于 PVP 里多了个追踪，合理）</li>
-     * </ul>
-     */
-    /**
      * 发射者与命中目标是不是「同一阵营」。
      *
      * <p>划分依据是原版的 {@link Enemy} 接口 —— 它是「敌对生物」的标记接口：
@@ -2395,6 +2424,21 @@ public class BallProjectile extends ThrowableItemProjectile {
         boolean targetHostile = target instanceof Enemy;
         return ownerHostile == targetHostile;
     }
+    /**
+     * 这颗生物算不算【智慧】的目标。
+     *
+     * <p>三个来源：<b>敌对生物</b>（原版 {@link Enemy} 接口，自动涵盖模组生物）、
+     * <b>有仇恨目标的中立生物</b>，以及<b>玩家</b>。</p>
+     *
+     * <p>为什么玩家也算 —— 作者 2026-10-08 报的：怪物拿【智慧】球扔玩家时，
+     * 球完全不会锁定。原因是玩家既不是 {@link Enemy}、也不是 {@link Mob}，
+     * 在上面两条判据里全部落空。把玩家放进来之后：</p>
+     * <ul>
+     *   <li>玩家扔的球 —— 自己会被 {@code candidate == getOwner()} 排除，不会自锁</li>
+     *   <li>怪物扔的球 —— 锁定最近的玩家，正是想要的行为</li>
+     *   <li>玩家之间互扔 —— 会互相锁定（相当于 PVP 里多了个追踪，合理）</li>
+     * </ul>
+     */
     private static boolean isWisdomTarget(LivingEntity entity) {
         if (entity instanceof Enemy) {
             return true;
@@ -2418,7 +2462,7 @@ public class BallProjectile extends ThrowableItemProjectile {
      * 【熔融】状态的外观 —— <b>火焰粒子环绕 + 拖尾</b>（作者 2026-10-07 指定）。
      *
      * <p>判据和伤害那边同一条：{@code profile.hasMolten()} 且自身热量已经攒到
-     * {@code moltenThreshold}（空心铁球是 1000）。没到这个温度就是普通球，
+     * {@code moltenThreshold}（空心铁球是 120）。没到这个温度就是普通球，
      * 一旦到了它已经在发红发热，外面也得看得出来。</p>
      *
      * <p>两层观感：</p>
@@ -2438,7 +2482,7 @@ public class BallProjectile extends ThrowableItemProjectile {
         if (!profile.hasMolten() || this.heat < profile.moltenThreshold()) {
             return;
         }
-        if (this.tickCount % 2 != 0) {
+        if (this.tickCount % MOLTEN_PARTICLE_INTERVAL != 0) {
             return;
         }
 
@@ -2471,7 +2515,7 @@ public class BallProjectile extends ThrowableItemProjectile {
     /**
      * 「探寻」每刻结算 —— 「雪球？（铁粒）」的特殊能力。
      *
-     * <p>半径 5 的立方体有 1331 格，每刻全扫太贵，所以每
+     * <p>半径 7 的球形范围约 1419 格（立方体 15³ = 3375 格里一半以上是白读的），每刻全扫太贵，所以每
      * {@link BallProspecting#SCAN_INTERVAL} 刻才重新扫一次，中间的每刻沿用上次结果继续累加热量。</p>
      */
     private void prospectingTick() {
@@ -2690,6 +2734,16 @@ public class BallProjectile extends ThrowableItemProjectile {
     private boolean shatterOnSettle;
 
     /**
+     * 「这一 tick 算过的」回归判定结果 —— {@code -1} 表示还没算过。
+     *
+     * <p>⚠️ 这个缓存是<b>性能关键</b>：{@code homingToOwner()} 在 tick 里被调用 5 次
+     * （L1116/1149/1163/1170/1176），每次都查 owner 实体、算距离、挂区块票据。
+     * 缓存之后一个 tick 只算一次。</p>
+     */
+    private int homingCachedTick = -1;
+    private boolean homingCachedResult;
+
+    /**
      * 【空气动力球】：把球朝主人方向推过去，像忠诚附魔的三叉戟那样。
      *
      * <p>作者指定的细节都落在这里：回归途中<b>照常结算伤害与耐久</b>
@@ -2698,16 +2752,6 @@ public class BallProjectile extends ThrowableItemProjectile {
      *
      * @return true 表示这一 tick 已经由回归逻辑接管，常规的静止处理应当让路
      */
-    /**
-     * 「这一 tick 算过的」回归判定结果 —— {@code -1} 表示还没算过。
-     *
-     * <p>⚠️ 这个缓存是<b>性能关键</b>：{@code homingToOwner()} 在 tick 里被调用 5 次
-     * （L991/1020/1034/1041/1047），每次都查 owner 实体、算距离、挂区块票据。
-     * 缓存之后一个 tick 只算一次。</p>
-     */
-    private int homingCachedTick = -1;
-    private boolean homingCachedResult;
-
     private boolean homingToOwner() {
         // 同一 tick 内复用上次结果
         if (this.homingCachedTick == this.tickCount) {
@@ -2720,12 +2764,32 @@ public class BallProjectile extends ThrowableItemProjectile {
 
     private boolean homingToOwner0() {
         // 【智慧x】次数未耗尽时**不启动回归** —— 它还在追目标，不该被拽回主人身边。
-        // 次数用完（wisdomUsesLeft == 0）才解除这条限制，正常掉落并可被回收。
+        // 次数用完（wisdomUsesLeft == 0）或**空追太久**才解除这条限制，正常掉落并可被回收。
         // （作者 2026-10-09 指定）
         //
         // ⚠️ 判定必须放在**这里**而不是 isReturning()：本方法才是「开始回家」的入口，
         //    它自己不检查 returnToOwner（由调用方检查），所以只有在这里拦才有效。
-        if (this.wisdomStillTracking()) {
+        //
+        // ⚠️⚠️ 拦的判据是「**最近还在锁目标**」，而**不是**去动剩余次数。
+        //
+        //     0.4.0.3 那版为了解决「没反弹就不回收」，在这里把
+        //     `wisdomUsesLeft` **直接清零** —— 结果球只要空追 5 秒就
+        //     **永久失去追踪能力**，之后再出现目标也不变向了。
+        //     现象正是作者 2026-10-11 报的「**第一次锁定之后不会变向**」。
+        //
+        //     **次数是【智慧】的本体，任何时候都不能动它。**
+        //
+        //     正确判据（四条都要满足才拦）：
+        //       1. 没在回家的路上（`homingBack`）—— 一旦起飞就得一口气飞完，
+        //          否则下面 `setSettled(false)` 会让「停稳」这条立刻失效、来回震荡；
+        //       2. 还剩次数（`wisdomStillTracking()`）；
+        //       3. 没停稳 —— 停在地上根本不可能再锁目标；
+        //       4. **最近还在锁目标**（`wisdomNoTargetTicks < WISDOM_GIVEUP_TICKS`）——
+        //          空追 5 秒都锁不到，说明这一轮没戏了，放它回家。
+        if (!this.homingBack
+                && this.wisdomStillTracking()
+                && !this.isSettled()
+                && this.wisdomNoTargetTicks < WISDOM_GIVEUP_TICKS) {
             return false;
         }
 
@@ -2856,7 +2920,7 @@ public class BallProjectile extends ThrowableItemProjectile {
      * </ul>
      * 所以判据是「从空气跨进实心」的那一下。
      *
-     * <p>另外路径要<b>采样</b>：球回归时一格/刻能飞 1.6 格，只看落点会把整堵墙漏过去。</p>
+     * <p>另外路径要<b>采样</b>：球回归时速度上限 {@link #RETURN_MAX_SPEED}（4.0 格/刻），只看落点会把整堵墙漏过去。</p>
      */
     private void chargeForPhasing() {
         if (!(this.level() instanceof ServerLevel level)) {
@@ -3068,18 +3132,6 @@ public class BallProjectile extends ThrowableItemProjectile {
         this.discard();
     }
 
-    /**
-     * 组合球的掉落表 —— 从它的组成球里<b>等权重随机挑一个</b>，返回那个球的掉落表。
-     *
-     * <p>普通球直接返回自己的掉落表，行为和以前完全一致。</p>
-     */
-    private List<BallBehavior.BallDrop> comboDropsFor(BallBehavior.BallProfile profile) {
-        Item source = this.comboSourceFor(profile);
-        if (source == null) {
-            return List.of();
-        }
-        return BallBehavior.profileFor(new ItemStack(source)).drops();
-    }
 
     /**
      * 这一颗球碎裂时，掉落表按<b>哪个来源球</b>算。

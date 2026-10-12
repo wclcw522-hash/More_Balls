@@ -3,6 +3,7 @@ package com.mcmodworkspace.moreballs;
 import net.minecraft.core.registries.Registries;
 import net.minecraft.resources.Identifier;
 import net.minecraft.tags.TagKey;
+import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.item.Item;
 
 /**
@@ -36,7 +37,7 @@ public final class ModTags {
         // 做成标签而不是写死清单：以后新加一颗球，只要往对应标签里加一行，
         // 它就会自动出现在那个子分类里，不用回来改 Java。
 
-        /** 实心球 —— 木 / 圆石 / 铁 / 金 / 紫水晶 / 铜 + 组合球 + 原版末影珍珠 */
+        /** 实心球 —— 木 / 圆石 / 铁 / 金 / 紫水晶 / 铜 / 红石 / 钻石 / 青金石 + 组合球 + 原版末影珍珠 */
         public static final TagKey<Item> BALLS_SOLID =
                 TagKey.create(Registries.ITEM, Identifier.fromNamespaceAndPath(MoreBalls.MOD_ID, "balls/solid"));
 
@@ -44,7 +45,7 @@ public final class ModTags {
         public static final TagKey<Item> BALLS_HOLLOW =
                 TagKey.create(Registries.ITEM, Identifier.fromNamespaceAndPath(MoreBalls.MOD_ID, "balls/hollow"));
 
-        /** 雪球系 —— 原版雪球 + 四种雪球 */
+        /** 雪球系 —— 原版雪球 + 五种雪球 */
         public static final TagKey<Item> BALLS_SNOWBALL =
                 TagKey.create(Registries.ITEM, Identifier.fromNamespaceAndPath(MoreBalls.MOD_ID, "balls/snowball"));
 
@@ -54,8 +55,6 @@ public final class ModTags {
         // 也不该挂在 balls 的子分类下面 —— 现在是 fragments 这个独立大类下的两个小类。
 
         /** 全部半成品（半球 + 四分之一球） */
-        public static final TagKey<Item> FRAGMENTS =
-                TagKey.create(Registries.ITEM, Identifier.fromNamespaceAndPath(MoreBalls.MOD_ID, "fragments"));
 
         /** 半球 */
         public static final TagKey<Item> FRAGMENTS_HALF =
@@ -66,5 +65,42 @@ public final class ModTags {
                 TagKey.create(Registries.ITEM, Identifier.fromNamespaceAndPath(MoreBalls.MOD_ID, "fragments/quarter"));
 
 
+    }
+
+    /**
+     * <b>实体类型标签</b>（作者 2026-10-11 指定）。
+     *
+     * <p>这里只放一个「可持球生物」—— 给<b>联动</b>用的口子。</p>
+     */
+    public static final class EntityTypes {
+
+        private EntityTypes() {
+        }
+
+        /**
+         * <b>可持球生物</b> —— 会捡球 / 接球 / 用球的生物。
+         *
+         * <h2>为什么要单独开一个标签</h2>
+         * <p>能不能用球的判据在 {@code BallMobAI.canUseBalls} 里，那里是
+         * <b>{@code instanceof} 硬判原版类</b>的。那样写的好处是<b>继承自动覆盖</b>
+         * （任何 {@code extends Zombie} 的模组僵尸自动能捡），但坏处是
+         * <b>全新继承链的模组生物必须改代码</b> —— 得 {@code compileOnly} 依赖那个模组、
+         * 还得判 {@code ModList.isLoaded()}</p>
+         *
+         * <p>所以再开一条标签：<b>第三方模组 / 整合包只要把自己的生物写进这个标签
+         * （数据包即可），零改代码、零重编译就自动支持。</b></p>
+         *
+         * <p>⚠️ <b>两条路是「或」的关系</b>，不是替换 —— 原版那 19 种照旧走
+         * {@code instanceof}，所以就算有人拿 {@code replace: true} 把标签整个覆盖掉，
+         * 原版那些也不会失效。</p>
+         *
+         * <p>⚠️ <b>标签只管「能不能捡球」，管不了「专属机制」</b>（蜘蛛的缓慢、
+         * 嘎枝的注视、史莱姆的继承、烈焰人八肢、幻翼俯冲都是代码行为）。
+         * 不过那几个机制判的也是 {@code instanceof} 原版基类，
+         * 所以<b>继承了它们的模组生物照样自动拿到</b>。</p>
+         */
+        public static final TagKey<EntityType<?>> BALL_CARRIERS = TagKey.create(
+                Registries.ENTITY_TYPE,
+                Identifier.fromNamespaceAndPath(MoreBalls.MOD_ID, "ball_carriers"));
     }
 }

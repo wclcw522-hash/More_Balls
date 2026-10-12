@@ -26,6 +26,9 @@ import net.minecraft.world.item.ItemStack;
  *   <tr><td>7 下界合金</td><td>27</td><td>3</td><td>9（满）</td></tr>
  * </table>
  *
+ * <p><b>上表只列弹药段</b>；转运段格数是它的两倍（18 / 24 / 30 / 36 / 42 / 48 / 54），
+ * 行数也相应翻倍（2 / 3 / 4 / 4 / 5 / 6 / 6），所以界面总高随等级变化。</p>
+ *
  * <p><b>关键规则（作者指定）</b>：行数按实际格数向上取整，所以每段的行里可能<u>用不满</u>；
  * 那些多出来的位置<b>照样占位</b>，但在界面上从右往左用银灰色盖住、并且禁止交互
  * （靠 {@code Slot.isActive()} 返回 false 实现）。这样每一行始终是完整的 9 格宽度。</p>
@@ -231,9 +234,14 @@ public class BallPouchMenu extends AbstractContainerMenu {
 
     @Override
     public boolean stillValid(Player player) {
-        // 袋子还在身上就有效
-        return player.getInventory().contains(this.pouch)
-                || player.getMainHandItem() == this.pouch
-                || player.getOffhandItem() == this.pouch;
+        // 袋子还在身上就有效 —— 口径统一走 allPouchStacks（背包 / 快捷栏 / 饰品栏都算）。
+        // 原先这里只查背包与主副手，从饰品栏（G 键）打开时每刻都被判「袋子不在了」，
+        // 于是界面刚开就被服务端 closeContainer() 关掉。
+        for (ItemStack stack : BallPouchHelper.allPouchStacks(player)) {
+            if (stack == this.pouch || ItemStack.isSameItemSameComponents(stack, this.pouch)) {
+                return true;
+            }
+        }
+        return false;
     }
 }

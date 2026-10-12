@@ -16,6 +16,7 @@ import java.util.List;
  * <h2>一、右键拾起时（玩家主动捡）</h2>
  * <p>优先给玩家「最顺手」的位置：</p>
  * <ol>
+ *   <li><b>主手/副手拎着收纳袋 → 直接进袋</b>（优先级最高，见 {@link #holdingPouch}）</li>
  *   <li>快捷栏最前面的空位</li>
  *   <li>手里（主手 → 副手）</li>
  *   <li>收纳袋的<b>中转槽</b></li>
@@ -25,17 +26,26 @@ import java.util.List;
  * <h2>二、空气动力球回收时（自己飞回来）</h2>
  * <p>这时玩家多半没空手接，所以反过来 —— 先试图「收起来」，最后才掉地上：</p>
  * <ol>
- *   <li>收纳袋的<b>中转槽</b></li>
- *   <li>背包最靠前的位置</li>
- *   <li>快捷栏最靠前的位置</li>
- *   <li>变成掉落物</li>
+ *   <li>收纳袋里<b>对应的那一段</b>（满耐久 → 备用区，用过的 → 中转区）</li>
+ *   <li>背包 {@code 0..35}（含快捷栏）</li>
+ *   <li>变成掉落物（返回 {@link Delivery#NOWHERE}）</li>
  * </ol>
  *
  * <h2>三、消耗时</h2>
- * <p>同种弹药<b>不看耐久</b>，先取中转槽里的同类，再取背包里的同类。
- * 见 {@link #takeSameKind}。</p>
+ * <p>同种弹药<b>不看耐久</b>，顺序是：袋子中转槽的同类 → 背包里的同类 →
+ * 最后才退到袋子的弹药段。见 {@link #takeSameKind}。</p>
  */
 public final class BallPouchHelper {
+
+    /**
+     * 原版背包的槽位数（快捷栏 9 + 主背包 27）。
+     *
+     * <p>⚠️ 2026-10-12 审计修正：这里原先用 {@code inventory.getContainerSize()}，
+     * 但在 26.x 它返回的是 **43**（36 个背包位 + 7 个装备槽）——
+     * 于是「找空位放球」把球写进了脚/腿/胸/头/身体/鞍这些**装备槽**。
+     * 现在统一写死 36，只覆盖 0..35。</p>
+     */
+    public static final int INVENTORY_SIZE = 36;
 
     private BallPouchHelper() {
     }
@@ -48,15 +58,16 @@ public final class BallPouchHelper {
     /**
      * 找玩家身上的收纳袋。
      *
-     * <p>背包（含快捷栏与副手）找完再看<b>饰品栏</b> —— 袋子挂在背饰 / 腰带 / 护符上时
+     * <p>背包扫的是 {@code 0..35}（含快捷栏 <b>0..8</b>；主手/副手与装备槽不在这个区间），
+     * 扫完再看<b>饰品栏</b> —— 袋子挂在背饰 / 腰带 / 护符上时
      * 同样要能被找到，否则「空气动力球回收的球落进袋子」这条会直接失效
      * （作者反馈过：球没进袋子，就是因为这里只扫了背包）。</p>
      *
-     * @param requireEquipped 只认「快捷栏 / 主手 / 副手」这些顺手位置的袋子
+     * @param requireEquipped 只认快捷栏（{@code 0..8}）里的袋子
      */
     public static ItemStack findPouch(Player player, boolean requireEquipped) {
         Inventory inventory = player.getInventory();
-        int limit = requireEquipped ? 9 : inventory.getContainerSize();
+        int limit = requireEquipped ? 9 : 36;
         for (int i = 0; i < limit; i++) {
             ItemStack stack = inventory.getItem(i);
             if (isPouch(stack)) {
@@ -151,7 +162,7 @@ public final class BallPouchHelper {
         }
 
         // ④ 背包里最前面的位置
-        for (int i = 9; i < inventory.getContainerSize(); i++) {
+        for (int i = 9; i < 36; i++) {
             if (inventory.getItem(i).isEmpty()) {
                 inventory.setItem(i, ball.copy());
                 ball.setCount(0);
@@ -209,7 +220,7 @@ public final class BallPouchHelper {
 
         // ② 背包最靠前的位置（含快捷栏 —— 原版背包就是 0..35）
         Inventory inventory = player.getInventory();
-        for (int i = 0; i < inventory.getContainerSize(); i++) {
+        for (int i = 0; i < 36; i++) {
             if (inventory.getItem(i).isEmpty()) {
                 inventory.setItem(i, ball.copy());
                 ball.setCount(0);
@@ -226,7 +237,8 @@ public final class BallPouchHelper {
     // ===== 三、消耗 =====
 
     /**
-     * 取一颗<b>同种</b>的球来用 —— 作者指定：不看耐久，先中转槽同类、再背包同类。
+     * 取一颗<b>同种</b>的球来用 —— 作者指定：不看耐久，顺序为中转槽同类 → 背包同类 →
+     * 袋子弹药段。
      *
      * @param wanted 想要哪种球（只比对物品种类，不比耐久）
      * @return 取到的球；没有则返回 {@link ItemStack#EMPTY}
@@ -246,7 +258,7 @@ public final class BallPouchHelper {
         }
 
         // ② 背包里找同类（从前往后）
-        for (int i = 0; i < inventory.getContainerSize(); i++) {
+        for (int i = 0; i < 36; i++) {
             ItemStack slot = inventory.getItem(i);
             if (slot.isEmpty() || !BallPouchItem.sameKind(slot, wanted)) {
                 continue;
@@ -278,7 +290,7 @@ public final class BallPouchHelper {
             }
         }
         Inventory inventory = player.getInventory();
-        for (int i = 0; i < inventory.getContainerSize(); i++) {
+        for (int i = 0; i < 36; i++) {
             if (BallPouchItem.sameKind(inventory.getItem(i), wanted)) {
                 return true;
             }
@@ -308,7 +320,7 @@ public final class BallPouchHelper {
         List<ItemStack> out = new ArrayList<>();
 
         // 背包 + 快捷栏
-        for (int i = 0; i < player.getInventory().getContainerSize(); i++) {
+        for (int i = 0; i < 36; i++) {
             ItemStack stack = player.getInventory().getItem(i);
             if (isPouch(stack)) {
                 out.add(stack);

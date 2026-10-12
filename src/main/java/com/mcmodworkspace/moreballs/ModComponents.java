@@ -26,7 +26,7 @@ import java.util.List;
  *       于是不会触发那条校验</li>
  *   <li><b>同耐久的球自动能叠</b>（组件值一样）、<b>不同耐久自动分堆</b>
  *       （物品堆叠的前提正是「id + 全部数据组件完全一致」）</li>
- *   <li>耐久条由 {@code BallDurabilityDecorator} 自己画（原版不会给没有
+ *   <li>耐久条由 {@code BallItem} 的 isBarVisible/getBarWidth/getBarColor 自己画（原版不会给没有
  *       {@code MAX_DAMAGE} 的物品画条）</li>
  * </ul>
  *

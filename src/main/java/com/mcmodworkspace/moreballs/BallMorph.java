@@ -37,6 +37,15 @@ public final class BallMorph {
      * 单颗球对应的方块。
      *
      * <p>空心铁球也是铁，所以同样变铁块 —— 它是铁锭质感，变铁块最自然。</p>
+     *
+     * <p>⚠️ <b>适用范围：只覆盖这 5 种球</b> —— 木球、圆石球、铁球、空心铁球、金球。
+     * {@link BallFragments#sources()} 里后来追加的球（紫水晶 / 铜 / 空心铜 / 红石 /
+     * 钻石 / 青金石……）<b>一律返回 {@code null}</b>，本方法不认识它们。</p>
+     *
+     * <p>后果：{@link #candidatesOf} 遇到 {@code null} 会<b>静默跳过</b>那一条候选，
+     * 所以含这些球的普通球与组合球，能变出的方块种类会少于它的组成部分个数
+     * （极端情况下候选为空，{@link #canMorph} 就是 {@code false}、压根不变形）。
+     * 这是当前的真实行为，不是笔误。</p>
      */
     public static Block blockOf(Item ball) {
         if (ball == ModItems.WOODEN_BALL.get()) {
@@ -58,6 +67,11 @@ public final class BallMorph {
      * 这颗球变形时的<b>全部候选方块</b>。
      *
      * <p>组合球按组件的来源列表展开；普通球只有一个。无法识别的球返回空列表。</p>
+     *
+     * <p>⚠️ 来源列表里的每一颗球都要过 {@link #blockOf}，而那个方法只认 5 种球 ——
+     * 认不出的返回 {@code null}，这里直接把 Null 的那一项<b>丢掉</b>（不是替换成别的方块）。
+     * 于是「像球有多少个组件就有多少候选」这句话，只对<b>全部组件都在那 5 种之内</b>的组合成立；
+     * 含紫水晶 / 铜 / 红石 / 钻石 / 青金石球的组合，候选会比组件数少。</p>
      */
     public static List<Block> candidatesOf(ItemStack ball) {
         if (ball.getItem() == ModItems.COMBO_BALL.get()) {

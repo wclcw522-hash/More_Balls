@@ -10,12 +10,13 @@ import java.util.List;
 /**
  * 把收纳袋的组件数据包装成原版 {@link Container}，供 GUI 使用。
  *
- * <p>索引 {@code 0 .. 26} 是弹药段，{@code 27 .. 53} 是转运段 —— <b>恒定为 27 + 27</b>，
+ * <p>索引 {@code 0 .. 53} 是弹药段，{@code 54 .. 107} 是转运段 —— 两段各 54 格，
  * 与等级无关。等级只决定「前多少个格子是解锁的」，其余的在界面上盖灰禁用
  * （判断在 {@link BallPouchMenu} 里，通过 {@code Slot.isActive()}）。</p>
  *
- * <p>这样界面尺寸恒定＝原版箱子大小，背景一行 {@code blit} 就贴完，
- * 升级也不必重建界面。</p>
+ * <p>⚠️ <b>容器</b>格数恒定（108），但<b>界面尺寸随等级变</b>：{@link BallPouchMenu}
+ * 按各等级的实际格数排行，高度由 {@code guiHeight()} 算出，所以背景不是
+ * 「一行 {@code blit} 就贴完」。升级不必重建容器，但界面行数会变。</p>
  */
 public class BallPouchContainer implements Container {
 

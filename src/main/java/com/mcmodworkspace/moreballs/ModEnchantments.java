@@ -17,19 +17,24 @@ import net.minecraft.world.level.Level;
  *
  * <p>这里只做两件事：提供 {@link ResourceKey}，以及把等级换算成实际效果。</p>
  *
- * <h2>现有的四条</h2>
+ * <h2>现有的五条</h2>
  * <ul>
  *   <li><b>强弩</b> {@code powerful_crossbow} —— 每级 +30% 基础发射距离（改的是射程）</li>
  *   <li><b>轻盈</b> {@code lightness} —— 弹药<b>重量减半向上取整</b>，最低 1（1 级）</li>
  *   <li><b>极速</b> {@code swiftness} —— 每级提升弹药<b>初速度</b>（5 级，累积 +70%）</li>
  *   <li><b>空气动力球</b> {@code aerodynamic_ball} —— 未破碎的弹药静止后自动飞回主人</li>
- *   <li><b>诸葛连弩</b> {@code repeater_crossbow} —— 按住右键即可连发；每级 −15% 装填时间、
- *       −30% 装填时的移动速度惩罚。见 {@link BallRepeaterCrossbow}</li>
+ *   <li><b>诸葛连弩</b> {@code repeater_crossbow} —— 按住右键即可连发；代价<b>三条</b>：
+ *       每级 −15% 装填时间、每级削掉 30% 的装填移速惩罚、每级 −10% 最终伤害
+ *       （3 级即 −30%）。见 {@link BallRepeaterCrossbow}</li>
  * </ul>
  *
  * <p>强弩与极速都作用于「出手速度」，但路子不同：强弩走
  * {@link BallProjectile#setLaunchMultiplier} 那条射程换算，极速直接叠在初速度上。
  * 两者是<b>相乘</b>的，同时附上会叠得更远。</p>
+ *
+ * <p>⚠️ 两者都<b>只放大射程</b>，不放大伤害：命中伤害是
+ * {@code 基础伤害 × (击中速度 / 实际出手速度)}，而这两个倍率会一起进
+ * {@link BallProjectile#shoot} 记下的实际出手速度 —— 出手瞬间比值恒为 1。</p>
  */
 public final class ModEnchantments {
 
@@ -120,15 +125,6 @@ public final class ModEnchantments {
 
     /** 【诸葛连弩】最高等级 */
     public static final int REPEATER_MAX_LEVEL = 3;
-
-    /**
-     * <b>原版弩装填期间的移动速度倍率。</b>
-     *
-     * <p>来自 {@code UseEffects.DEFAULT}（{@code speedMultiplier = 0.2}）——
-     * 原版弩与弓都<b>没有</b>覆写这个组件，所以装填时移动速度只有 20%。
-     * 读取它的是 {@code LocalPlayer.itemUseSpeedMultiplier()}。</p>
-     */
-    public static final float VANILLA_CROSSBOW_USE_SPEED = 0.2F;
 
     /** 【诸葛连弩】每级削掉多少比例的装填移速惩罚（30%） */
     public static final float REPEATER_PENALTY_PER_LEVEL = 0.30F;
@@ -313,6 +309,21 @@ public final class ModEnchantments {
     public static float repeaterChargeFactor(int enchantLevel) {
         int clamped = Math.max(0, Math.min(enchantLevel, REPEATER_MAX_LEVEL));
         return 1.0F - REPEATER_CHARGE_PER_LEVEL * clamped;
+    }
+
+    /** 【诸葛连弩】每级削减的**最终伤害**比例（作者 2026-10-12 指定：10%） */
+    public static final float REPEATER_DAMAGE_PER_LEVEL = 0.10F;
+
+    /**
+     * 【诸葛连弩】等级 → **最终伤害倍率**（1 - 0.10L）；无附魔时为 1.0。
+     *
+     * <p>作者 2026-10-12 指定：每级降低 10% 最终伤害 —— 3 级就是 -30%。
+     * 与 REPEATER_CHARGE_PER_LEVEL（装填时间）、REPEATER_PENALTY_PER_LEVEL（装填移速惩罚）
+     * 同属这一条附魔的三条代价，数值各自独立，改一个不影响另外两个。</p>
+     */
+    public static float repeaterDamageFactor(int enchantLevel) {
+        int clamped = Math.max(0, Math.min(enchantLevel, REPEATER_MAX_LEVEL));
+        return 1.0F - REPEATER_DAMAGE_PER_LEVEL * clamped;
     }
 
     /**

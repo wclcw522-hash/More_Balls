@@ -154,7 +154,7 @@ public final class BallBehavior {
     /**
      * 【初速度】的基准值 —— 雪球的初速度是 10（作者指定）。
      *
-     * <p>重量越大初速度越低，换算规则见 {@link BallProfile#launchSpeed()}
+     * <p>重量越大初速度越低，换算规则见 {@link BallProfile#withWeight}
      * （每比雪球基准重 1 点就减 1）。</p>
      */
     public static final float BASE_LAUNCH_SPEED = 10.0F;
@@ -247,7 +247,7 @@ public final class BallBehavior {
         override(ModItems.WOODEN_BALL.get(), DEFAULT
                 .withToughness(8)
                 .withWeight(5)
-                .withRarity(100)
+                .withRarity(500)
                 .withSoundType(SoundType.WOOD));
 
         // ===== 圆石球：坚固 2、重量 6、弹射 2、伤害 7、圆石音效 =====
@@ -303,7 +303,7 @@ public final class BallBehavior {
 
         // ===== 「雪球？（铁粒）」：不坚固、重量 5、伤害 3、带【感应】 =====
         // 破碎 90% 掉 1–2 铁粒；【感应】让它叠加热量（见 BallProspecting），
-        // 【探寻】让它自动追踪最近的铁磁性目标
+        // 【磁性】让它自动追踪最近的铁磁性目标
         override(ModItems.SNOWBALL_IRON_NUGGET.get(), DEFAULT
                 .withDamage(3.0F)
                 .withWeight(5)
@@ -318,7 +318,7 @@ public final class BallBehavior {
                 .withDrops(List.of(new BallDrop(Items.IRON_NUGGET, 1, 2, 0.90F))));
 
         // ===== 金球：伤害 8、重量 8、坚固 8、弹射 2、蓄力只有 1 级、权重 20 =====
-        // 经验球那声「叮」，音量压到 50%；模型是「一格内切球」大小，所以渲染尺寸调大
+        // 经验球那声「叮」，音量压到 50%；模型是「一格内切球的一半」大小，所以渲染尺寸调大
         // 特性：【变形】耐久耗尽变金块、【金光闪闪】猪灵全套（见 BallProjectile / PiglinLure）
         override(ModItems.GOLD_BALL.get(), DEFAULT
                 .withDamage(8.0F)
@@ -329,8 +329,8 @@ public final class BallBehavior {
                 .withRarity(20)
                 .withMorph(Blocks.GOLD_BLOCK)
                 .withEntityScale(GOLD_BALL_SCALE)
-                // 【金光闪闪】现在是 profile 上的词条（不再只认物品），
-                // 这样组合球按「四合一 ≥2 份」也能带上它
+                // 【金光闪闪】现在是 profile 上的词条（不再只认物品）——
+                // ⚠️ 但它**不参与合成**：组合球一律写回 false（见 BallFragments.comboProfile）
                 .withGlint(true)
                 .withSound(BallSound.of(SoundEvents.EXPERIENCE_ORB_PICKUP,
                         SoundEvents.EXPERIENCE_ORB_PICKUP, 0.5F)));
@@ -351,7 +351,7 @@ public final class BallBehavior {
 
         // ===== 2.6.0 四颗新球（作者 2026-10-07 指定）=====
 
-        // 紫水晶球：伤害 5、坚固 15、重量 5、蓄力 4、弹射 7、权重 5
+        // 紫水晶球：伤害 5、坚固 10、重量 5、蓄力 4、弹射 7、权重 5
         // 【智慧】发射后扫描 10 格内无遮挡可直达的敌对/仇恨中立生物并锁定
         // 【善良】碰到友好与中立生物改为反弹
         // 破碎 60% 掉 1–2 紫水晶
@@ -441,7 +441,7 @@ public final class BallBehavior {
                 .withWeight(6)
                 .withToughness(15)
                 .withBounce(4)
-                .withRarity(25)
+                .withRarity(15)
                 .withFlag(BallProfile.FLAG_MAGIC)
                 .withSound(BallSound.of(
                         SoundEvents.ENCHANTMENT_TABLE_USE,
@@ -449,7 +449,7 @@ public final class BallBehavior {
                         1.0F))
                 .withDrops(List.of(new BallDrop(Items.LAPIS_LAZULI, 3, 5, 0.60F))));
 
-        // ===== 红石雪球（作者 2026-10-10 指定）=====
+        // ===== 雪球-红石（作者 2026-10-10 指定）=====
         // 伤害 0、重量 3、蓄力 6；不坚固、无弹射
         // 【照明】飞行时在正下方张开四棱锥判定区，区内生物被按阵营染色的发光 —— 见 BallIlluminate
         // 破碎 30% 掉 1–2 红石粉
@@ -463,7 +463,7 @@ public final class BallBehavior {
                 .withCooldown(SNOWBALL_QUESTION_COOLDOWN)
                 .withFlag(BallProfile.FLAG_ILLUMINATE)
                 .withSoundType(SoundType.SNOW)
-                // 雪球系的惯例：热量攒到 200 就化掉（碎石/铁粒/金粒/铜粒四颗都有）
+                // 雪球系的惯例：热量攒到 200 就化掉（雪球系 5 颗 —— 碎石/铁粒/金粒/红石/铜粒 —— 都有）
                 .withMelt(DEFAULT_MELT_THRESHOLD)
                 .withDrops(List.of(new BallDrop(Items.REDSTONE, 1, 2, 0.30F))));
 
@@ -533,12 +533,14 @@ public final class BallBehavior {
      * 这颗球是否携带【金光闪闪】（猪灵全套行为）。
      *
      * <p>判据是 <b>profile 上的词条</b>，不是物品 id —— 金球自己在 override 里写了
-     * {@code withGlint(true)}，而组合球按「四合一 ≥2 份」合成出来。
+     * {@code withGlint(true)}；组合球一律写回 false，所以只有完整金球吃这套行为。
      * 以前一律写 {@code stack.is(GOLD_BALL)}，所以「两个金四分之一球合成的组合球」
      * 明明 tooltip 上显示【金光闪闪】，猪灵却不理它（作者 2026-10-08 报的）。</p>
      */
     public static boolean isGoldShiny(ItemStack stack) {
-        return !stack.isEmpty() && stack.is(ModItems.GOLD_BALL.get());
+        // ⚠️ 2026-10-12 审计修正：原来判的是物品 id，与本方法 javadoc 自述的
+        //    「组合球按四合一 ≥2 份也该带上」矛盾 —— 改成读 profile 上的词条。
+        return !stack.isEmpty() && profileFor(stack).glint();
     }
     public static BallProfile profileFor(ItemStack stack) {
         // 组合球只有一个物品 id，具体参数存在组件里 —— 见 BallFragments
@@ -635,6 +637,22 @@ public final class BallBehavior {
      * @param morphBlock    【变形】耐久耗尽后要变成的方块；{@code null} 表示没有这个性质
      * @param entityScale   实体渲染尺寸倍率（1.0 = 基准球），金球那种大个头会调高
      * @param transmuteChance 【点金】命中方块时把石头点成矿物的概率；0 表示没有这个性质
+     * @param magnetic      【磁性】—— 飞行途中主动朝最近、优先级最高的铁磁性目标<b>偏航</b>；
+     *                      与 {@code magnetRadius}（磁吸：球不改航向，只拽金属）是两回事
+     * @param wisdom        【智慧】—— 数值即扫描半径（格）：发射后锁定范围内无遮挡可直达的
+     *                      敌对 / 仇恨中立生物；0 表示没有这个性质
+     * @param kindness      【善良】—— 不会伤害友好与中立生物，命中它们时原样反弹、不结算伤害
+     * @param conduction    【导电】—— 处于实体状态时像避雷针一样让自然闪电优先击中自己，
+     *                      每次被劈消耗 1 点耐久
+     * @param thunderThreshold 【引雷】阈值：热量攒到这么多就释放一次雷电并清空热量；
+     *                      {@link #NOT_THUNDER} 表示没有这个性质
+     * @param shockDamage   【电击】—— 本球直接造成的伤害改成<b>闪电类型</b>（数值不变）
+     * @param glint         【金光闪闪】—— 猪灵全套行为；<b>不参与合成</b>（见 BallFragments），
+     *                      只在完整金球上生效
+     * @param penetration   【穿透N】可穿透的实体数（0 = 不穿透）
+     * @param flags         新词条的位掩码，见 {@code FLAG_*}（脉冲 / 照明 / 透镜 / 魔法）
+     * @param breaker       【破坏王N】还能砸掉几个方块（0 = 没有这条词条）；
+     *                      数值类特性词条，不是位开关，所以单独立字段
      */
     public record BallProfile(
             float damage,
@@ -661,6 +679,8 @@ public final class BallBehavior {
             boolean conduction,
             int thunderThreshold,
             boolean shockDamage,
+            /** 【金光闪闪】—— 猪灵全套行为（砸猪灵不结仇、被撞声吸引、可被捡起、特殊交易）；
+             *  ⚠️ <b>不参与合成</b>：只在完整金球上生效，被切开即永久失效（见 BallFragments）*/
             boolean glint,
             /** 【穿透 N】可穿透的实体数（0 = 不穿透）*/
             int penetration,
@@ -677,7 +697,7 @@ public final class BallBehavior {
         // ===== 新词条开关位（2026-10-10 加） =====
         /** 【脉冲】红石球 —— 命中时对周围金属目标施加「震荡」 */
         public static final int FLAG_PULSE = 1 << 0;
-        /** 【照明】红石雪球 —— 下方四棱锥区域内的生物被上色发光 */
+        /** 【照明】雪球-红石 —— 下方四棱锥区域内的生物被上色发光 */
         public static final int FLAG_ILLUMINATE = 1 << 1;
         /** 【破坏王】钻石球 —— 撞碎接触到的方块 */
         // bit2 曾用于【破坏王】—— 它已改成数值类特性词条（独立字段 breaker），该位废弃不再使用
@@ -848,7 +868,7 @@ public final class BallBehavior {
         /**
          * 【熔融】阈值 —— 热量攒到这么多点之后，球击中目标会给它挂上 {@code molten_burn}。
          *
-         * <p>作者给出的规格：空心铁球是 <b>1000</b>，效果时长 <b>1 秒</b>。
+         * <p>作者给出的规格：空心铁球是 <b>120</b>，效果时长 <b>1 秒</b>。
          * 不写就是 {@link #NOT_MOLTEN}，没有这个性质。</p>
          */
         public BallProfile withMolten(int value) {
@@ -888,7 +908,7 @@ public final class BallBehavior {
                     block, entityScale, transmuteChance, magnetic, wisdom, kindness, conduction, thunderThreshold, shockDamage, glint, penetration, flags, breaker);
         }
 
-        /** 实体渲染尺寸倍率（1.0 = 基准球）；金球是「一格内切球」，所以调得比较大 */
+        /** 实体渲染尺寸倍率（1.0 = 基准球）；金球是「一格内切球<b>的一半</b>」，所以调得比较大 */
         public BallProfile withEntityScale(float scale) {
             return new BallProfile(damage, cooldownTicks, velocity, inaccuracy, weight, toughness,
                     bounce, chargeLevels, rarity, sound, drops, sense, meltThreshold, moltenThreshold, magnetRadius,
@@ -951,14 +971,6 @@ public final class BallBehavior {
             return thunderThreshold > NOT_THUNDER;
         }
 
-        /**
-         * 【金光闪闪】—— 是否携带这套猪灵行为（砸猪灵不结仇、被撞声吸引、可被捡起、特殊交易）。
-         *
-         * <p>以前这个特质只认物品（{@code stack.is(GOLD_BALL)}），于是组合球永远读不到它 ——
-         * 哪怕合成它的四分之一球里带【金光闪闪】（作者 2026-10-08 报的）。
-         * 现在它是 profile 上的一个词条，金球自己在 override 里写 true，
-         * 组合球则按「四合一 ≥2 份」合成出来。</p>
-         */
         /** 是否带某个新词条开关（见 FLAG_*） */
         public boolean hasFlag(int flag) {
             return (flags & flag) != 0;
@@ -989,7 +1001,6 @@ public final class BallBehavior {
                     thunderThreshold, shockDamage, glint, value, flags, breaker);
         }
 
-        /** 加一个词条开关（按位或） */
         /** 整体覆盖 flags —— 组合球合成时要「按份数判定后的结果」写回去，不能用 withFlag 的「或」 */
     public BallProfile withFlags(int newFlags) {
         return new BallProfile(damage, cooldownTicks, velocity, inaccuracy, weight, toughness,
@@ -999,6 +1010,7 @@ public final class BallBehavior {
                 newFlags, breaker);
     }
 
+    /** 加一个词条开关（按位或） */
     public BallProfile withFlag(int flag) {
             return new BallProfile(damage, cooldownTicks, velocity, inaccuracy, weight, toughness,
                     bounce, chargeLevels, rarity, sound, drops, sense, meltThreshold, moltenThreshold, magnetRadius,

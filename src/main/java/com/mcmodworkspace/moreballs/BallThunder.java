@@ -22,7 +22,7 @@ import net.minecraft.world.phys.Vec3;
 import com.mcmodworkspace.moreballs.entity.BallProjectile;
 
 /**
- * 【引雷200】—— 空心铜球的热量攒够阈值后释放一次雷电。
+ * 【引雷120】—— 空心铜球的热量攒够阈值后释放一次雷电。
  *
  * <h2>规格（作者 2026-10-07 指定）</h2>
  * <ul>
@@ -57,7 +57,16 @@ public final class BallThunder {
      *
      * <p>原来这里是 {@code 60 / 命中数}，<b>没有下限</b> —— 目标一多每道就摊到很小的数，
      * 而 Minecraft 对 <b>小于 1 的伤害直接忽略</b>，于是看起来「引雷根本没打出伤害」
-     * （作者 2026-10-09 反馈）。加了这个下限之后，命中越多总伤越高，但每一道都疼。</p>
+     * （作者 2026-10-09 反馈）。</p>
+     *
+     * <p>⚠️ 2026-10-12 审计订正：<b>这个下限在实际运行中永远不会生效</b>。
+     * 分摊是 {@code Math.max(MIN_PER_BRANCH, TOTAL_DAMAGE / victims.size())}，
+     * 而 {@code victims} 至多就是一次雷击的闪电数上限 {@link #MAX_BOLTS} = 9，
+     * 于是 {@code 60 / 9 ≈ 6.67} <b>恒大于 5</b> —— {@code Math.max} 永远取右边那一支。</p>
+     *
+     * <p>之所以还留着它：一是作者明确指定了这个数值，二是它是一道**防御性兜底**
+     * （万一 {@code MAX_BOLTS} 或 {@code TOTAL_DAMAGE} 以后被调小，
+     * 每道伤害也不会再掉到原版忽略的区间里去）。<b>它的存在不改变任何当前行为。</b></p>
      */
     public static final float MIN_PER_BRANCH = 5.0F;
 

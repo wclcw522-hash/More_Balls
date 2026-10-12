@@ -170,6 +170,16 @@ public class ComboChargeBallRenderer implements SpecialModelRenderer<int[]> {
      */
     public static void clearCache() {
         COMPOSED.clear();
+        // ⚠️ 像素副本也要一起清 —— 只清 COMPOSED 的话，重载后侧壁拿到的还是
+        //    上一份资源包合成出来的旧图（贴图不更新的直接原因），
+        //    而且每个旧 NativeImage 都是本地内存，不清就等于漏。
+        //    先 close 再 clear：LinkedHashMap.clear() 不走 removeEldestEntry，不会替我们释放。
+        for (NativeImage img : COMPOSED_PIXELS.values()) {
+            if (img != null && !img.isClosed()) {
+                img.close();
+            }
+        }
+        COMPOSED_PIXELS.clear();
     }
 
     // ===== 取参数 =====
@@ -269,7 +279,7 @@ public class ComboChargeBallRenderer implements SpecialModelRenderer<int[]> {
 
     private static void diag(String message, Object... args) {
         if (DIAG.incrementAndGet() <= DIAG_LIMIT) {
-            MoreBalls.LOGGER.info("[ball][弩] " + message, args);
+            MoreBalls.LOGGER.debug("[ball][弩] " + message, args);
         }
     }
 
@@ -407,7 +417,7 @@ public class ComboChargeBallRenderer implements SpecialModelRenderer<int[]> {
                 }
             }
             if (SIDE_DIAG.getAndIncrement() < 1) {
-                MoreBalls.LOGGER.info("[ball][弩] 像素立方体 {} 个（图 {}x{}，每像素 {}x{} 模型单位）",
+                MoreBalls.LOGGER.debug("[ball][弩] 像素立方体 {} 个（图 {}x{}，每像素 {}x{} 模型单位）",
                         boxes, w, h, px, py);
             }
         });
@@ -653,7 +663,7 @@ public class ComboChargeBallRenderer implements SpecialModelRenderer<int[]> {
         COMPOSED_PIXELS.put(Arrays.toString(slots == null ? new int[] { NO_PIECE, NO_PIECE, NO_PIECE, NO_PIECE } : slots), pixels);
 
         Minecraft.getInstance().getTextureManager().register(id, new DynamicTexture(() -> label, canvas));
-        MoreBalls.LOGGER.info("[ball][弩] ④ 合成装填贴图 {} <- slots={}（{}）", id, Arrays.toString(slots),
+        MoreBalls.LOGGER.debug("[ball][弩] ④ 合成装填贴图 {} <- slots={}（{}）", id, Arrays.toString(slots),
                 (slots == null) ? "只画底图" : "已叠象限/半球");
         return id;
     }
@@ -732,7 +742,7 @@ public class ComboChargeBallRenderer implements SpecialModelRenderer<int[]> {
 
         @Override
         public @Nullable SpecialModelRenderer<int[]> bake(SpecialModelRenderer.BakingContext context) {
-            MoreBalls.LOGGER.info("[ball][弩] ① Unbaked.bake() 被调用 —— special 渲染器注册生效");
+            MoreBalls.LOGGER.debug("[ball][弩] ① Unbaked.bake() 被调用 —— special 渲染器注册生效");
             return ComboChargeBallRenderer.INSTANCE;
         }
 

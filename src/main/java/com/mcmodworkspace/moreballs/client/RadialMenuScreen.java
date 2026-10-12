@@ -464,7 +464,25 @@ public class RadialMenuScreen extends Screen {
         int centerX = this.width / 2;
         int centerY = this.height / 2;
 
-        // 中心圆：左半上一页、右半下一页（翻页不关菜单）
+        // 图标判定优先于中心圆 —— 图标判定半径 20、图标圆心距 46，
+        // 因此图标内缘那一圈（离中心 26~32 之间）会落进中心圆的半径里；
+        // 若先判中心圆，这一圈的点选就被翻页吃掉了。判定顺序调过来即可，
+        // 两个半径与图标绘制位置都不用动。
+        int slot = hoveredSlot(mx, my);
+        if (slot >= 0) {
+            if (slot == CANCEL_SLOT) {
+                select(ItemStack.EMPTY);
+                return true;
+            }
+            int ammoIndex = pageOffset() + (slot - 1);
+            if (ammoIndex >= 0 && ammoIndex < this.kinds.size()) {
+                select(this.kinds.get(ammoIndex));
+                this.onClose();   // 选中就关
+            }
+            return true;
+        }
+
+        // 没落在任何图标上：中心圆左半上一页、右半下一页（翻页不关菜单）
         if (isInsideCircle(mx, my, centerX, centerY, CENTER_RADIUS)) {
             if (mx < centerX) {
                 if (this.page > 0) {
@@ -476,21 +494,7 @@ public class RadialMenuScreen extends Screen {
             return true;
         }
 
-        int slot = hoveredSlot(mx, my);
-        if (slot < 0) {
-            return super.mouseClicked(event, doubleClick);
-        }
-        if (slot == CANCEL_SLOT) {
-            select(ItemStack.EMPTY);
-            return true;
-        }
-
-        int ammoIndex = pageOffset() + (slot - 1);
-        if (ammoIndex >= 0 && ammoIndex < this.kinds.size()) {
-            select(this.kinds.get(ammoIndex));
-            this.onClose();   // 选中就关
-        }
-        return true;
+        return super.mouseClicked(event, doubleClick);
     }
 
     @Override

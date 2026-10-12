@@ -21,9 +21,11 @@ import net.neoforged.neoforge.registries.DeferredRegister;
  * 整个世界加载失败（踩过，见 CHANGELOG 1.20.8）。球的耐久走自定义组件，
  * 详见 {@link ModComponents}。</p>
  *
- * <p><b>二、「雪球？」是系列物品</b> —— 显示名一律是「雪球？」（问号是名字的一部分），
- * 内部 ID 与括号里的内容对应，例如 {@code snowball_question}（碎石）、
- * {@code snowball_iron_nugget}（铁粒）。</p>
+ * <p><b>二、雪球系是系列物品</b> —— 当前 {@link BallItem#snowballNewNaming} 为
+ * {@code true}，显示名一律是「雪球-材料」，与内部 ID 的后缀对应：
+ * {@code snowball_question} →「雪球-碎石」、{@code snowball_iron_nugget} →「雪球-铁粒」。
+ * 旧格式「雪球？（材料）」只剩语言文件里 {@code .old} / {@code .old.short}
+ * 那两套键，把开关翻成 {@code false} 才会用。</p>
  */
 public final class ModItems {
 
@@ -98,8 +100,8 @@ public final class ModItems {
             props -> new BallItem(props.stacksTo(BALL_STACK_SIZE)));
 
     /**
-     * 「雪球？（碎石）」 —— 显示名「雪球？」（问号是名字的一部分），
-     * 隐藏名称「雪球-碎石」，内部 ID {@code snowball_question}。
+     * 「雪球-碎石」 —— 显示名走新命名格式（{@link BallItem#snowballNewNaming} 默认
+     * {@code true}），旧格式名才是「雪球？（碎石）」；内部 ID {@code snowball_question}。
      *
      * <p>不坚固（碰上就碎）、重量 5、伤害 2；碎裂 10% 掉 1 个碎石。
      * 贴图与原版雪球一模一样，作用正是<b>在外观上冒充雪球</b>。</p>
@@ -108,11 +110,11 @@ public final class ModItems {
             ITEMS.registerItem("snowball_question", BallItem::new);
 
     /**
-     * 「雪球？（铁粒）」 —— 显示名同样是「雪球？」，
-     * 隐藏名称「雪球-铁粒」，内部 ID {@code snowball_iron_nugget}。
+     * 「雪球-铁粒」 —— 显示名同样走新命名格式，
+     * 旧格式名才是「雪球？（铁粒）」；内部 ID {@code snowball_iron_nugget}。
      *
      * <p>不坚固、重量 5、伤害 3；碎裂 90% 掉 1–2 个铁粒。
-     * 贴图与「雪球？（碎石）」完全一致 —— 从外观上无法区分，只能靠丢出去看效果。</p>
+     * 贴图与「雪球-碎石」完全一致 —— 从外观上无法区分，只能靠丢出去看效果。</p>
      *
      * <p>特殊能力「<b>探寻</b>」：扔出后会探测周围的金属矿物并累积热量，
      * 详见 {@code BallProspecting}。</p>
@@ -134,7 +136,7 @@ public final class ModItems {
             props -> new BallItem(props.stacksTo(BALL_STACK_SIZE)));
 
     /**
-     * 「雪球_金粒」 —— 不坚固、重量 5、伤害 2。
+     * 「雪球-金粒」 —— 不坚固、重量 5、伤害 2。
      *
      * <p>特殊能力「<b>点金</b>」：命中方块时把命中面那一片 3×3×1 的石头类方块
      * 按概率点成矿物，详见 {@code BallTransmute}。</p>
@@ -145,7 +147,7 @@ public final class ModItems {
     // ===== 2.6.0 四颗新球（作者 2026-10-07 指定）=====
 
     /**
-     * 紫水晶球 —— 伤害 5、坚固 15、重量 5、蓄力 4、弹射 7、权重 5。
+     * 紫水晶球 —— 伤害 5、坚固 10、重量 5、蓄力 4、弹射 7、权重 5。
      *
      * <p>两个专属性质：<br>
      * <b>【智慧】</b> 发射后扫描 10 格内无遮挡可直达的敌对 / 仇恨中立生物，锁定并转向；<br>
@@ -192,7 +194,8 @@ public final class ModItems {
     /**
      * 空心铜球 —— 伤害 1、坚固 5、重量 2、弹射 3，带【感应2】。
      *
-     * <p><b>【引雷200】</b>：热量攒到 200 就释放一次雷电（4–9 道闪电）并清空自身热量。</p>
+     * <p><b>【引雷120】</b>：热量攒到 120（{@link BallBehavior#THUNDER_THRESHOLD}）
+     * 就释放一次雷电（4–9 道闪电）并清空自身热量。</p>
      */
     public static final DeferredItem<Item> HOLLOW_COPPER_BALL = ITEMS.registerItem(
             "hollow_copper_ball",
@@ -206,7 +209,7 @@ public final class ModItems {
      * （<b>不含本模组的【不灭】</b>）；另有 <b>0.1%</b> 概率抽中大奖，
      * 给主人挂 60 秒【不灭】并播放不死图腾的音效与粒子。详见 {@link BallMagic}。</p>
      *
-     * <p>配方为「64528 青金石块」（十字四臂 + 正中），一次出 4 个；
+     * <p>配方为 5 个青金石块（十字四臂 + 正中），一次出 4 个；
      * 碰撞与破碎都走附魔台音效；破碎 60% 掉 3–5 个青金石。</p>
      */
     public static final DeferredItem<Item> LAPIS_BALL = ITEMS.registerItem(
@@ -214,7 +217,7 @@ public final class ModItems {
             props -> new BallItem(props.stacksTo(BALL_STACK_SIZE)));
 
     /**
-     * 「红石雪球」 —— 不坚固、重量 3、<b>伤害 0</b>、蓄力 6。
+     * 「雪球-红石」 —— 不坚固、重量 3、<b>伤害 0</b>、蓄力 6。
      *
      * <p><b>【照明】</b>：飞行时在正下方张开一个四棱锥判定区，区域内的生物持续被染色发光 ——
      * 友好蓝、中立黄、敌对红，对隐身与穿墙的目标同样有效。详见 {@code BallIlluminate}。</p>
@@ -225,7 +228,7 @@ public final class ModItems {
             ITEMS.registerItem("redstone_snowball", BallItem::new);
 
     /**
-     * 「雪球_铜粒」 —— 不坚固、重量 5、伤害 3，带【融化200】【感应2】。
+     * 「雪球-铜粒」 —— 不坚固、重量 5、伤害 3，带【融化200】【感应2】。
      *
      * <p><b>【电击】</b>：这颗球直接造成的伤害为<b>闪电类型</b>。</p>
      */
@@ -242,7 +245,7 @@ public final class ModItems {
     // 外观区分只能靠物品名；而独立物品能让升级在视觉上一眼可见，
     // 也更贴合原版「工具材质升级」的观感。
 
-    /** 1 级：皮革魔丸收纳袋（9 + 9 = 18 格） */
+    /** 1 级：皮革魔丸收纳袋（9 + 18 = 27 格） */
     public static final DeferredItem<Item> BALL_POUCH = registerPouch(BallPouchTier.LEATHER);
 
     /** 2 级：铁质 */
@@ -260,7 +263,7 @@ public final class ModItems {
     /** 6 级：黑曜石 */
     public static final DeferredItem<Item> OBSIDIAN_BALL_POUCH = registerPouch(BallPouchTier.OBSIDIAN);
 
-    /** 7 级：下界合金（满级，27 + 27 = 54 格） */
+    /** 7 级：下界合金（满级，27 + 54 = 81 格） */
     public static final DeferredItem<Item> NETHERITE_BALL_POUCH = registerPouch(BallPouchTier.NETHERITE);
 
     /**

@@ -452,20 +452,33 @@ public final class PiglinLure {
         if (PENDING_CLEAR.isEmpty()) {
             return;
         }
+        // ⚠️ 原来这里是「进内层循环先 it.remove()」，等于第一轮就把整张待清理表吃干：
+        //    饵不一定在当前遍历到的这个维度，那些维度里 level.getEntity(baitId) 恒为 null，
+        //    记录却已经没了 —— 饵再也没人 discard，隐形金锭永久留在世界里。
+        //    改成「谁真的被处理掉，才从表里移除」，并让所有维度都过一遍。
         for (ServerLevel level : event.getServer().getAllLevels()) {
             for (java.util.Iterator<UUID> it = PENDING_CLEAR.iterator(); it.hasNext(); ) {
                 UUID ballId = it.next();
-                it.remove();
-                Integer baitId = BAIT_IDS.remove(ballId);
+                Integer baitId = BAIT_IDS.get(ballId);
                 if (baitId == null) {
+                    it.remove();   // 压根没留下饵记录，本来就没有要清的东西
                     continue;
                 }
                 Entity bait = level.getEntity(baitId);
-                if (bait != null) {
-                    bait.discard();
+                if (bait == null) {
+                    continue;      // 饵不在这个维度 —— 别吃掉记录，留给后面的维度
                 }
+                bait.discard();
+                BAIT_IDS.remove(ballId);
+                it.remove();
             }
         }
+        // 所有维度都找过一遍了：仍留在表里的说明饵早已不存在（原版 5 分钟过期 / 被清掉），
+        // 留着只会每 tick 白跑一轮维度循环，这里一并丢掉。
+        for (UUID ballId : PENDING_CLEAR) {
+            BAIT_IDS.remove(ballId);
+        }
+        PENDING_CLEAR.clear();
     }
 
     // ===== 三、被捡起后的特殊交易 =====

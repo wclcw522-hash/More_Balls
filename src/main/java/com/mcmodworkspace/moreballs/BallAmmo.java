@@ -22,9 +22,11 @@ import net.minecraft.world.level.Level;
  * <p>只认标签 {@code #more_balls:balls}，所以任何进标签的物品都能当弩弹药，无需改代码。</p>
  *
  * <p><b>伤害公式（弹药路径）</b>：<br>
- * {@code 最终伤害 = 初始伤害 × (最终速度 / 初始速度) × 2}<br>
- * 其中「初始速度」是弩射普通箭的初速（{@code CROSSBOW_BASE_VELOCITY}）。强弩附魔会提高
- * 出手速度，从而同时放大射程与伤害。</p>
+ * {@code 命中伤害 = 初始伤害 × 2 × (击中速度 / 实际出手速度)}<br>
+ * 除数是<b>实际出手速度</b> —— {@link BallProjectile#shoot} 里记下的 {@code launchSpeed}，
+ * 已经含了强弩 / 极速的倍率，<b>不是</b>弩射普通箭的初速
+ * {@code CROSSBOW_BASE_VELOCITY}。附魔倍率同时出现在分子（出手初速）与分母里，
+ * 出手瞬间比值恒为 1 —— 所以<b>强弩只放大射程，不放大伤害</b>。</p>
  */
 public final class BallAmmo {
 
@@ -33,7 +35,10 @@ public final class BallAmmo {
 
     /**
      * 弩射普通箭的初速 —— 原版 {@code CrossbowItem} 对非烟花弹药使用的 power 值（3.15）。
-     * 用作弹药伤害公式里的「初始速度」基准。
+     *
+     * <p>⚠️ 它<b>不是</b>伤害公式里的除数：那条公式除的是<b>实际出手速度</b>
+     * （{@code launchSpeed}，含蓄力与附魔倍率）。本文件目前没有任何引用点，
+     * 仅作数值记录保留。</p>
      */
     public static final float CROSSBOW_BASE_VELOCITY = 3.15F;
 
@@ -53,9 +58,9 @@ public final class BallAmmo {
      * 不需要任何服务端状态。</p>
      *
      * <p><b>注意这个写法是刻意选的</b>：{@code ChargedProjectiles} 的遍历接口在版本间变过
-     * （26.2 的 {@code itemCopies()} 返回 {@code List}、26.3 返回 {@code Stream}），
-     * 为了让这条线一起兼容两条版本，这里改用两版都有的 {@code contains(Item)}
-     * 逐个比对标签里的球。</p>
+     * （26.2 的 {@code itemCopies()} 返回 {@code List}，26.3 改成了 {@code Stream}）。
+     * <b>本条线是 26.2</b>，而 {@code contains(Item)} 两版都在，所以这里用它逐个比对
+     * 标签里的球，移植到 26.3 时这段不用动。</p>
      */
     public static Item chargedBallItem(ItemStack crossbow) {
         if (crossbow == null || crossbow.isEmpty()) {
@@ -97,6 +102,7 @@ public final class BallAmmo {
         if (charged == null || charged.isEmpty()) {
             return null;
         }
+        // 本条线是 26.2：itemCopies() 返回 List（26.3 改成了 Stream，移植时要按那条线的返回类型改写）
         for (ItemStack projectile : charged.itemCopies()) {
             if (isBall(projectile)) {
                 return projectile;
@@ -277,9 +283,13 @@ public final class BallAmmo {
             weight = ModEnchantments.lightnessWeight(weight);
         }
 
-        // 弹药路径伤害：初始伤害 × (最终速度/初始速度) × 2。
-        // 强弩会抬高出手速度，因此同时放大射程与伤害。
-        ball.setDamage(profile.damage() * AMMO_DAMAGE_MULTIPLIER);
+        // 弹药路径伤害：初始伤害 × 2，命中时再由 impactDamage() 乘 (击中速度 / 实际出手速度)。
+        // 强弩 / 极速抬高的是「出手速度」本身，分子分母同时变大而约掉 —— 只放大射程，不放大伤害。
+        // 【诸葛连弩】作者 2026-10-12 指定：每级降低 10% 最终伤害（3 级 = -30%）。
+        // 放在这里就是「最终伤害」——球之后按 impactDamage() 再乘速度比，基数已是削过的。
+        ball.setDamage(profile.damage() * AMMO_DAMAGE_MULTIPLIER
+                * ModEnchantments.repeaterDamageFactor(
+                        ModEnchantments.repeaterCrossbowLevel(level, weapon)));
         ball.setWeight(weight);
         ball.setToughness(profile.toughness());
         ball.setBounce(profile.bounce());

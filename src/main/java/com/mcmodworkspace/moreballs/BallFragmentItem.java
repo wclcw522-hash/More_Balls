@@ -19,7 +19,7 @@ import net.minecraft.world.item.component.TooltipDisplay;
  *   <li>用切石机从完整球上切下来：一颗球出 <b>2 个半球</b>或 <b>4 个四分之一球</b></li>
  *   <li><b>不能投掷、不能当弩弹药</b> —— 这就是它<b>不是</b> {@link BallItem}、
  *       且不进 {@code #more_balls:balls} 标签的原因</li>
- *   <li><b>数值词条</b>（坚固、感应、融化、熔融、磁吸、点金）按 1/2、1/4 缩放，
+ *   <li><b>数值词条</b>（坚固、感应、磁吸、点金）按 1/2、1/4 缩放，
  *       <b>暂时不取整</b> —— 所以显示出来是 {@code 4}、{@code 2.5} 这种</li>
  *   <li><b>无数值特性</b>（变形、磁性、金光闪闪）由半球<b>直接继承</b>；
  *       四分之一球把它们<b>藏起来</b>（只不显示，数据仍在 —— 四合一还要数份数）</li>
@@ -29,7 +29,7 @@ import net.minecraft.world.item.component.TooltipDisplay;
  * <p>参考匠魂：那里所有镐子是同一件物品、材质由组件决定。这里照搬 ——
  * 半球/四分之一球各只有<b>一个</b>物品 id，靠
  * {@link ModComponents#FRAGMENT_SOURCE} 记「从哪颗球切的」。
- * 于是 5 种来源只占 1 个 id，而不是注册 5 个。</p>
+ * 于是 11 种来源只占 1 个 id，而不是注册 11 个。</p>
  */
 public class BallFragmentItem extends Item {
 

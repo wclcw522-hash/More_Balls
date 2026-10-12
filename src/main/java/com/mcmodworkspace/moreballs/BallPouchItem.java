@@ -21,8 +21,8 @@ import java.util.function.Consumer;
  * 魔丸收纳袋 —— 专门装「球」的容器。
  *
  * <p>两段式：<b>弹药格</b>放满耐久的球、<b>转运格</b>放用过的球。容量随等级成长，
- * 见 {@link BallPouchTier}。数据存在 {@link ModComponents#POUCH_TIER} 与
- * {@link ModComponents#POUCH_CONTENTS} 两个组件上。</p>
+ * 见 {@link BallPouchTier}。两段都存在同一个组件
+ * {@link ModComponents#POUCH_CONTENTS} 上（各占 54 格，实际可用格数由等级决定）。</p>
  *
  * <h2>两段为什么分开</h2>
  * <p>作者指定的设计意图：<b>满耐久的球是「新弹药」，用过的是「该先打出去的」</b>。
@@ -122,7 +122,7 @@ public class BallPouchItem extends Item {
      *
      * <p>⚠️ <b>写入同样受该等级容量约束</b>（{@code tier(pouch).transitSlots()}）。
      * 早先这里写着「界面上的槽位限制管的是手动拖拽，两者不冲突」，那是错的 ——
-     * 数据层每段被 {@code fitTo} 无条件补齐到 27 格，写入端不截断就会把球
+     * 数据层每段被 {@code fitTo} 无条件补齐到 54 格，写入端不截断就会把球
      * 塞进界面根本显示不出来的格子，而调用方看到「塞进去了」又把实体 discard，
      * 球就人间蒸发（作者 2026-10-09 报的）。容量检查在写入端，见 {@link #cappedSegment}。</p>
      *
@@ -135,9 +135,10 @@ public class BallPouchItem extends Item {
         BallPouchContents current = contents(pouch);
         // ⚠️ 必须按**该等级真正的容量**截断。
         //
-        // 数据层的每段被 BallPouchContents.fitTo 无条件补齐到 27 格，
-        // 而 tier(...).transitSlots() 真正的容量（9 / 12 / … / 27）**只有界面和 tooltip 在用** ——
-        // 写入路径一次都没碰过。于是满袋时球会被塞进第 10~27 格：
+        // 数据层的每段被 BallPouchContents.fitTo 无条件补齐到 54 格，
+        // 而 tier(...).transitSlots() 真正的容量（18 / 24 / … / 54，即弹药格的两倍）
+        // **只有界面和 tooltip 在用** ——
+        // 写入路径一次都没碰过。于是满袋时球会被塞进超出该等级容量的格子（最远到第 54 格）：
         // 界面把那些格子涂成不可见的灰格，实体又被 discard，看起来就是「球消失了」。
         List<ItemStack> segment = cappedSegment(current.transit(), tier(pouch).transitSlots());
         boolean changed = fillInto(segment, ball);
@@ -168,8 +169,9 @@ public class BallPouchItem extends Item {
     /**
      * 取这一段的**可用前缀** —— 超出该等级容量的格子一律清空。
      *
-     * <p>数据层每段固定 27 格（{@code BallPouchContents.FIXED_SEGMENT_SIZE}），
-     * 但该等级真正可用的只有 {@code tier.slots()} 格。写入前必须剪掉越界部分，
+     * <p>数据层每段固定 54 格（{@code BallPouchContents.FIXED_SEGMENT_SIZE}），
+     * 但该等级真正可用的只有 {@code tier.ammoSlots()} / {@code tier.transitSlots()} 格。
+     * 写入前必须剪掉越界部分，
      * 否则球会落到界面上「不存在」的格子里去 —— 那正是「球被吸走却消失了」。</p>
      *
      * <p>顺带把旧存档里已经存在的越界内容也清掉（它们本来就是幽灵球）。</p>
@@ -177,8 +179,9 @@ public class BallPouchItem extends Item {
     private static List<ItemStack> cappedSegment(List<ItemStack> segment, int slots) {
         // ⚠️ 长度必须**等于容量**，不能取 max。
         //
-        // 上一版写的是 Math.max(slots, FIXED_SEGMENT_SIZE) —— slots ≤ 27 恒成立，
-        // 于是长度恒为 27，等于**根本没截断**；更糟的是循环把 9~26 格清成空，
+        // 上一版写的是 Math.max(slots, FIXED_SEGMENT_SIZE) —— slots ≤ 54 恒成立
+        // （转运格满级 54、弹药格 27），
+        // 于是长度恒为 54，等于**根本没截断**；更糟的是循环把超出 slots 的格子清成空，
         // 而 fillInto 的「找空格」正好命中这些空格，把球写进界面根本不存在的格子，
         // 再把 ball.setCount(0)、返回 true，调用方据此 discard 实体 —— 球就这么没了。
         // 换句话说：那个 max 不但没拦住，还亲手给溢出球腾出了落点。

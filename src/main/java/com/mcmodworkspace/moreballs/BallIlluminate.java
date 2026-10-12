@@ -23,7 +23,7 @@ import net.minecraft.world.phys.Vec3;
 import java.util.List;
 
 /**
- * 【照明】—— 红石雪球的专属词条（作者 2026-10-10 指定的规格）。
+ * 【照明】—— 雪球-红石的专属词条（作者 2026-10-10 指定的规格）。
  *
  * <h2>判定区：一个倒扣的正四棱锥</h2>
  * <p>以<b>球心为顶点</b>，向下张开四条棱、一直到地面，再把底面四个顶点连起来 ——
@@ -134,10 +134,17 @@ public final class BallIlluminate {
      *
      * <p>做法：先按高度求出这一层的「允许半对角线」，再看目标的水平偏移是否在正方形截面内。
      * 正方形用 {@code max(|dx|, |dz|) <= 半边长} 判，其中半边长 = 半对角线 / √2。</p>
+     *
+     * <p><b>取样高度取的是目标碰撞箱顶面</b>（{@code maxY} 再向下让开一点点浮点误差），
+     * 并且夹在顶点高度以内。理由：锥体从上往下是**越走越宽**的，所以这一层是
+     * 目标所占据的整段高度里**最窄的一层** —— 拿最窄的那层来判是最严的：
+     * 连最窄处都装得下，整个实体就确实落在锥内；反过来说，一旦偏移超过这一层的容许值，
+     * 就说明目标已经站到锥体外了。epsilon 只用来避免「恰好贴边」被浮点误差判出去。</p>
      */
     private static boolean insidePyramid(Vec3 apex, double groundY, double halfDiagonal, LivingEntity target) {
         AABB targetBox = target.getBoundingBox();
-        // 用「离顶点最近的那一面」判定，避免高个子生物明明站着却因为中心点偏上而漏判
+        // 取碰撞箱顶面所在的层来判 —— 这是目标所跨的整段高度里锥体最窄的一层，
+        // 因此是最严的判据（详见方法注释）
         double sampleY = Math.min(targetBox.maxY - 1.0E-3D, apex.y);
         if (sampleY < groundY) {
             sampleY = groundY;

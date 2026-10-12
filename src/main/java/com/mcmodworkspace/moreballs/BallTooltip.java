@@ -183,7 +183,7 @@ public final class BallTooltip {
                     line("tooltip.more_balls.desc.morph")));
         }
 
-        // ===== 2.6.0 新增的五个词条 =====
+        // ===== 2.6.0 新增的七个词条 =====
 
         // 【智慧】—— 紫水晶球：发射后扫描并锁定最近的敌对目标
         // 【智慧N】—— N 是可追踪的次数（没写就是 1）
@@ -229,7 +229,7 @@ public final class BallTooltip {
             out.add(Entry.of(line("tooltip.more_balls.entry.transmute"), Kind.TRAIT));
         }
 
-        // ===== 3.0.0（0.3.4.0）新增的五个词条 =====
+        // ===== 3.0.0（0.3.4.0）新增的六个词条 =====
 
         // 【穿透x】—— 自带穿透，能连着打穿 x 个目标
         if (profile.hasPenetration()) {
@@ -251,7 +251,7 @@ public final class BallTooltip {
                             effectWithDuration(ModEffects.SHOCK, RedstonePulse.DURATION_STRONG))));
         }
 
-        // 【照明】—— 红石雪球：下方四棱锥区域内的生物被染色发光
+        // 【照明】—— 雪球-红石：下方四棱锥区域内的生物被染色发光
         if (profile.hasFlag(BallBehavior.BallProfile.FLAG_ILLUMINATE)) {
             out.add(Entry.of(line("tooltip.more_balls.entry.illuminate"), Kind.TRAIT,
                     line("tooltip.more_balls.desc.illuminate")));

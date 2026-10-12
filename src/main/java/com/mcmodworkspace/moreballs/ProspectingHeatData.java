@@ -15,14 +15,15 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * 矿物被「探寻」加热的世界级数据。
+ * 矿物被【感应】加热的世界级数据。
  *
  * <h2>规则（作者指定）</h2>
  * <ul>
  *   <li>矿物<b>被探测期间</b>每刻积累 {@code 1 + 紧邻六面的矿物数量} 点热量</li>
  *   <li>热量达到 {@link #BREAK_THRESHOLD}（200）时<b>破坏该方块</b>，
  *       并以<b>时运 1</b> 的规则掉落<b>对应的矿锭</b></li>
- *   <li>矿物<b>没被检测</b>时，每刻自然消散 {@link #DECAY_PER_TICK}（2）点</li>
+ *   <li>矿物<b>连续 20 刻没被检测</b>（{@link BallProspecting#HEAT_DECAY_DELAY_TICKS} 宽限）之后
+ *       才开始消散，每刻 {@link #DECAY_PER_TICK}（0.2）点</li>
  * </ul>
  *
  * <h2>为什么存这里</h2>

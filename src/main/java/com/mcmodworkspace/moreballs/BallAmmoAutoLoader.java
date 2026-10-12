@@ -132,7 +132,7 @@ public final class BallAmmoAutoLoader {
             return;
         }
         lastDiagnoseTick = now;
-        MoreBalls.LOGGER.info(
+        MoreBalls.LOGGER.debug(
                 "[ball] 补弹未发生（{}）：选中={} / 副手={}（耐久 {}）/ 袋中同种最低耐久 {} / 收纳袋 {} 个",
                 reason,
                 wanted.getHoverName().getString(),

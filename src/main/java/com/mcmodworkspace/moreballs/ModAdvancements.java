@@ -33,7 +33,6 @@ public final class ModAdvancements {
 
     public static final String ROOT = "root";
     public static final String RUBBLE = "rubble";
-    public static final String IRON_BALL_FROM_BLOCKS = "iron_ball_from_blocks";
     public static final String PIGLIN_TRADE_WITH_BALL = "piglin_trade_with_ball";
     public static final String HEAT_SMELT = "heat_smelt";
     public static final String SNOWBALL_HURT = "snowball_hurt";

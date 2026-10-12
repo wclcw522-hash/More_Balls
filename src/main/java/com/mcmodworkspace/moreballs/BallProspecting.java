@@ -24,29 +24,32 @@ import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
- * 「探寻」—— 「雪球？（铁粒）」的特殊能力。
+ * 【感应】/【磁性】—— 「雪球？（铁粒）」的特殊能力。
  *
  * <h2>规则（作者指定）</h2>
  * <ol>
  *   <li>球扔出后探测<b>半径 7 格</b>范围</li>
  *   <li>范围内每格<b>金属类矿物</b>每刻提供 1 点热量</li>
- *   <li>球自身热量累计到 <b>100</b> 时立刻破碎并 100% 掉 2 个铁粒</li>
+ *   <li>球自身热量累计到<b>词条阈值</b>时立刻结算（融化消失 / 引雷放电），并 100% 掉 2 个铁粒
+ *       —— 阈值已下沉到词条：雪球类【融化 {@link BallBehavior#DEFAULT_MELT_THRESHOLD}】(200)、
+ *       空心铜球【引雷 {@link BallBehavior#THUNDER_THRESHOLD}】(120)</li>
  *   <li>范围内的<b>玩家</b>也会被加热：每穿一件金属护甲 +1/刻，手持金属装备再 +1/刻；
- *       停止被检测后每刻消退 2 点；<b>超过 50 点点燃玩家</b></li>
+ *       停止被检测满 1 秒（{@code HEAT_DECAY_DELAY_TICKS} 宽限）后每刻消退
+ *       {@link #PLAYER_HEAT_DECAY}（0.2）点；<b>超过 {@link #PLAYER_HEAT_IGNITE}（100）点点燃玩家</b></li>
  *   <li>范围内有<b>铁磁性装备</b>的玩家时，球的飞行路径向「最近且穿得最多」的那位偏移</li>
  * </ol>
  *
  * <h2>对接其他模组：零配置</h2>
  *
  * <h3>金属类矿物 —— 自动识别</h3>
- * <p>判据是「<b>可以用熔炉熔炼得到锭</b>」，所以这里不维护矿物清单，而是<b>运行时反查熔炼配方</b>：
- * 把那格方块做成物品、丢给 {@link RecipeType#SMELTING} 问一次，看产物是不是「锭」。
+ * <p>判据是「<b>可以用熔炉熔炼得到金属产物</b>」，所以这里不维护矿物清单，而是<b>运行时反查熔炼配方</b>：
+ * 把那格方块做成物品、丢给 {@link RecipeType#SMELTING} 问一次，看产物是不是「锭 / 碎料 / 金属块」。
  * <b>任何模组只要把矿石接进熔炼配方就会被自动认出来。</b></p>
  *
  * <h3>金属装备 —— 按物品注册名判断</h3>
  * <p>护甲没法用熔炼配方反查（铁胸甲熔出来是铁粒、不是锭），所以走注册名关键字：
- * 只要 ID 里带 {@code iron} / {@code chain} / {@code gold} / {@code copper} 等金属词
- * 且带 {@code EQUIPPABLE} 组件，就算金属装备。</p>
+ * 只要 ID 里带 {@code iron} / {@code chain} / {@code gold} / {@code copper} 等金属词就算金属装备
+ * —— <b>不检查 {@code EQUIPPABLE}</b>，铁镐 / 铁铲 / 铁剑这些工具同样算。</p>
  *
  * <h3>铁磁性 —— 关键字 + 可选标签</h3>
  * <p>主判据是注册名关键字（{@link #FERROMAGNETIC_KEYWORDS}），不需要任何配置；
@@ -57,9 +60,8 @@ public final class BallProspecting {
     private BallProspecting() {
     }
 
-    /** 检测半径（格）：超出这个范围连扫都不扫 */
     /**
-     * 扫描半径。
+     * 检测半径（格）：超出这个范围连扫都不扫。
      *
      * <p>⚠️ **必须是 7，与 {@link #PULL_RADIUS} 一致**（作者 2026-10-09 性能修复）。</p>
      *
@@ -68,7 +70,7 @@ public final class BallProspecting {
      * 下游的 {@code bestMagnetTarget} 又判了一次同样的条件。
      * 也就是说那 15 格里的外侧部分**读出来了、判定了、然后扔掉**，纯属白扫。</p>
      *
-     * <p>代价有多大：{@code 31³ = 29791} 格/次，{@code SCAN_INTERVAL = 4} 刻一次，
+     * <p>代价有多大：{@code 15³ = 3375} 格/次，{@code SCAN_INTERVAL = 4} 刻一次，
      * 25 个球就是 **372 万次 {@code getBlockState} 每秒** ——
      * 实测 {@code prospecting} 阶段占 185.9ms / 2000 次采样，是其余四项总和的 20 倍。</p>
      */
@@ -110,12 +112,13 @@ public final class BallProspecting {
     /** 泡在水里时的消退倍率（作者指定：10 倍速） */
     public static final float WATER_DECAY_MULTIPLIER = 10.0F;
 
-    /** 扫描间隔（刻）：半径 7 的立方体有 3375 格，每刻全扫太贵，每 4 刻扫一次、结果复用 */
-    /** 扫描间隔（刻）—— 4 太密了，8 刻（0.4 秒）对「提前看到矿物」完全够用 */
+    /**
+     * 扫描间隔（刻）：半径 7 的<b>球形</b>范围约 1437 格，每刻全扫太贵，
+     * 每 8 刻扫一次、结果复用。
+     *
+     * <p>原来写 4 —— 太密了；8 刻（0.4 秒）对「提前看到矿物」完全够用。</p>
+     */
     public static final int SCAN_INTERVAL = 8;
-
-    /** 磁吸偏航的拉力（每刻加到水平速度上的上限） */
-    public static final double MAGNET_PULL = 0.035D;
 
     /**
      * 铁磁性矿物的<b>数据包标签</b> —— 留给「命名不合惯例又想被识别」的模组的额外口子。
@@ -208,13 +211,13 @@ public final class BallProspecting {
     /**
      * 扫描球周围一圈，收集<b>生效范围内</b>的金属矿物。
      *
-     * <h2>为什么扫 15 格、却只收 7 格的</h2>
-     * 作者定的规则是「<b>15 格开始计算，7 格开始生效</b>」—— 扫描半径给足 15 格是为了
-     * 提前「看到」远处的目标，但真正参与结算（叠加热量、烤矿物、吸附转向）的必须收在
-     * 7 格以内。
+     * <h2>为什么只扫 {@link #PULL_RADIUS}（7 格）</h2>
+     * 作者定的规则是「<b>7 格开始计算、7 格开始生效</b>」—— 扫描半径与生效半径一致，
+     * 真正参与结算（叠加热量、烤矿物、吸附转向）的都在 7 格以内，超出的格子根本不进循环
+     * （2026-10-09 性能修复：原先按更大的半径全扫一遍再逐个丢弃，纯属白扫）。
      *
-     * <p>这不只是设定问题：热量是「生效范围内每格矿物每刻 +1」，如果拿 15 格来算，
-     * 范围体积是 7 格的 <b>近 10 倍</b>，球自身热量几刻就会顶到阈值当场炸开 ——
+     * <p>这不只是性能问题：热量是「生效范围内每格矿物每刻 +1」，半径一放大，
+     * 范围体积就翻好几倍，球自身热量几刻就会顶到阈值当场炸开 ——
      * 表现就是「扔出去什么都不发生」，因为球在转向之前就已经碎了。</p>
      */
     public static ScanResult scan(ServerLevel level, Vec3 center) {
@@ -300,31 +303,6 @@ public final class BallProspecting {
     }
 
     /**
-     * 这格方块是不是<b>金属储存块本身</b>（铁块 / 铜块 / 金块 / 下界合金块）。
-     *
-     * <p>用<b>精确相等</b>而不是子串 —— 粗矿块的注册名 {@code raw_iron_block}
-     * 里也含有 {@code iron_block}，子串匹配会把粗矿块一起误判掉。</p>
-     */
-    /**
-     * 这格方块是不是<b>金属储存块本身</b>（铁块 / 金块 / 下界合金块，以及铜的一整族）。
-     *
-     * <p>必须先排掉 {@code raw_} 前缀 —— 粗矿块注册名 {@code raw_iron_block} 里
-     * 也含有 {@code iron_block}，不排掉会把它一起误判成储存块。</p>
-     *
-     * <p>⚠️ 铜的变体很多：{@code copper_block}、{@code exposed_copper}、
-     * {@code weathered_copper}、{@code oxidized_copper}，外加四个打蜡版本
-     * （{@code waxed_copper_block} 等）。原来这里只比对四个精确名，
-     * 那 8 个铜变体全部漏网、被判成「金属矿」，于是攒够热量就被烤爆
-     * （作者 2026-10-08 报的：金属块不该被破坏，只该冒粒子 + 烫脚）。</p>
-     */
-    /**
-     * 铜储存块家族的正则。
-     *
-     * <p>提成静态常量 —— {@code String.matches} 每次调用都会重新编译正则，
-     * 而这个方法在热路径上（每刻对热表里每格方块的邻居做判定），
-     * 每秒可能被调用上万次。</p>
-     */
-    /**
      * 「金属储存块」标签 —— 让第三方模组的金属块也能享受「吸热、冒粒子、踩上去烫脚，
      * 但永不消失」这套行为。
      *
@@ -335,8 +313,29 @@ public final class BallProspecting {
     private static final TagKey<Block> METAL_STORAGE_TAG =
             TagKey.create(net.minecraft.core.registries.Registries.BLOCK,
                     Identifier.fromNamespaceAndPath(MoreBalls.MOD_ID, "metal_storage_blocks"));
+    /**
+     * 铜储存块家族的正则。
+     *
+     * <p>提成静态常量 —— {@code String.matches} 每次调用都会重新编译正则，
+     * 而这个方法在热路径上（每刻对热表里每格方块的邻居做判定），
+     * 每秒可能被调用上万次。</p>
+     */
     private static final java.util.regex.Pattern COPPER_STORAGE_PATTERN =
             java.util.regex.Pattern.compile("(waxed_)?(exposed_|weathered_|oxidized_)?copper(_block)?");
+    /**
+     * 这格方块是不是<b>金属储存块本身</b>（铁块 / 金块 / 下界合金块，以及铜的一整族）。
+     *
+     * <p>必须先排掉 {@code raw_} 前缀 —— 粗矿块注册名 {@code raw_iron_block} 里
+     * 也含有 {@code iron_block}，不排掉会把它一起误判成储存块。</p>
+     *
+     * <p>原版那三个单一名用<b>精确相等</b>比对（不是子串），其余交给标签与铜系正则兜底。</p>
+     *
+     * <p>⚠️ 铜的变体很多：{@code copper_block}、{@code exposed_copper}、
+     * {@code weathered_copper}、{@code oxidized_copper}，外加四个打蜡版本
+     * （{@code waxed_copper_block} 等）。原来这里只比对四个精确名，
+     * 那 8 个铜变体全部漏网、被判成「金属矿」，于是攒够热量就被烤爆
+     * （作者 2026-10-08 报的：金属块不该被破坏，只该冒粒子 + 烫脚）。</p>
+     */
     private static boolean isMetalStorageBlock(BlockState state) {
         String path = state.getBlock().builtInRegistryHolder().key().identifier().getPath();
         if (path.startsWith("raw_")) {
@@ -547,7 +546,8 @@ public final class BallProspecting {
     }
 
     /**
-     * 玩家/生物身上有几件「铁磁性装备」—— 磁吸目标只认这一类（铁、锁链、下界合金等）。
+     * 玩家/生物身上有几件「铁磁性装备」—— 磁吸目标只认这一类
+     * （判据是 {@link #FERROMAGNETIC_EQUIPMENT_KEYWORDS}：铁、钴、镍、钢等）。
      *
      * <p><b>只看物品注册名，不要求能穿戴</b>：护甲、工具、武器一视同仁 ——
      * 铁镐铁铲铁剑都会让球偏过去（作者指定「只要是金属工具就要识别」）。</p>
@@ -570,6 +570,20 @@ public final class BallProspecting {
      * 这些没有该组件的工具全排除掉了，连带着磁吸也一起失效。</p>
      */
     public static boolean isMetalEquipment(ItemStack stack) {
+        // ⚠️ **球不算金属装备**（作者 2026-10-11 报的 bug）。
+        //
+        //    球的注册名里带「铁 / 金 / 铜」，于是「手里拿着一颗铁球」会被算成
+        //    「身上穿着金属装备」—— 而热量顶到 MAX_LIVING_HEAT 时的满热惩罚
+        //    （熔融物烧伤）就挂在**自己**身上了。
+        //
+        //    烈焰人这一版能一次拿 12 颗球、又常在自己扔出去的球附近，
+        //    于是被自己的球烤到 200 度、持续中熔融物烧伤 ——
+        //    现象就是作者报的「拿手里的球互相干扰、还造成伤害」。
+        //
+        //    球是**弹药**，不是「贴着自己的金属盔甲」，本来就不该进这个判据。
+        if (BallAmmo.isBall(stack)) {
+            return false;
+        }
         return !stack.isEmpty() && containsAny(itemPath(stack), METAL_EQUIPMENT_KEYWORDS);
     }
 
@@ -656,7 +670,7 @@ public final class BallProspecting {
      * 优先级<b>高于</b>穿整套金属甲再拿金属工具的生物（5 点）。</p>
      *
      * <p>另外只有进入 {@link #PULL_RADIUS} 的候选才参与竞争 ——
-     * 检测半径 10 是为了「提前看到」，偏转半径 7 才是「开始动手」。</p>
+     * 检测半径 {@link #RADIUS} 与偏转半径同为 7 格，进了范围就直接动手。</p>
      */
     public static @Nullable MagnetTarget bestMagnetTarget(ServerLevel level, Vec3 center,
                                                           List<BlockPos> ores,

@@ -36,8 +36,65 @@ public final class BallPickupHandler {
     private BallPickupHandler() {
     }
 
+    // ===== Q 丢球之后的「自动拾取冷却」（作者 2026-10-11 指定）=====
+
+    /**
+     * 作者指定：<b>用 Q 丢出球之后 5 秒内不再自动拾取</b>。
+     *
+     * <p>要解决的问题：收纳袋会在球落地后立刻把它吸回去，于是
+     * <b>球根本丢不出来</b> —— 想在地上留颗球给怪物捡都做不到。</p>
+     *
+     * <p>实现放在**拾取的入口**（本类的 {@code ItemEntityPickupEvent.Pre}）
+     * 与球实体的右键接球两处，都是「拦一次就整段时间不生效」，
+     * 不需要每刻轮询。</p>
+     */
+    public static final int DROP_LOCK_TICKS = 100;
+
+    /** 玩家 UUID → 自动拾取恢复的游戏刻 */
+    private static final java.util.Map<java.util.UUID, Long> DROP_LOCK =
+            new java.util.concurrent.ConcurrentHashMap<>();
+
+    /** Q 丢出的是球 → 记一段「别再自动捡回来」的冷却 */
+    @net.neoforged.bus.api.SubscribeEvent
+    public static void onItemToss(net.neoforged.neoforge.event.entity.item.ItemTossEvent event) {
+        if (event.getPlayer().level().isClientSide()) {
+            return;
+        }
+        ItemStack tossed = event.getEntity().getItem();
+        if (!BallAmmo.isBall(tossed)) {
+            return;
+        }
+        long until = event.getPlayer().level().getGameTime() + DROP_LOCK_TICKS;
+        DROP_LOCK.put(event.getPlayer().getUUID(), until);
+        // 顺带把原版那 40 刻的拾取延迟也拉到同一时长 —— 双保险，
+        // 免得本模组没拦到的路径（别的 mod、漏斗等）又把它吸走。
+        event.getEntity().setPickUpDelay(DROP_LOCK_TICKS);
+
+    }
+
+    /** 这个玩家现在是不是处在「刚丢过球」的自动拾取冷却里 */
+    public static boolean isDropLocked(Player player) {
+        Long until = DROP_LOCK.get(player.getUUID());
+        if (until == null) {
+            return false;
+        }
+        if (player.level().getGameTime() >= until) {
+            DROP_LOCK.remove(player.getUUID());
+            return false;
+        }
+        return true;
+    }
+
     @SubscribeEvent
     public static void onPickup(ItemEntityPickupEvent.Pre event) {
+        // ⚠️ **先判「刚 Q 丢过球」**（作者 2026-10-11 指定：丢出后 5 秒关闭自动拾取）。
+        //    必须放在最前面 —— 放后面的话，收纳袋那边已经把这个球安排进袋子了，
+        //    再拦也来不及（球已经不在世界里了）。
+        if (event.getPlayer() instanceof Player p && isDropLocked(p)) {
+            // ⚠️ 这个事件**不可取消** —— NeoForge 给的是 setCanPickup（不是 setCanceled）
+            event.setCanPickup(net.minecraft.util.TriState.FALSE);
+            return;
+        }
         ItemEntity itemEntity = event.getItemEntity();
         ItemStack stack = itemEntity.getItem();
         if (!BallAmmo.isBall(stack)) {

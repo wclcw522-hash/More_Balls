@@ -42,6 +42,12 @@ public final class BallConduction {
         if (!(event.getLevel() instanceof ServerLevel level)) {
             return;   // 客户端那边不用管
         }
+        // ⚠️ 2026-10-12 审计修正：【引雷】自己召唤的闪电是「视觉实体」（visualOnly），
+        //    它**必须劈在目标身上**，不能被附近的导电铜球吸过去 ——
+        //    否则铜球会白白吃一发雷、还要扣 1 点耐久。
+        if (bolt.visualOnly) {
+            return;
+        }
 
         BallProjectile best = null;
         double bestDistance = RADIUS;

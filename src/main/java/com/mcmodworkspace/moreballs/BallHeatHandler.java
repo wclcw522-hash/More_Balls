@@ -17,12 +17,12 @@ import net.neoforged.neoforge.event.tick.PlayerTickEvent;
 import net.neoforged.neoforge.event.tick.ServerTickEvent;
 
 /**
- * 「探寻」的降温与结算。
+ * 【感应】的降温与结算。
  *
  * <h2>为什么单独一个类</h2>
- * 升温发生在球那边（{@code BallProjectile#heatNearbyPlayers}），
+ * 升温发生在球那边（{@code BallProjectile#heatNearbyEntities}），
  * 但<b>消退必须独立于球存在</b> —— 球飞走了、碎掉了、甚至被卸载了，
- * 身上的余热仍要按每刻 2 点散掉，否则热度会永久留下。
+ * 身上的余热仍要按每刻 0.2 点散掉，否则热度会永久留下。
  *
  * <p>两者的分工靠 {@link ModAttachments#LAST_HEATED_TICK} 区分：
  * 本刻刚被加热过 → 交给球处理；否则 → 在这里消退。</p>
@@ -322,6 +322,10 @@ public final class BallHeatHandler {
      *
      * <p>发在<b>加热者</b>头上 —— 也就是当初把这格方块烤热的那颗球的主人。
      * 记录里存的是 UUID 字符串，这里反查在线玩家；离线或没记来源就跳过。</p>
+     *
+     * <p><b>契约（下游规则）：</b>加热者字段容忍<b>非 UUID</b> 的值 —— 解析失败一律当作
+     * 「无归属」处理，既不发成就也不报错。老存档、被改坏的数据、以及非玩家热源写进来的
+     * 标识串（如透镜的 {@code "lens"}）都走这条路，正常玩家 UUID 的成就链路不受影响。</p>
      */
     private static void awardHeatSmelt(ServerLevel level, BlockPos pos, ProspectingHeatData data) {
         String heater = data.getHeater(pos);

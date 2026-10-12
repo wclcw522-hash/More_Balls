@@ -9,7 +9,7 @@ import net.neoforged.neoforge.network.registration.PayloadRegistrar;
 /**
  * 网络包注册。
  *
- * <p>目前只有一个：客户端按 G 键时请求打开饰品栏里的收纳袋。</p>
+ * <p>目前有两个：客户端按 G 键开袋、径向菜单选弹药。</p>
  */
 @EventBusSubscriber(modid = MoreBalls.MOD_ID)
 public final class ModNetwork {

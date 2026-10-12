@@ -1,0 +1,27 @@
+{
+  "__comment": "可持球生物 —— 会捡球 / 接球 / 用球的生物。原版这 19 种在代码里也判了（inheritance 自动覆盖），这里列出来一是自文档，二是给数据包一个「追加」的落点。",
+  "__howto": "第三方模组 / 整合包想让自己的生物也能用球：再写一个同路径的 json，把 values 里加上你的实体 id 即可（不要写 replace: true，那会把原版这 19 种顶掉；就算顶掉了代码里的 instanceof 仍然兜着）。",
+  "__note_mechanics": "标签只管「能不能捡球」。专属机制（蜘蛛的缓慢 IV、洞穴蜘蛛的中毒、嘎枝的注视、史莱姆的攻击力继承、烈焰人的八肢、幻翼的俯冲）是代码行为，判定走 instanceof；继承了对应原版基类的模组生物会自动获得。",
+  "replace": false,
+  "values": [
+    "minecraft:skeleton",
+    "minecraft:stray",
+    "minecraft:bogged",
+    "minecraft:parched",
+    "minecraft:wither_skeleton",
+    "minecraft:zombie",
+    "minecraft:husk",
+    "minecraft:drowned",
+    "minecraft:zombie_villager",
+    "minecraft:spider",
+    "minecraft:cave_spider",
+    "minecraft:creeper",
+    "minecraft:creaking",
+    "minecraft:phantom",
+    "minecraft:vex",
+    "minecraft:piglin",
+    "minecraft:pillager",
+    "minecraft:blaze",
+    "minecraft:slime"
+  ]
+}

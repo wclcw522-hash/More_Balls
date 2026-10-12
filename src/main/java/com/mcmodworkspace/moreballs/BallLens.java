@@ -18,7 +18,7 @@ import java.util.List;
  * <h2>触发条件（三个同时满足）</h2>
  * <ul>
  *   <li>钻石球是<b>实体状态</b>（由调用方保证）</li>
- *   <li><b>白天</b> —— {@code level.isDay()}</li>
+ *   <li><b>白天</b> —— {@code level.isBrightOutside()}</li>
  *   <li><b>晴天</b> —— 不下雨也不打雷</li>
  * </ul>
  *
@@ -101,7 +101,12 @@ public final class BallLens {
                         continue;   // 水那一类不参与（液体的 getBlockState 也拿得到，但烤水没意义）
                     }
 
-                    data.addHeat(pos, HEAT_PER_STEP, now, "lens");
+                    // ⚠️ 加热者必须留空，不能传 "lens" 这种标识串。
+                    //    addHeat 的 heater 契约是「加热者的 UUID 字符串，空串 = 不记来源」，
+                    //    而且只有空串才**不覆盖**已有来源。传 "lens" 会顶掉玩家用球烤热时
+                    //    写进去的真实 UUID → 矿被烤熟时反查不到人 → 成就「这真的科学吗？」发不出去。
+                    //    透镜攒的热照常生效，只是不认领归属（真正烤熟它的人是球的主人）。
+                    data.addHeat(pos, HEAT_PER_STEP, now, "");
 
                     // 金属与矿物方块只积热，不冒火也不点燃（作者指定）
                     if (BallProspecting.isMetalOre(level, state) || BallProspecting.isHeatAbsorbing(level, state)) {

@@ -72,7 +72,7 @@ public final class CreeperBallBehavior {
      */
     private static final int THROW_BEFORE_TICKS = 2;
 
-    /** 对应的蓄力比例阈值：29 / 30 */
+    /** 对应的蓄力比例阈值：28 / 30 */
     private static final float THROW_AT_SWELLING = (MAX_SWELL - THROW_BEFORE_TICKS) / (float) MAX_SWELL;
 
     /** 头顶图标离苦力怕头顶多高 */
@@ -110,7 +110,7 @@ public final class CreeperBallBehavior {
     /**
      * 给「持球苦力怕」打的标记 —— 用来认「这一炸该不该换成特制参数」。
      *
-     * <p>不能靠「主手有没有球」判断：球在爆炸前 1 刻就已经甩出去了，
+     * <p>不能靠「主手有没有球」判断：球在爆炸前 2 刻就已经甩出去了，
      * 等到爆炸那一刻手上是空的。所以状态得提前记在实体上。</p>
      */
     public static final String BALL_BLAST_TAG = "more_balls:ball_blast";
@@ -214,10 +214,13 @@ public final class CreeperBallBehavior {
             creeper.setSwellDir(1);
         }
 
-        // ② 爆炸前 1 刻，把手里的球朝目标甩出去（作者指定）
-        if (creeper.getSwelling(0.0F) >= THROW_AT_SWELLING) {
-            throwBallOut(creeper);
-            removeHeadIcon(creeper);
+        // ② 爆炸前 2 刻，把手里的球朝目标甩出去（作者指定）
+        //
+        //    ⚠️ 图标只在**确认球真的甩出去了**（throwBallOut 返回 true）之后才收。
+        //    原来这里是无条件 removeHeadIcon：可 throwBallOut 在「没目标」时会提前返回、
+        //    球仍然在手，于是每刻都把图标删掉 —— 表现就是「手里攥着球、头顶空着」，
+        //    而且 ③ 因为 return 永远跑不到，图标再也不会重建。
+        if (creeper.getSwelling(0.0F) >= THROW_AT_SWELLING && throwBallOut(creeper)) {
             return;   // 标记留着，下一 tick 走上面那条「甩完继续按引信」的路
         }
 
@@ -228,34 +231,37 @@ public final class CreeperBallBehavior {
     /**
      * 把手里的球朝目标甩出去。
      *
-     * <p>作者指定的规格：爆炸前 1 tick、<b>0 级蓄力</b>、
+     * <p>作者指定的规格：爆炸前 2 刻、<b>0 级蓄力</b>、
      * 瞄目标<b>上三分之一处</b>（从眼睛往下压掉身高的 1/3）。</p>
      *
      * <p>直接复用 {@code BallMobAI.throwBall}（怪物投掷那一套）——
      * 初速度、伤害、音效、消耗手上的球全在里面做完了。</p>
      */
-    private static void throwBallOut(Creeper creeper) {
+    private static boolean throwBallOut(Creeper creeper) {
         ItemStack stack = creeper.getMainHandItem();
         if (!BallAmmo.isBall(stack)) {
-            return;
+            return false;
         }
         LivingEntity target = creeper.getTarget();
 
         // 没目标就不甩 —— 投掷点在「爆炸中心 → 目标」的连线上，没有目标就没有那条线，
         // 硬朝视线方向扔只会偏掉（作者反馈过「向第一个球发射」：那时它盯着刚要去捡的球）。
         if (target == null || !target.isAlive()) {
-            return;
+            return false;
         }
 
         // 瞄「上三分之一处」
         double drop = Math.max(0.0D, target.getEyeY()
                 - (target.getY() + target.getBbHeight() * 2.0D / 3.0D));
 
-        removeHeadIcon(creeper);
         BallProjectile ball = BallMobAI.throwBall(creeper, stack, target, 0, drop, THROW_FORWARD_OFFSET);
+        // 球「真的脱手」之后才收头顶图标 —— 上面两条提前返回时球还在手里，
+        // 那时候删图标就成了「手里有球、头顶却是空的」。
+        removeHeadIcon(creeper);
         // 这颗球静止后破碎（作者指定）：它是被爆炸「打」出去的，落点随机，
         // 让它躺在地上可捡就成了「炸一次白送一颗球」。碎掉照常掉材料，只是不留原地。
         ball.setShatterOnSettle(true);
+        return true;
     }
 
     // ===== 末影珍珠苦力怕 =====
@@ -450,7 +456,7 @@ public final class CreeperBallBehavior {
         if (event.getEntity() instanceof Creeper creeper) {
             var icon = findHeadIcon(creeper);
             removeHeadIcon(creeper);
-            MoreBalls.LOGGER.info("[ball] 持球苦力怕死亡 -> 清除头顶图标：找到={}，清除后仍存在={}",
+            MoreBalls.LOGGER.debug("[ball] 持球苦力怕死亡 -> 清除头顶图标：找到={}，清除后仍存在={}",
                     String.valueOf(icon), String.valueOf(findHeadIcon(creeper)));
         }
     }
@@ -478,7 +484,7 @@ public final class CreeperBallBehavior {
         float radius = creeper.isPowered() ? 6.0F : 3.0F;
         replayingBallBlast = true;
         try {
-            MoreBalls.LOGGER.info("[ball] 持球苦力怕特制爆炸：伤害×0.1、冲击×5（半径 {}）", radius);
+            MoreBalls.LOGGER.debug("[ball] 持球苦力怕特制爆炸：伤害×0.1、冲击×5（半径 {}）", radius);
             level.explode(creeper, null, BALL_BLAST_CALCULATOR,
                     creeper.getX(), creeper.getY(), creeper.getZ(),
                     radius, false, Level.ExplosionInteraction.MOB);
@@ -507,7 +513,7 @@ public final class CreeperBallBehavior {
         int cleared = event.getAffectedBlocks().size();
         event.getAffectedBlocks().clear();
         if (cleared > 0) {
-            MoreBalls.LOGGER.info("[ball] 持球苦力怕的爆炸已免掉 {} 个方块", cleared);
+            MoreBalls.LOGGER.debug("[ball] 持球苦力怕的爆炸已免掉 {} 个方块", cleared);
         }
     }
 
@@ -617,11 +623,25 @@ public final class CreeperBallBehavior {
                 }
             }
         }
+        // ③ 2 格内的散落图标 —— ⚠️ **必须校验归属**：这里原来只看全局 HEAD_ICON_TAG，
+        //    不问是谁的图标就删，两只持球苦力怕挨在一起时会把**别人**头顶那个一起删掉。
         for (Display.ItemDisplay icon : creeper.level()
                 .getEntitiesOfClass(Display.ItemDisplay.class, creeper.getBoundingBox().inflate(2.0D))) {
-            if (icon.entityTags().contains(HEAD_ICON_TAG)) {
-                icon.discard();
+            if (!icon.entityTags().contains(HEAD_ICON_TAG)) {
+                continue;
             }
+            if (icon.entityTags().contains(tag)) {
+                continue;   // 自己的：上面那轮已经精确收过了
+            }
+            // 带 owner 标签但不是自己 → 妥妥是**别的**苦力怕的图标
+            if (icon.entityTags().stream().anyMatch(t -> t.startsWith(HEAD_ICON_OWNER_PREFIX))) {
+                continue;
+            }
+            // 没有 owner 标签的旧图标，再看它有没有被别的持球苦力怕登记在 HEAD_ICON_IDS 里
+            if (HEAD_ICON_IDS.containsValue(icon.getId())) {
+                continue;
+            }
+            icon.discard();
         }
     }
 
@@ -700,7 +720,7 @@ public final class CreeperBallBehavior {
 
             // 诊断：速度这块到底有没有被限制，看这两行就知道了。
             // （查过一遍：代码里没有速度钳制，唯一的上限 RETURN_MAX_SPEED 只用于「空气动力球回家」）
-            MoreBalls.LOGGER.info("[ball] 爆炸推球：速度 {} → {}（距爆心 {}，强度 {}，波及半径 {}）",
+            MoreBalls.LOGGER.debug("[ball] 爆炸推球：速度 {} → {}（距爆心 {}，强度 {}，波及半径 {}）",
                     before, after, dist, strength, reach);
         }
     }

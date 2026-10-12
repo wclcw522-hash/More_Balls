@@ -36,8 +36,9 @@ import net.minecraft.world.item.Item;
  *       因为那时 {@code DataComponents} 还没绑定。</li>
  * </ol>
  * <p>所以这里一律用 {@link net.minecraft.core.Holder#is(net.minecraft.tags.TagKey)}
- * —— 它直接查物品的注册表持有者，不构造任何 ItemStack。钩子也挪到了
- * {@code FMLLoadCompleteEvent}（标签此时已就绪）。</p>
+ * —— 它直接查物品的注册表持有者，不构造任何 ItemStack。钩子也从早先的
+ * {@code FMLCommonSetupEvent} 挪到了 {@link net.neoforged.neoforge.event.server.ServerAboutToStartEvent}
+ * （见 {@link #onServerAboutToStart}）—— 只有到那时物品标签才真正加载好了。</p>
  *
  * <p>检查只在启动时跑一次，代价可以忽略，输出走 INFO/WARN，不会打断启动。</p>
  */
@@ -91,7 +92,7 @@ public final class BallIntegrationCheck {
     public static void onDatapackReload() {
         BallProspecting.clearCache();
     }
-/** 跑一遍自检并把结果写进日志。在 {@code FMLCommonSetupEvent} 里调用。 */
+/** 跑一遍自检并把结果写进日志。在 {@code ServerAboutToStartEvent} 里调用。 */
     public static void run() {
         List<Item> sources = BallFragments.sources();
 
