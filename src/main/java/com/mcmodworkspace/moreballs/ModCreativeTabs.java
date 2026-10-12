@@ -65,22 +65,6 @@ public final class ModCreativeTabs {
     //    本身只是「模板 + 组件」，没有单独开分类的必要。
 
     /**
-     * 「按某个标签填充内容」的通用写法。
-     *
-     * <p>原先那三个标签驱动的子分类（实心 / 空心 / 雪球）行为完全一样、只差一个标签，
-     * 所以抽成了这个方法。现在分类只剩 {@code balls} 与 {@code all} 两个
-     * —— 子分类页已取消、逻辑就写在各分类自己那边，因此<b>这个方法当前没有调用点</b>，
-     * 留着给将来标签驱动的分类复用。</p>
-     */
-    private static CreativeModeTab.DisplayItemsGenerator tagDriven(net.minecraft.tags.TagKey<Item> tag) {
-        return (parameters, output) -> parameters.holders()
-                .lookupOrThrow(Registries.ITEM)
-                .listElements()
-                .filter(holder -> holder.is(tag))
-                .forEach(holder -> output.accept(holder.value()));
-    }
-
-    /**
      * 「更多球」—— 本模组的<b>全部</b>物品。
      *
      * <p>上面那个「球」分类是标签驱动的，只会列出球；而模组还加了别的东西

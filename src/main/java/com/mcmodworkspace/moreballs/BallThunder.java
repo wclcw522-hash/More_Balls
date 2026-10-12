@@ -170,6 +170,10 @@ public final class BallThunder {
             }
         }
         if (!victims.isEmpty()) {
+            // ⚠️ 这个下限**永远不会生效**：victims 至多 MAX_BOLTS(9) 个，60 / 9 ≈ 6.67 恒大于 5，
+            //    于是 Math.max 永远取右边那一支。留着它只是**防御性兜底**
+            //    （万一 MAX_BOLTS / TOTAL_DAMAGE 以后被调小），不改变任何当前行为。
+            //    为什么不删：作者明确指定的数值 5，且它不影响实测伤害 —— 详见 MIN_PER_BRANCH 的 javadoc。
             float per = Math.max(MIN_PER_BRANCH, TOTAL_DAMAGE / victims.size());
             Entity owner = source.getOwner();
             for (LivingEntity victim : victims) {

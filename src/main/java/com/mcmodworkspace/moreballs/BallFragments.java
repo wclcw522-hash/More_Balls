@@ -234,11 +234,13 @@ public final class BallFragments {
     public record Fragment(double toughness, double sense, double melt, double molten,
                            double magnet, double transmute,
                            boolean morph, boolean magnetic, boolean glint,
-                           int wisdom, boolean kindness, boolean conduction,
+                           // 【智慧N】【穿透N】是数值类特性 —— 中间层一律**保留小数**，
+                           // 取整只在落回 BallProfile 时做（否则 1/4 份会被截成 0，份数判定随之失败）
+                           double wisdom, boolean kindness, boolean conduction,
                            boolean thunder, boolean shock,
-                           int penetration, int flags,
-                           /** 【破坏王N】—— 数值类特性词条：切开均分、激活后相加取整 */
-                           int breaker) {
+                           double penetration, int flags,
+                           /** 【破坏王N】—— 数值类特性词条：切开均分、激活后相加取整（同样保留小数） */
+                           double breaker) {
 
         public static final Fragment EMPTY =
                 new Fragment(0, 0, 0, 0, 0, 0, false, false, false, 0, false, false, false, false, 0, 0, 0);
@@ -265,12 +267,15 @@ public final class BallFragments {
                     morph, magnetic, glint,
                     // ⚠️ 【智慧N】是**带数值的特性**词条 —— 切四份后每份是「1.25，未激活」，
                     //    所以必须 ×factor。否则两份相加会算成 5+5=10（应为 1.25×2=2.5 → 2）。
-                    (int) Math.floor(wisdom * factor),
+                    //    ⚠️ 这里**不取整**：1/4 份时 floor 会把 1 → 0，穿透/智慧/破坏王
+                    //       直接归零，「份数 > 0」的激活判定随之失败，组合球永远拿不到它们。
+                    //       取整只在落回 BallProfile 时做（combinePair / combineQuad）。
+                    wisdom * factor,
                     kindness, conduction, thunder, shock,
-                    (int) Math.floor(penetration * factor),
+                    penetration * factor,
                     flags,
-                    // 【破坏王N】数值类**特性**：切开均分（够不够份数由 combine* 判）
-                    (int) Math.floor(breaker * factor));
+                    // 【破坏王N】数值类**特性**：切开均分（够不够份数由 combine* 判），同样不取整
+                    breaker * factor);
         }
 
         /** 叠加 —— 数值相加，特质取「出现过」 */
@@ -599,7 +604,10 @@ public final class BallFragments {
         //    于是「紫水晶球 + 别的球」合出来的组合球没有【智慧】【善良】，
         //    弩上的【智慧】不锁玩家、【善良】也不弹玩家（作者 2026-10-08 报的）。
         out = out
-                .withWisdom(merged.wisdom())
+                // ⚠️ 【智慧N】【穿透N】【破坏王N】在 Fragment 里是 double（为了保住 1/4 份的小数），
+                //    到这里才收窄成 int —— merged 已由 combinePair / combineQuad 取过整，
+                //    所以这里只是类型转换，数值口径与既有的 toughness / sense 一致。
+                .withWisdom((int) merged.wisdom())
                 .withKindness(merged.kindness())
                 .withConduction(merged.conduction())
                 // 引雷是阈值型：够份数就沿用底子的阈值，不够就写回「没有」哨兵
@@ -619,9 +627,9 @@ public final class BallFragments {
         //    和上面 wisdom / kindness 那一段是同一个坑：这些词条在各来源球上都是对的，
         //    但组合时**没有任何一行把它们写回 profile**。以后加新词条必须回来补这里。
         out = out
-                .withPenetration(merged.penetration())
+                .withPenetration((int) merged.penetration())
                 .withFlags(merged.flags())
-                .withBreaker(merged.breaker());
+                .withBreaker((int) merged.breaker());
         return out;
     }
 
@@ -647,8 +655,9 @@ public final class BallFragments {
                 Math.floor(f.melt()), Math.floor(f.molten()),
                 Math.floor(f.magnet()), f.transmute(),   // 点金是概率，不能 floor（0.1 -> 0 会整个抹掉）
                 f.morph(), f.magnetic(), f.glint(),
-                f.wisdom(), f.kindness(), f.conduction(), f.thunder(), f.shock(),
-                f.penetration(), f.flags(), f.breaker());
+                // 数值类特性（【智慧N】【穿透N】【破坏王N】）现在都是 double，二合一同样要向下取整
+                Math.floor(f.wisdom()), f.kindness(), f.conduction(), f.thunder(), f.shock(),
+                Math.floor(f.penetration()), f.flags(), Math.floor(f.breaker()));
     }
 
     // ===== 组件 ↔ 下标列表 =====

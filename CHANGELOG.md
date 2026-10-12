@@ -1,3 +1,33 @@
+## 1.0.0.1 — 清掉已知问题
+
+### 修掉的
+
+| 项 | 内容 |
+|---|---|
+| **穿透/智慧/破坏王被截断** | `Fragment` 的 `wisdom`/`penetration`/`breaker` 由 `int` 改为 **保持小数**，`scaled()` 不再 `(int) Math.floor`；落回 `BallProfile` 时才按原有口径取整。**钻石球切四份后穿透不再恒为 0**，二合一的「向下取整」也才真正生效（原来被 int 类型掩盖）。已核对：半成品只序列化来源下标（`Codec.INT`），组合球存下标串 —— **没有任何一处编解码这三个数值**，所以改类型不会崩组件 |
+| **【变形】范围太窄** | `BallMorph.blockOf` 补上 **紫水晶块 / 红石块 / 钻石块 / 青金石块** 四种（其余 5 种原有）。**铜球与空心铜球除外** —— 26.2 的 `Blocks.COPPER_BLOCK` 是 `WeatheringCopperCollection<Block>`（按氧化程度打包的一组方块），得先定「用哪一档」才能接 |
+| **磁吸关键字表** | 方块表与装备表都清掉了非铁磁性的 zinc/chromium/platinum/manganese（保留 gadolinium —— 钆确实是铁磁性的），并补上 **`chain` 与 `netherite`** → **锁链甲与下界合金甲现在会被磁吸**（真正让装备生效的是装备表那一处） |
+| **径向菜单松手路径** | `confirmAndClose` 改为与点击路径同序：**先判图标、未命中才什么都不选**；26~32 像素那一圈不再被中心翻页区吃掉 |
+| **死方法** | 删掉 `ModCreativeTabs.tagDriven`（零调用点） |
+| **无用语言键** | 中英同步删掉 `itemGroup.more_balls.solid/.hollow/.snowball/.fragments`（分类已取消）；删后两份仍各 161 键、完全一致 |
+| **注释订正** | `MoltenBurnEffect` 的等级举例（护甲 20 第二次即封顶）· `BallIlluminate` 采样取最窄层的真实代价（偏保守、会漏判）· `BallThunder` 那处「每道最低 5 点」标注为永不生效的防御性兜底 · `BallTooltip` 的批次归属（2.6.0 是五个词条，金光闪闪/点金/感应另属更早批次）· `BallPouchContents.fitTo` 说明形参 `tier` 不参与计算 · `BallMorph` 适用范围 |
+
+### 澄清：一条误报
+
+**「锻造台升级收纳袋会丢球」不成立。** 26.2 的 `SmithingTransformRecipe.assemble()` 是
+`TransmuteRecipe.createWithOriginalComponents(this.result, input.base())` ——
+**base 物品的组件补丁会被整体复制到新物品上**，而袋子内容物正是存在组件里的，
+所以内容物本来就跟着走（26.1.2 / 26.2 / 26.3 三条线一致）。
+`ItemCraftedEvent` 只在合成台触发这一点是真的，但它与丢球无关。
+
+### 仍然存在（留待设计决策）
+
+- **铜球/空心铜球不参与【变形】**（同上，需要定氧化档位）
+- **相邻弹药格的判定圆有约 4.8 像素重叠**（径向菜单，原行为；改成「取最近的」会改变手感）
+- **【感应 N】的 N 只影响显示与切分**，运行时没有「更高等级更强」的实现
+- `BallFragments` 四合一仍用 `Math.round` 而类头注释写「向下取整」，两者取其一需你定
+
+---
 ## 1.0.0.0 — 首个正式版
 
 从 `0.2.0` 一路到 `0.4.0.42`，这个版本起进入正式版。

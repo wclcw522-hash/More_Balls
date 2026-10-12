@@ -103,10 +103,16 @@ public class BallPouchContainer implements Container {
 
     @Override
     public boolean stillValid(Player player) {
-        // 只要袋子还在玩家身上就一直有效
-        return player.getInventory().contains(this.pouch)
-                || player.getMainHandItem() == this.pouch
-                || player.getOffhandItem() == this.pouch;
+        // 袋子还在身上就有效 —— 口径统一走 allPouchStacks（背包 / 快捷栏 / 饰品栏都算），
+        // 与 BallPouchMenu.stillValid 保持一致。
+        // 原先这里只查背包与主副手，挂在饰品栏（背饰 / 腰带 / 护符）上的袋子会被判成
+        // 「袋子不在了」，虽然影响面比菜单那边小，但同样是漏了饰品栏。
+        for (ItemStack stack : BallPouchHelper.allPouchStacks(player)) {
+            if (stack == this.pouch || ItemStack.isSameItemSameComponents(stack, this.pouch)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     @Override

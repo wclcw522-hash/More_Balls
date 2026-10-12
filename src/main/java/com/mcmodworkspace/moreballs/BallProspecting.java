@@ -70,7 +70,7 @@ public final class BallProspecting {
      * 下游的 {@code bestMagnetTarget} 又判了一次同样的条件。
      * 也就是说那 15 格里的外侧部分**读出来了、判定了、然后扔掉**，纯属白扫。</p>
      *
-     * <p>代价有多大：{@code 15³ = 3375} 格/次，{@code SCAN_INTERVAL = 4} 刻一次，
+     * <p>代价有多大：{@code 15³ = 3375} 格/次，旧的 {@code SCAN_INTERVAL = 4} 刻一次，
      * 25 个球就是 **372 万次 {@code getBlockState} 每秒** ——
      * 实测 {@code prospecting} 阶段占 185.9ms / 2000 次采样，是其余四项总和的 20 倍。</p>
      */
@@ -113,7 +113,7 @@ public final class BallProspecting {
     public static final float WATER_DECAY_MULTIPLIER = 10.0F;
 
     /**
-     * 扫描间隔（刻）：半径 7 的<b>球形</b>范围约 1437 格，每刻全扫太贵，
+     * 扫描间隔（刻）：半径 7 的<b>球形</b>范围 1419 格，每刻全扫太贵，
      * 每 8 刻扫一次、结果复用。
      *
      * <p>原来写 4 —— 太密了；8 刻（0.4 秒）对「提前看到矿物」完全够用。</p>
@@ -137,13 +137,18 @@ public final class BallProspecting {
     /**
      * 铁磁性关键字（全小写、按子串匹配方块注册名）—— <b>零配置直接生效的主力</b>。
      *
-     * <p>收录依据是现实中确实有铁磁性的金属：铁、钴、镍、钆等及其常见矿石形态。
-     * 铜、铝、锡、铅、银、金这些<b>不是</b>铁磁性的，故意不收 —— 否则磁吸就没有意义了。</p>
+     * <p>收录依据分两档，<b>别混</b>：<b>①现实中确实有铁磁性</b> —— 铁、钴、镍、钆、钢、钕、
+     * 铁氧体、磁铁矿 / 磁石、磁黄铁矿（赤铁矿、针铁矿是弱磁性，一并留着）；
+     * <b>②原版铁基构件与合金</b> —— {@code chain}（锁链就是一圈铁环）、{@code netherite}（下界合金）。
+     * 后者现实里没有对应材料，但词条承诺「铁、锁链、下界合金」都该被吸住，故一并收。</p>
+     *
+     * <p>铜、铝、锡、铅、银、金不是铁磁性；<b>锌、铬、铂、锰同样不是</b>
+     * （锌抗磁、铬反铁磁、铂顺磁、锰顺磁）—— 名字像金属也不收，否则磁吸就没有意义了。</p>
      */
     private static final String[] FERROMAGNETIC_KEYWORDS = {
-            "iron", "cobalt", "nickel", "zinc", "magnetite", "lodestone", "steel",
+            "iron", "cobalt", "nickel", "magnetite", "lodestone", "steel",
             "neodymium", "ferrite", "hematite", "goethite", "pyrrhotite",
-            "chromium", "platinum", "gadolinium", "manganese"
+            "gadolinium", "chain", "netherite"
     };
 
     /**
@@ -160,11 +165,16 @@ public final class BallProspecting {
     /**
      * 铁磁性装备关键字 —— 决定「能不能把球吸过去」。
      *
-     * <p>比加热用的关键字窄：只有现实里真能被磁铁吸住的金属及其常见工具形态。</p>
+     * <p>比加热用的关键字窄：现实里真能被磁铁吸住的金属及其常见工具形态，
+     * 外加原版那几件「一看就是铁的」装备。</p>
+     *
+     * <p>⚠️ {@code chain}（锁链甲）与 {@code netherite}（下界合金装备）<b>必须在表里</b> ——
+     * 少了它们，锁链甲与下界合金甲就吸不动球（词条承诺「铁、锁链、下界合金」都算）。
+     * 铂、铬不是铁磁性，与上面那张表同理，不收。</p>
      */
     private static final String[] FERROMAGNETIC_EQUIPMENT_KEYWORDS = {
             "iron", "cobalt", "nickel", "steel", "magnetite", "lodestone",
-            "neodymium", "ferrite", "gadolinium", "platinum", "chromium"
+            "neodymium", "ferrite", "gadolinium", "chain", "netherite"
     };
 
     /** 方块 → 是否算「金属矿」的缓存（判定要走配方表，不能每刻都查） */
@@ -231,7 +241,7 @@ public final class BallProspecting {
         // ⚠️ **球形遍历**：只在 dx²+dy²+dz² ≤ pullSqr 的格子里走。
         //
         //    原来是三层循环把整个立方体扫一遍再逐个 continue —— 立方体 3375 格，
-        //    而球只占 1437 格，**一半以上是白读的**。
+        //    而球只占 1419 格，**一半以上是白读的**。
         //    改成「按半径收窄 dy/dz 的上界」，白读的部分根本不进循环。
         int r = PULL_RADIUS;
         int rSqr = r * r;
@@ -547,7 +557,7 @@ public final class BallProspecting {
 
     /**
      * 玩家/生物身上有几件「铁磁性装备」—— 磁吸目标只认这一类
-     * （判据是 {@link #FERROMAGNETIC_EQUIPMENT_KEYWORDS}：铁、钴、镍、钢等）。
+     * （判据是 {@link #FERROMAGNETIC_EQUIPMENT_KEYWORDS}：铁、钴、镍、钢、锁链、下界合金等）。
      *
      * <p><b>只看物品注册名，不要求能穿戴</b>：护甲、工具、武器一视同仁 ——
      * 铁镐铁铲铁剑都会让球偏过去（作者指定「只要是金属工具就要识别」）。</p>

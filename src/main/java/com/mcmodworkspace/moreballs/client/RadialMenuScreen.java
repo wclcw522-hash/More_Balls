@@ -180,11 +180,12 @@ public class RadialMenuScreen extends Screen {
     /** 松手时的收尾：指针落在哪个弹药上就选中它，然后关闭菜单 */
     public void confirmAndClose() {
         int[] mouse = currentMousePos();
-        int centerX = this.width / 2;
-        int centerY = this.height / 2;
-        // 指针在中心圆里就不算选弹药（那是翻页区），只关掉
-        if (!isInsideCircle(mouse[0], mouse[1], centerX, centerY, CENTER_RADIUS)) {
-            int slot = hoveredSlot(mouse[0], mouse[1]);
+        // 判定顺序与 mouseClicked 保持一致：图标优先于中心圆。
+        // 图标判定半径 20、图标圆心距 46，所以图标内缘离圆心只有 26；
+        // 若先判中心圆（半径 32），26~32 那一圈在松手时会被当成翻页区而漏选。
+        // 没落在任何图标上（含中心圆翻页区）就不选，只关菜单 —— 松手不做翻页。
+        int slot = hoveredSlot(mouse[0], mouse[1]);
+        if (slot >= 0) {
             if (slot == CANCEL_SLOT) {
                 // 「取消」—— 发空栈，服务端会把副手那颗收回袋子并停止自动装填
                 select(ItemStack.EMPTY);

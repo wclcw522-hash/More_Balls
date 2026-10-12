@@ -183,7 +183,7 @@ public final class BallTooltip {
                     line("tooltip.more_balls.desc.morph")));
         }
 
-        // ===== 2.6.0 新增的七个词条 =====
+        // ===== 2.6.0 新增的五个词条（智慧 / 善良 / 导电 / 引雷 / 电击，作者 2026-10-07 指定）=====
 
         // 【智慧】—— 紫水晶球：发射后扫描并锁定最近的敌对目标
         // 【智慧N】—— N 是可追踪的次数（没写就是 1）
@@ -218,6 +218,8 @@ public final class BallTooltip {
             out.add(Entry.of(line("tooltip.more_balls.entry.shock"), Kind.TRAIT,
                     line("tooltip.more_balls.desc.shock")));
         }
+
+        // ===== 更早批次：金球 / 雪球-金粒自带的词条（渲染代码排在此处）=====
 
         // 【金光闪闪】—— 金球专属（这套猪灵行为整套都挂在金球上，所以直接认物品）
         if (BallBehavior.isGoldShiny(stack)) {
@@ -281,6 +283,8 @@ public final class BallTooltip {
                     Component.translatable("tooltip.more_balls.desc.magic",
                             effectWithDuration(ModEffects.IMMORTAL, ImmortalEffect.REWARD_TICKS))));
         }
+
+        // ===== 更早批次：【感应】自 2.0.0 起就有（渲染代码排在此处）=====
 
         // 【感应】—— 底层词条，不带数字即 1 级（【感应】与【感应1】是一回事）；
         // 说明只在 Shift 展开时出现

@@ -95,7 +95,15 @@ public record BallPouchContents(List<ItemStack> ammo, List<ItemStack> transit) {
         return out;
     }
 
-    /** 按固定容量规整两段长度 */
+    /**
+     * 按固定容量规整两段长度。
+     *
+     * <p>⚠️ {@code tier} <b>不参与计算</b>：两段一律补齐到 {@link #FIXED_SEGMENT_SIZE}（54），
+     * 方法体只用到这个常量，等级在这里没有作用。真正按等级区分的是两处：
+     * <b>界面</b>按 {@code tier.ammoSlots()} / {@code tier.transitSlots()} 决定哪些格子解锁
+     * （其余盖灰禁用），<b>写入端</b>（{@code BallPouchItem.cappedSegment}）按同一对数值截断。
+     * 形参保留只是为了调用点语义清楚（升级时按新等级规整长度）。</p>
+     */
     public BallPouchContents fitTo(BallPouchTier tier) {
         return new BallPouchContents(
                 resize(this.ammo, FIXED_SEGMENT_SIZE),

@@ -111,8 +111,13 @@ public class MoltenBurnEffect extends MobEffect {
      * —— 它<b>只统计护甲栏</b>，拿在手上的武器、挂在 Curios 里的金属件都不算数。
      * 每 {@link #ARMOR_PER_LEVEL} 点护甲值提一级，<b>在现有等级上累加</b>，封顶 {@link #MAX_AMPLIFIER} 级。</p>
      *
-     * <p>举例（前提：已经过了上面那道金属门槛）：<b>全套铁甲</b>护甲值 15 → +1 级；
-     * <b>下界合金甲</b>护甲值 20 → +2 级。连续命中继续累加，第三次起封顶 V 级。</p>
+     * <p>举例（前提：已经过了上面那道金属门槛）：<b>全套铁甲</b>护甲值 15 → ⌊15 / 10⌋ = 1，
+     * 每次命中 amplifier +1；<b>下界合金甲</b>护甲值 20 → ⌊20 / 10⌋ = 2，每次命中 amplifier +2。
+     * 连续命中继续累加，封顶 {@link #MAX_AMPLIFIER}（= 4，即游戏内 V 级）。</p>
+     *
+     * <p>封顶来得比直觉快：护甲值 20 的目标<b>第一次命中</b>就落到 amplifier 2（III 级），
+     * <b>第二次命中 2 + 2 = 4 便已封顶 V 级</b>；而每次只 +1 的护甲值 10–19，
+     * 要到<b>第四次命中</b>（0 → 1 → 2 → 3 → 4）才封顶。</p>
      *
      *
      * @param baseTicks 基础时长（刻）—— 空心铁球那颗是 {@link BallBehavior#MOLTEN_BURN_TICKS}

@@ -36,16 +36,16 @@ public final class BallMorph {
     /**
      * 单颗球对应的方块。
      *
-     * <p>空心铁球也是铁，所以同样变铁块 —— 它是铁锭质感，变铁块最自然。</p>
+     * <p>空心铁球也是铁，所以同样变铁块 —— 它是铁锭质感，变铁块最自然；
+     * 空心铜球按同一思路，跟铜球一样变铜块。</p>
      *
-     * <p>⚠️ <b>适用范围：只覆盖这 5 种球</b> —— 木球、圆石球、铁球、空心铁球、金球。
-     * {@link BallFragments#sources()} 里后来追加的球（紫水晶 / 铜 / 空心铜 / 红石 /
-     * 钻石 / 青金石……）<b>一律返回 {@code null}</b>，本方法不认识它们。</p>
+     * <p><b>适用范围：{@link BallFragments#sources()} 里的全部 11 颗球</b> ——
+     * 木球、圆石球、铁球、金球、空心铁球、紫水晶球、铜球、空心铜球、红石球、钻石球、青金石球；
+     * 每颗都映射到它自身材质的原版方块。只有 {@code sources()} 之外的球（雪球系）返回 {@code null}。</p>
      *
-     * <p>后果：{@link #candidatesOf} 遇到 {@code null} 会<b>静默跳过</b>那一条候选，
-     * 所以含这些球的普通球与组合球，能变出的方块种类会少于它的组成部分个数
-     * （极端情况下候选为空，{@link #canMorph} 就是 {@code false}、压根不变形）。
-     * 这是当前的真实行为，不是笔误。</p>
+     * <p>{@link #candidatesOf} 遇到 {@code null} 会<b>静默跳过</b>那一条候选 ——
+     * 那是「来源球不在这张表里」时的兜底路径；补全之后 sources() 的球不再产生 null，
+     * 组合球的候选数就等于它的组成部分个数。</p>
      */
     public static Block blockOf(Item ball) {
         if (ball == ModItems.WOODEN_BALL.get()) {
@@ -60,6 +60,22 @@ public final class BallMorph {
         if (ball == ModItems.GOLD_BALL.get()) {
             return Blocks.GOLD_BLOCK;
         }
+        if (ball == ModItems.AMETHYST_BALL.get()) {
+            return Blocks.AMETHYST_BLOCK;
+        }
+        // ⚠️ 铜球暂不参与【变形】：26.2 的 {@code Blocks.COPPER_BLOCK} 是
+        //    WeatheringCopperCollection<Block>（按氧化程度打包的一组方块），
+        //    不是单个 Block，没法直接当候选方块用。要支持它得先确定
+        //    「用哪一档氧化程度」，属于设计决策 —— 留待作者指定。
+        if (ball == ModItems.REDSTONE_BALL.get()) {
+            return Blocks.REDSTONE_BLOCK;
+        }
+        if (ball == ModItems.DIAMOND_BALL.get()) {
+            return Blocks.DIAMOND_BLOCK;
+        }
+        if (ball == ModItems.LAPIS_BALL.get()) {
+            return Blocks.LAPIS_BLOCK;
+        }
         return null;
     }
 
@@ -68,10 +84,11 @@ public final class BallMorph {
      *
      * <p>组合球按组件的来源列表展开；普通球只有一个。无法识别的球返回空列表。</p>
      *
-     * <p>⚠️ 来源列表里的每一颗球都要过 {@link #blockOf}，而那个方法只认 5 种球 ——
-     * 认不出的返回 {@code null}，这里直接把 Null 的那一项<b>丢掉</b>（不是替换成别的方块）。
-     * 于是「像球有多少个组件就有多少候选」这句话，只对<b>全部组件都在那 5 种之内</b>的组合成立；
-     * 含紫水晶 / 铜 / 红石 / 钻石 / 青金石球的组合，候选会比组件数少。</p>
+     * <p>来源列表里的每一颗球都要过 {@link #blockOf}；认不出的返回 {@code null}，
+     * 这里直接把 Null 的那一项<b>丢掉</b>（不是替换成别的方块）。
+     * {@code blockOf} 现已覆盖 {@link BallFragments#sources()} 里 11 颗中的 9 颗
+     * （铜球与空心铜球除外，见 {@link #blockOf} 里的说明），所以那句话对当前来源球基本成立；
+     * 「丢掉 null」这条兜底只剩下 {@code sources()} 之外的球（雪球系）会走到。</p>
      */
     public static List<Block> candidatesOf(ItemStack ball) {
         if (ball.getItem() == ModItems.COMBO_BALL.get()) {
