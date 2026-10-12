@@ -1,3 +1,30 @@
+## 0.4.0.41 — 全面审计收尾：补【震荡】文档 + 最后一批注释订正
+
+### 新增文档：【震荡】
+
+`药水效果` 页补齐第三个效果（此前 Wiki 上完全没有它）。
+全部内容来自实读 `ShockEffect.java`（208 行）：
+
+- **五级转向间隔 20 / 17 / 13 / 8 / 2 刻**（越高越频繁，五级基本一直在打转）
+- **单次幅度**：水平 ±60°、俯仰 ±30°（夹在 ±90° 内）、运动方向绕 Y 轴随机 −180°~+180°
+- **三条不同的路**：玩家（发包改视角，坐标原样回传 —— 只转向不挪人）·
+  生物（**改行走目标**而非改速度，因为 AI 的 `MoveControl` 下一刻会覆盖）· 其它实体（只扭朝向）
+- **为什么转向放在 `EntityTickEvent.Post`**：`LivingEntity.tick()` 是 `tickEffects()` → `aiStep()`，
+  效果回调跑在 AI 之前，改的速度会被立刻覆盖
+- **无视一切免疫**：在 `MobEffectEvent.Applicable` 上强制 `APPLY`
+
+### 注释订正
+
+- `ShockEffect`：删掉「做成 public static 是为了让【脉冲】立刻扭一下」这段理由 ——
+  实测全项目 `applyShock` **只有本类自己调用**，【脉冲】只负责挂效果
+- `CreeperBallBehavior`：「爆炸前 **1** 刻」→ **2 刻**（`THROW_BEFORE_TICKS = 2`，两处）
+- `BallBehavior`：换算规则指向 `BallProfile#withWeight`（原来指的 `launchSpeed()` 只 `return velocity`）
+- `BallFragments`：「追加的**三颗**」→ **两颗**；阈值写回规则的「取最大值」→「**融化取最低、熔融取最高**」
+- `ModEntities`：碰撞箱 **0.75 → 0.25**（与 `.sized(0.25F, 0.25F)` 对齐）；「原先写的是 0.25」→ 0.75（两句原本写反了）
+- `ModComponents`：耐久条由 `BallItem` 的三个钩子画（原来指的是不存在的 `BallDurabilityDecorator`）
+- 删除死常量 `ModTags.Items.FRAGMENTS`（整词复核：只有声明与注释引用它）
+
+---
 ## 0.4.0.40 — 全面审计第二、三批：死代码、死常量、遗留日志、收纳袋容量
 
 对全模组做了一次逐文件 + 逐文档对照源码的审计（33 + 18 组并行核查），
