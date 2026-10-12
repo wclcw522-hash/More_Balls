@@ -1,3 +1,44 @@
+## 0.4.0.40 — 全面审计第二、三批：死代码、死常量、遗留日志、收纳袋容量
+
+对全模组做了一次逐文件 + 逐文档对照源码的审计（33 + 18 组并行核查），
+**逻辑本身没抓到错，问题集中在「没跟着代码改的旧数」和「没人用的残留」**。
+
+### 死代码与死常量
+
+| 删除项 | 位置 |
+|---|---|
+| `comboDropsFor()` 方法（`burst()` 里早已内联同样逻辑） | `BallProjectile` |
+| `wisdomLocked` 字段 + 唯一赋值 + 一条孤立 javadoc | `BallProjectile` |
+| `WISDOM_SCAN_TICKS`（零引用，且注释自己写着「不再有 40 刻硬窗口」） | `BallProjectile` |
+| `BREAKER_SCAN_STEP`（零引用，已改用射线取块） | `BallProjectile` |
+| `BALL_PICKUP_DIAG`（一个没人自增的 `AtomicInteger`） | `BallMobAI` |
+| `PHANTOM_BOMB_CLIMB` / `MAGNET_PULL` / `VANILLA_CROSSBOW_USE_SPEED` / `IRON_BALL_FROM_BLOCKS` | 各自文件 |
+| `MOLTEN_PARTICLE_INTERVAL`（**没删，接上** —— 该处原本硬编码 `% 2`） | `BallProjectile` |
+| 源码根目录一个 **0 字节的 `BallProjectile.java` 残骸** | `moreballs\` |
+
+### 注释与文档的数值残留
+
+- **收纳袋容量**（一处改动落下 7 处旧数）：**27 格起步 / 满级 81**、**每级 +3 弹药 +6 转运**、数据层索引 **0..53 / 54..107** —— `BallPouchTier` / `ModItems` / `BallPouchContainer` / 弩文档
+- `BallProspecting`：点燃阈值 **50→100**、扫描 **31³/29791 → 15³/3375**、扫描间隔 **4→8 刻**
+- 消散速率 **2 点 → 0.2 点**（`ProspectingHeatData` / `BallHeatHandler`）
+- `BallBehavior`：紫水晶球坚固 **15→10**、【探寻】→**【磁性】**、尺寸说明补「的一半」
+- `CreeperBallBehavior`：蓄力阈值 **29/30 → 28/30**、「爆炸前 1 tick」→**2 刻**
+- `BallFragmentItem`：缩放清单**去掉「融化、熔融」**（这两项代码里原样透传）
+- 其它：`BallTooltip` 五个→**七个**词条、`ModNetwork` 一个→**两个**包、`MoreBalls` 26.3→**26.2**、`BallPouchKeys` 长按 0.5→**0.2 秒**、`ModTags` 补三种球 / 雪球四种→**五种**、`BallIntegrationCheck` 钩子名、`BallPouchItem` 组件名、`BallHeatHandler` 方法名、`ModComponents` 类名、`BallProjectile` 删过时的「临时提到 INFO」说明
+
+### 遗留诊断日志降级（INFO → debug）
+
+弩渲染 `diag()`、补弹诊断、长按 R、持球苦力怕（图标清理 / 特制爆炸 / 免方块 / 爆炸推球）、以及**三条「伤害早退」**（同文件早已因刷屏把同类降到 debug）。
+
+### 注意
+
+**仍待作者拍板的 4 项**（都是行为改动，未动手）：
+熔融物烧伤时长疑似乘了两次（`MoltenBurnEffect:125` × `MoltenBurnApplication:51`）·
+`BallLens:104` 加热者传字符串 `"lens"` 而下游按 UUID 解析 ·
+`PiglinLure:455` 清饵只查第一个维度 ·
+强弩 / 诸葛连弩两个附魔没进 `in_enchanting_table` 标签（附魔台拿不到）。
+
+---
 ## 0.4.0.39 — 全面审计第一批：注释与文档的数值残留
 
 对着源码逐条核了一遍，**逻辑没发现问题，问题全在「没跟着改的旧数」**。
