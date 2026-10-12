@@ -124,17 +124,6 @@ public final class CreeperBallBehavior {
      */
     private static final double PUSH_HAND_THROW_MULTIPLIER = 5.0D;
 
-    /**
-     * 【爆炸推球】的触发概率 —— 控制<strong>持球苦力怕那一炸把范围内的每颗球打飞</strong>
-     * （原版爆炸本来不推投射物，这是本模组额外补上的效果）。
-     *
-     * <p>掷骰位置在 {@link #pushNearbyBalls(Level, Creeper, float, LivingEntity)} 的逐球循环里、
-     * 方向与力度都算好之后 —— 也就是「真正写入速度」那一处之前。
-     * 当前 {@code 1.0F}（100% 必触发，与加闸门之前的行为完全一致）；
-     * 作者以后要削弱这个特性只调这一个常量即可，掷不中的那颗球留在原地不动。</p>
-     */
-    public static final float TRAIT_CHANCE_CREEPER_BLAST_PUSH = 1.0F;
-
     /** 重放爆炸时的递归保护 —— 自己重放的那一次要放它过去 */
     private static boolean replayingBallBlast = false;
 
@@ -698,44 +687,42 @@ public final class CreeperBallBehavior {
                 dist = 1.0D;
             }
             // 【爆炸推球】触发概率（当前 100% 必触发；以后调这个常量即可）
-            if (level.getRandom().nextFloat() < TRAIT_CHANCE_CREEPER_BLAST_PUSH) {
-                // 力度 = **这颗球手扔速度的 5 倍**（作者指定），再按距爆心线性衰减。
-                double handThrow = BallBehavior.profileFor(ball.getItem()).physicalVelocity();
-                double strength = PUSH_HAND_THROW_MULTIPLIER * handThrow
-                        * (1.0D - Math.min(1.0D, dist / reach));
+            // 力度 = **这颗球手扔速度的 5 倍**（作者指定），再按距爆心线性衰减。
+            double handThrow = BallBehavior.profileFor(ball.getItem()).physicalVelocity();
+            double strength = PUSH_HAND_THROW_MULTIPLIER * handThrow
+                    * (1.0D - Math.min(1.0D, dist / reach));
 
-                // ⚠️ 这里是 **直接设定速度**，不是 push() 累加 ——
-                //    球有自己的重量 / 阻力那套物理，叠加式的冲量会被它们很快吃掉，
-                //    表现就是「被炸了却飞不远」。
-                Vec3 direction;
-                if (aimTarget != null) {
-                    // ⚠️ 方向用「爆心 → 目标」，不是「爆心 → 球」（作者 2026-10-07 报「特别容易偏」）。
-                    //
-                    // 后者的问题：球只要有一点点偏离连线（散布、上一 tick 的位移、重力下坠），
-                    // 这点偏差就会被当成推力方向，于是**越推越偏**，一路放大。
-                    // 改用目标方向之后，无论球当前在哪，推力永远朝着目标 ——
-                    // 等于拿爆炸把球「钉」在连线上打出去。
-                    Vec3 toTarget = new Vec3(aimTarget.getX() - cx,
-                            aimTarget.getY() + aimTarget.getBbHeight() / 3.0D - cy,
-                            aimTarget.getZ() - cz);
-                    direction = toTarget.lengthSqr() < 1.0E-4D ? delta.normalize() : toTarget.normalize();
-                } else {
-                    direction = delta.normalize();
-                }
-
-                // 垂直分量按方向给，不再额外压制 —— 方向已经由目标决定，
-                // 再压一次只会让球朝地面偏（原来那套 maxVy 是给「爆心→球」兜底时加的）
-                double vy = direction.y * strength + strength * 0.10D;
-
-                double before = ball.getDeltaMovement().length();
-                ball.setDeltaMovement(direction.x * strength, vy, direction.z * strength);
-                double after = ball.getDeltaMovement().length();
-
-                // 诊断：速度这块到底有没有被限制，看这两行就知道了。
-                // （查过一遍：代码里没有速度钳制，唯一的上限 RETURN_MAX_SPEED 只用于「空气动力球回家」）
-                MoreBalls.LOGGER.debug("[ball] 爆炸推球：速度 {} → {}（距爆心 {}，强度 {}，波及半径 {}）",
-                        before, after, dist, strength, reach);
+            // ⚠️ 这里是 **直接设定速度**，不是 push() 累加 ——
+            //    球有自己的重量 / 阻力那套物理，叠加式的冲量会被它们很快吃掉，
+            //    表现就是「被炸了却飞不远」。
+            Vec3 direction;
+            if (aimTarget != null) {
+                // ⚠️ 方向用「爆心 → 目标」，不是「爆心 → 球」（作者 2026-10-07 报「特别容易偏」）。
+                //
+                // 后者的问题：球只要有一点点偏离连线（散布、上一 tick 的位移、重力下坠），
+                // 这点偏差就会被当成推力方向，于是**越推越偏**，一路放大。
+                // 改用目标方向之后，无论球当前在哪，推力永远朝着目标 ——
+                // 等于拿爆炸把球「钉」在连线上打出去。
+                Vec3 toTarget = new Vec3(aimTarget.getX() - cx,
+                        aimTarget.getY() + aimTarget.getBbHeight() / 3.0D - cy,
+                        aimTarget.getZ() - cz);
+                direction = toTarget.lengthSqr() < 1.0E-4D ? delta.normalize() : toTarget.normalize();
+            } else {
+                direction = delta.normalize();
             }
+
+            // 垂直分量按方向给，不再额外压制 —— 方向已经由目标决定，
+            // 再压一次只会让球朝地面偏（原来那套 maxVy 是给「爆心→球」兜底时加的）
+            double vy = direction.y * strength + strength * 0.10D;
+
+            double before = ball.getDeltaMovement().length();
+            ball.setDeltaMovement(direction.x * strength, vy, direction.z * strength);
+            double after = ball.getDeltaMovement().length();
+
+            // 诊断：速度这块到底有没有被限制，看这两行就知道了。
+            // （查过一遍：代码里没有速度钳制，唯一的上限 RETURN_MAX_SPEED 只用于「空气动力球回家」）
+            MoreBalls.LOGGER.debug("[ball] 爆炸推球：速度 {} → {}（距爆心 {}，强度 {}，波及半径 {}）",
+                    before, after, dist, strength, reach);
         }
     }
 }

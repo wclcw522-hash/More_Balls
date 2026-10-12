@@ -88,12 +88,6 @@ public final class BallIlluminate {
     private static final int PARTICLES_PER_ENTITY = 2;
 
     /**
-     * 【照明】词条的触发概率 —— 控制「给锥体内命中的目标挂 1 秒发光 + 按阵营撒染色粒子」这一处触发。
-     * 当前 1.0F = 100% 必触发（口径与其它特性词条统一）；以后要削弱照明就调小这个常量。
-     */
-    public static final float TRAIT_CHANCE_ILLUMINATE = 1.0F;
-
-    /**
      * 球的每刻照明逻辑 —— 由 {@code BallProjectile} 在实体状态时调用。
      *
      * @param level   服务端世界
@@ -126,14 +120,12 @@ public final class BallIlluminate {
             }
 
             // 【照明】触发概率（当前 100% 必触发；以后调这个常量即可）
-            if (level.getRandom().nextFloat() < TRAIT_CHANCE_ILLUMINATE) {
-                // 叠 1 秒发光。用 setEffect 而不是太频繁的 addEffect：
-                // 这里每 tick 都会走到，等价于「只要还在区内就一直亮着，离开后 1 秒熄灭」。
-                target.addEffect(new MobEffectInstance(
-                        MobEffects.GLOWING, GLOW_TICKS, 0, false, false, false));
+            // 叠 1 秒发光。用 setEffect 而不是太频繁的 addEffect：
+            // 这里每 tick 都会走到，等价于「只要还在区内就一直亮着，离开后 1 秒熄灭」。
+            target.addEffect(new MobEffectInstance(
+                    MobEffects.GLOWING, GLOW_TICKS, 0, false, false, false));
 
-                emitFactionParticles(level, target);
-            }
+            emitFactionParticles(level, target);
         }
     }
 

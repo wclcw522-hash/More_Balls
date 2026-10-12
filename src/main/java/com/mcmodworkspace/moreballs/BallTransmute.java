@@ -40,16 +40,6 @@ public final class BallTransmute {
     private BallTransmute() {
     }
 
-    /**
-     * 【点金】触发概率（当前 100% 必触发；以后调这个常量即可）。
-     *
-     * <p>这一道是<b>最外层</b>闸门：控制「命中方块时到底要不要点这一片」。
-     * 它跟 {@link BallBehavior#TRANSMUTE_CHANCE}（每块石头各自 10% 变成矿物）
-     * 是两层不同的东西 —— 那层管「点中的方块有几块成矿」，
-     * 这一层管「这次命中到底点不点」，所以即使里面已经有概率，外层照样留一道。</p>
-     */
-    public static final float TRAIT_CHANCE_TRANSMUTE = 1.0F;
-
     /** 石头 / 圆石类的名字关键字（标签之外的兜底，用来接住模组的石头类方块） */
     private static final String[] STONE_KEYWORDS = {
             "stone", "cobble", "rock", "slate", "tuff", "granite", "diorite", "andesite",
@@ -80,29 +70,27 @@ public final class BallTransmute {
                 14, 0.45D, 0.45D, 0.45D, 0.0D);
 
         // 【点金】触发概率（当前 100% 必触发；以后调这个常量即可）
-        if (level.getRandom().nextFloat() < TRAIT_CHANCE_TRANSMUTE) {
-            // 在「垂直于命中面」的那个平面上，以命中方块为中心取 3×3×1
-            Direction.Axis axis = face.getAxis();
-            for (int a = -1; a <= 1; a++) {
-                for (int b = -1; b <= 1; b++) {
-                    BlockPos pos = switch (axis) {
-                        case X -> center.offset(0, a, b);
-                        case Y -> center.offset(a, 0, b);
-                        case Z -> center.offset(a, b, 0);
-                    };
+        // 在「垂直于命中面」的那个平面上，以命中方块为中心取 3×3×1
+        Direction.Axis axis = face.getAxis();
+        for (int a = -1; a <= 1; a++) {
+            for (int b = -1; b <= 1; b++) {
+                BlockPos pos = switch (axis) {
+                    case X -> center.offset(0, a, b);
+                    case Y -> center.offset(a, 0, b);
+                    case Z -> center.offset(a, b, 0);
+                };
 
-                    BlockState state = level.getBlockState(pos);
-                    if (!isStoneLike(state)) {
-                        continue;
-                    }
-                    if (level.getRandom().nextFloat() >= BallBehavior.TRANSMUTE_CHANCE) {
-                        continue;
-                    }
+                BlockState state = level.getBlockState(pos);
+                if (!isStoneLike(state)) {
+                    continue;
+                }
+                if (level.getRandom().nextFloat() >= BallBehavior.TRANSMUTE_CHANCE) {
+                    continue;
+                }
 
-                    Block ore = pickOre(level, state);
-                    if (ore != null) {
-                        level.setBlockAndUpdate(pos, ore.defaultBlockState());
-                    }
+                Block ore = pickOre(level, state);
+                if (ore != null) {
+                    level.setBlockAndUpdate(pos, ore.defaultBlockState());
                 }
             }
         }

@@ -421,13 +421,14 @@ public final class BallFragments {
         int breakers = (a.breaker() > 0 ? 1 : 0) + (b.breaker() > 0 ? 1 : 0)
                 + (c.breaker() > 0 ? 1 : 0) + (d.breaker() > 0 ? 1 : 0);
         // 位掩码型词条：【脉冲】【照明】【破坏王】【透镜】
-        // 四合一同样要「≥2 份」才保留 —— 逐位统计份数，各自判一次
+        // 特性类词条**不再需要激活**（作者 2026-10-13）：只要有一份带着，四合一就保留它 ——
+        // 逐位统计份数，各自判一次
         int flagMask = 0;
         for (int bit = 0; bit < 32; bit++) {
             int unit = 1 << bit;
             int count = ((a.flags() & unit) != 0 ? 1 : 0) + ((b.flags() & unit) != 0 ? 1 : 0)
                     + ((c.flags() & unit) != 0 ? 1 : 0) + ((d.flags() & unit) != 0 ? 1 : 0);
-            if (count >= QUAD_TRAIT_THRESHOLD) {
+            if (count >= 1) {
                 flagMask |= unit;
             }
         }
@@ -438,17 +439,17 @@ public final class BallFragments {
                 //   【熔融n】阈值类**特殊** → 取**最高**，且要激活（份数判定在下面）
                 meltPick(a, b, c, d, true), meltPick(a, b, c, d, false),
                 Math.floor(sum.magnet()), sum.transmute(),   // 同上：概率保持小数
-                morphs >= QUAD_TRAIT_THRESHOLD,
-                magnets >= QUAD_TRAIT_THRESHOLD,
-                glints >= QUAD_TRAIT_THRESHOLD,
+                morphs >= 1,
+                magnets >= 1,
+                glints >= 1,
                 // 【智慧N】是**带数值**的词条：分量够（≥2 份）才保留，保留时给四份之和
                 (wisdoms >= QUAD_TRAIT_THRESHOLD) ? (int) Math.max(1, Math.floor(sum.wisdom())) : 0,
-                kindnesses >= QUAD_TRAIT_THRESHOLD,
-                conductions >= QUAD_TRAIT_THRESHOLD,
+                kindnesses >= 1,
+                conductions >= 1,
                 // 【引雷x】是**阈值类特殊**词条（作者 2026-10-10 分类）：
                 // 切开不变、**需要激活**（四合一 ≥2 份）、合成取**最高**（阈值由 thunderThresholdFrom 取 max）
                 thunders >= QUAD_TRAIT_THRESHOLD,
-                shocks >= QUAD_TRAIT_THRESHOLD,
+                shocks >= 1,
                 // 【穿透x】数值型：够份数才保留，保留时给四份之和
                 (penetrations >= QUAD_TRAIT_THRESHOLD)
                         ? (int) Math.floor(sum.penetration()) : 0,
@@ -647,6 +648,33 @@ public final class BallFragments {
             }
         }
         return best;
+    }
+    /**
+     * 特性类词条的**触发概率**（作者 2026-10-13 规格）。
+     *
+     * <p>这条概率判定的是「该词条在**接下来的一次投掷/发射**里是否生效」——
+     * 每次发射或掷出前判一次，不是每刻判。切球时按份数均分、组合时累加（封顶 1.0）：</p>
+     * <ul>
+     *   <li>完整球 → {@code 1.0}；半球 → {@code 0.5}；四分之一球 → {@code 0.25}</li>
+     *   <li>二合一（两个半球）→ {@code 0.5 + 0.5 = 1.0}</li>
+     *   <li>四合一（四个四分之一球）→ {@code 0.25 × 4 = 1.0}</li>
+     * </ul>
+     */
+    public static float traitChanceFor(ItemStack stack) {
+        Item item = stack.getItem();
+        if (item == ModItems.BALL_HALF.get()) {
+            return 0.5F;
+        }
+        if (item == ModItems.BALL_QUARTER.get()) {
+            return 0.25F;
+        }
+        if (item == ModItems.COMBO_BALL.get()) {
+            int slots = parseIndexes(stack.getOrDefault(ModComponents.COMBO_SOURCES.get(), "")).size();
+            // 二合一的格子放的是半球（各 0.5），四合一的格子放的是四分之一球（各 0.25）
+            float per = slots <= 2 ? 0.5F : 0.25F;
+            return Math.min(1.0F, per * slots);
+        }
+        return 1.0F;   // 完整球：特性类词条 100% 参与判定
     }
     /** 数值向下取整（特质原样透传） */
     private static Fragment floor(Fragment f) {

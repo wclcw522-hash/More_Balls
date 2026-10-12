@@ -120,36 +120,137 @@ public class BallProjectile extends ThrowableItemProjectile {
     //     BallTransmute / RedstonePulse / BallConduction / PiglinLure），
     //     本文件只是调用方，故不在此重复加闸门（否则同一效果会被乘两次概率）。
 
-    /** 【穿透】命中实体后穿过它并继续飞的触发概率 */
-    public static final float TRAIT_CHANCE_PIERCE = 1.0F;
+    // ===== 特性类词条的「本次投掷/发射是否生效」判定（作者 2026-10-13 规格）=====
+    //
+    // 语义：每个特性各有一个**独立的**判定 —— 这一趟投掷/发射里它到底生不生效。
+    //   · 判定时机：球被掷出后**第一个 tick** 判一次，整趟飞行沿用结果（不是每刻掷）。
+    //   · 判定概率：由 BallFragments.traitChanceFor(item) 现算 ——
+    //       完整球 1.0、半球 0.5、四分之一球 0.25；组合时按份数累加（封顶 1.0）。
+    //   · 特性各判各的：同一趟里【魔法】中了、【变形】没中，是完全正常的。
+    //
+    // 数值类（坚固/感应/智慧N/穿透N/破坏王N）与阈值类（融化/熔融/引雷）**不受本机制影响**。
 
-    /** 【反弹】坚固球命中实体后弹开（而不是碎裂）的触发概率 */
-    public static final float TRAIT_CHANCE_BOUNCE = 1.0F;
+    /** 【善良】命中同阵营时弹开、不结算伤害 */
+    public static final int TRAIT_KINDNESS = 1 << 0;
 
-    /** 【破坏王】碰到方块时真的把它砸掉的触发概率 */
-    public static final float TRAIT_CHANCE_BREAKER = 1.0F;
+    /** 【电击】直接伤害按「闪电类型」结算 */
+    public static final int TRAIT_SHOCK = 1 << 1;
 
-    /** 【善良】命中同阵营时弹开、不结算伤害的触发概率 */
-    public static final float TRAIT_CHANCE_KINDNESS = 1.0F;
+    /** 【变形】耐久耗尽时不变碎、改成原地变方块 */
+    public static final int TRAIT_MORPH = 1 << 2;
 
-    /** 【智慧】成功锁定目标（扣一次次数、把航向改朝目标）的触发概率 */
-    public static final float TRAIT_CHANCE_WISDOM = 1.0F;
+    /** 【导电】像避雷针一样吸引自然闪电 */
+    public static final int TRAIT_CONDUCTION = 1 << 3;
 
-    /** 【熔融】热量达标时，命中目标给它挂「熔融物烧伤」的触发概率 */
-    public static final float TRAIT_CHANCE_MOLTEN = 1.0F;
+    /** 【照明】下方锥形范围内的生物被染色发光 */
+    public static final int TRAIT_ILLUMINATE = 1 << 4;
 
-    /** 【引雷】热量攒到阈值时释放一次雷电（并清空热量）的触发概率 */
-    public static final float TRAIT_CHANCE_THUNDER = 1.0F;
+    /** 【透镜】白天晴天时给下方持续积热 */
+    public static final int TRAIT_LENS = 1 << 5;
 
-    /** 【融化】热量攒到融化阈值时把球化掉的触发概率 */
-    public static final float TRAIT_CHANCE_MELT = 1.0F;
+    /** 【魔法】命中给目标随机 debuff */
+    public static final int TRAIT_MAGIC = 1 << 6;
 
-    /** 【电击】这颗球直接造成的伤害按「闪电类型」结算的触发概率 */
-    public static final float TRAIT_CHANCE_SHOCK = 1.0F;
+    /** 【魔法】回收到主人手里时给随机 buff */
+    public static final int TRAIT_MAGIC_RECOVER = 1 << 7;
 
-    /** 【变形】耐久耗尽时不变碎、改成原地变方块的触发概率 */
-    public static final float TRAIT_CHANCE_MORPH = 1.0F;
+    /** 【魔法】那 0.1% 的大奖（在【魔法】判定之上再叠一层） */
+    public static final int TRAIT_MAGIC_JACKPOT = 1 << 8;
 
+    /** 【金光闪闪】猪灵全套行为 */
+    public static final int TRAIT_GOLD_SHINY = 1 << 9;
+
+    /** 【点金】命中方块时把石头类点成矿物 */
+    public static final int TRAIT_TRANSMUTE = 1 << 10;
+
+    /** 【脉冲】命中时让周围金属目标晕头转向 */
+    public static final int TRAIT_PULSE = 1 << 11;
+
+    /** 【磁吸】飞行时把身边的金属拽向自己 */
+    public static final int TRAIT_MAGNET = 1 << 12;
+
+    /** 【磁性】飞行途中朝铁磁性目标偏航 */
+    public static final int TRAIT_MAGNETIC = 1 << 13;
+
+    /** 本趟投掷里**生效**的特性位集合。第一个 tick 掷定，整趟不变。 */
+    private int firedTraits;
+
+    /** 是否已经为本趟投掷掷过 —— 保证「一次投掷只判一次」。 */
+    private boolean traitsRolled;
+
+    /** 这颗球**实际带着**哪些特性（还没掷概率）。 */
+    private int ownedTraits() {
+        BallBehavior.BallProfile profile = this.profile();
+        int bits = 0;
+        if (profile.kindness()) {
+            bits |= TRAIT_KINDNESS;
+        }
+        if (profile.shockDamage()) {
+            bits |= TRAIT_SHOCK;
+        }
+        if (profile.morphBlock() != null) {
+            bits |= TRAIT_MORPH;
+        }
+        if (profile.conduction()) {
+            bits |= TRAIT_CONDUCTION;
+        }
+        if (profile.hasFlag(BallBehavior.BallProfile.FLAG_ILLUMINATE)) {
+            bits |= TRAIT_ILLUMINATE;
+        }
+        if (profile.hasFlag(BallBehavior.BallProfile.FLAG_LENS)) {
+            bits |= TRAIT_LENS;
+        }
+        if (profile.hasFlag(BallBehavior.BallProfile.FLAG_MAGIC)) {
+            bits |= TRAIT_MAGIC | TRAIT_MAGIC_RECOVER | TRAIT_MAGIC_JACKPOT;
+        }
+        if (profile.glint()) {
+            bits |= TRAIT_GOLD_SHINY;
+        }
+        if (profile.transmuteChance() > 0.0F) {
+            bits |= TRAIT_TRANSMUTE;
+        }
+        if (profile.hasFlag(BallBehavior.BallProfile.FLAG_PULSE)) {
+            bits |= TRAIT_PULSE;
+        }
+        if (profile.hasMagnet()) {
+            bits |= TRAIT_MAGNET;
+        }
+        if (profile.hasMagnetic()) {
+            bits |= TRAIT_MAGNETIC;
+        }
+        return bits;
+    }
+
+    /**
+     * 每趟投掷**只判一次**：把球带着的每个特性各掷一次，结果留在 {@link #firedTraits}。
+     *
+     * <p>概率来自 {@code BallFragments.traitChanceFor} —— 切球按份数均分、组合时累加。</p>
+     */
+    private void rollTraitsOnce() {
+        if (this.traitsRolled) {
+            return;
+        }
+        this.traitsRolled = true;
+        int owned = this.ownedTraits();
+        if (owned == 0) {
+            return;
+        }
+        float chance = BallFragments.traitChanceFor(this.getItem());
+        RandomSource random = this.getRandom();
+        int fired = 0;
+        for (int bit = 0; bit < 16; bit++) {
+            int unit = 1 << bit;
+            if ((owned & unit) != 0 && random.nextFloat() < chance) {
+                fired |= unit;
+            }
+        }
+        this.firedTraits = fired;
+    }
+
+    /** 本趟投掷里，这个特性生不生效（{@code TRAIT_*} 之一）。 */
+    public boolean traitFired(int traitBit) {
+        return (this.firedTraits & traitBit) != 0;
+    }
     /**
      * 【破坏王】砸掉方块后保留的速度比例。
      *
@@ -915,6 +1016,10 @@ public class BallProjectile extends ThrowableItemProjectile {
 
     /** tick 的前半段：上限检查、回归开关、票据 */
     private void ballTickPre() {
+        // 【特性类词条的本次判定】每趟投掷只判一次 —— 放这里能覆盖所有发射入口
+        // （玩家手扔 / 弩 / 怪物投掷 / 掠夺者），不用去改那四个文件。
+        this.rollTraitsOnce();
+
         // 【实体上限】本维度的球超过上限时，从最旧的开始清掉。
         //
         // 每 100 刻（5 秒）才查一次 —— 逐刻遍历整个维度的实体没意义，
@@ -1096,11 +1201,17 @@ public class BallProjectile extends ThrowableItemProjectile {
         //    这两个词条与「坚固与否」无关，本来就该放在早退之前。
         if (this.profile().hasFlag(BallBehavior.BallProfile.FLAG_ILLUMINATE)
                 && this.level() instanceof ServerLevel illuminateLevel) {
-            BallIlluminate.tick(illuminateLevel, this.position());
+            // 【照明】本趟是否生效 —— 由 rollTraitsOnce() 在第一个 tick 掷定
+            if (this.traitFired(TRAIT_ILLUMINATE)) {
+                BallIlluminate.tick(illuminateLevel, this.position());
+            }
         }
         if (this.profile().hasFlag(BallBehavior.BallProfile.FLAG_LENS)
                 && this.level() instanceof ServerLevel lensLevel) {
-            BallLens.tick(lensLevel, this.position());
+            // 【透镜】本趟是否生效 —— 由 rollTraitsOnce() 在第一个 tick 掷定
+            if (this.traitFired(TRAIT_LENS)) {
+                BallLens.tick(lensLevel, this.position());
+            }
         }
         // 【照明】的飞行拖尾：红色粒子，每颗滞留约 1 秒（不坚固的雪球也有）
         this.redstoneTrailTick();
@@ -1328,6 +1439,11 @@ public class BallProjectile extends ThrowableItemProjectile {
      * </ul>
      */
     private void magnetTick(ServerLevel level) {
+        // 【磁吸】本趟是否生效 —— 由 rollTraitsOnce() 在第一个 tick 掷定。
+        // 没中就整趟都不拽金属（不是每刻掷，所以不会一抽一抽）。
+        if (!this.traitFired(TRAIT_MAGNET)) {
+            return;
+        }
         BallBehavior.BallProfile profile = this.profile();
         if (!profile.hasMagnet() || this.isSettled()) {
             return; // 没这个性质，或者球已经落定 → 停手
@@ -1713,8 +1829,8 @@ public class BallProjectile extends ThrowableItemProjectile {
         //    此时**不弹开、照常结算伤害**。
         //    否则 owner 为 null 会让 isSameSide 恒返回 true，那颗球就谁都不打
         //    （作者 2026-10-09 实测：苦力怕扔的紫水晶球打玩家不掉血）。
-        // 【善良】触发概率（当前 100% 必触发；以后调这个常量即可）
-        if (this.level().getRandom().nextFloat() < TRAIT_CHANCE_KINDNESS) {
+        // 【善良】本趟是否生效 —— 由 rollTraitsOnce() 在第一个 tick 掷定
+        if (this.traitFired(TRAIT_KINDNESS)) {
             if (this.getOwner() != null
                     && this.profile().kindness()
                     && entity instanceof LivingEntity other
@@ -1754,16 +1870,14 @@ public class BallProjectile extends ThrowableItemProjectile {
             }
 
             // 【熔融】触发概率（当前 100% 必触发；以后调这个常量即可）
-            if (this.level().getRandom().nextFloat() < TRAIT_CHANCE_MOLTEN) {
-                // 【熔融】：热量攒够阈值后，这一击会给目标挂上「熔融物烧伤」。
-                // 空心铁球那颗是 120 —— 得先在矿脉附近飞一会儿把矿石烤热、自己攒够热量才行。
-                BallBehavior.BallProfile moltenProfile = this.profile();
-                if (moltenProfile.hasMolten() && this.heat >= moltenProfile.moltenThreshold()
-                        && entity instanceof LivingEntity livingTarget) {
-                    MoltenBurnEffect.applyMoltenBurn(serverLevel, livingTarget,
-                            this.getOwner() instanceof LivingEntity livingOwner ? livingOwner : null,
-                            BallBehavior.MOLTEN_BURN_TICKS);
-                }
+            // 【熔融】：热量攒够阈值后，这一击会给目标挂上「熔融物烧伤」。
+            // 空心铁球那颗是 120 —— 得先在矿脉附近飞一会儿把矿石烤热、自己攒够热量才行。
+            BallBehavior.BallProfile moltenProfile = this.profile();
+            if (moltenProfile.hasMolten() && this.heat >= moltenProfile.moltenThreshold()
+                    && entity instanceof LivingEntity livingTarget) {
+                MoltenBurnEffect.applyMoltenBurn(serverLevel, livingTarget,
+                        this.getOwner() instanceof LivingEntity livingOwner ? livingOwner : null,
+                        BallBehavior.MOLTEN_BURN_TICKS);
             }
 
             // 【魔法】（青金石球）—— 命中目标时随机施加一个负面效果。
@@ -1776,7 +1890,10 @@ public class BallProjectile extends ThrowableItemProjectile {
             // 穿透 / 反弹的早退分支后面，会漏掉一部分命中。
             if (this.profile().hasFlag(BallBehavior.BallProfile.FLAG_MAGIC)
                     && entity instanceof LivingEntity magicTarget) {
-                BallMagic.applyToVictim(serverLevel, magicTarget);
+                // 【魔法】命中本趟是否生效 —— 由 rollTraitsOnce() 在第一个 tick 掷定
+                if (this.traitFired(TRAIT_MAGIC)) {
+                    BallMagic.applyToVictim(serverLevel, magicTarget);
+                }
             }
 
             // 【金光闪闪】：金球砸猪灵不结仇。
@@ -1785,7 +1902,7 @@ public class BallProjectile extends ThrowableItemProjectile {
             if (entity instanceof AbstractPiglin piglin
                     && BallBehavior.isGoldShiny(this.getItem())) {
                 piglin.setData(ModAttachments.GOLD_BALL_HURT.get(), true);
-                PiglinLure.forgetAnger(piglin);
+                // 【金光闪闪】「砸猪灵不结仇」本趟是否生效 —— 由本球在第一个 tick 掷定                 if (this.traitFired(TRAIT_GOLD_SHINY)) {                     PiglinLure.forgetAnger(piglin);                 }
             }
 
             // 【敌对球 · 蜘蛛系】（作者 2026-10-11 指定）
@@ -1926,53 +2043,52 @@ public class BallProjectile extends ThrowableItemProjectile {
         // 位置放在「回归虚化」早退之后 —— 回家途中的球不该炸开脉冲。
         if (this.profile().hasFlag(BallBehavior.BallProfile.FLAG_PULSE)
                 && this.level() instanceof ServerLevel pulseLevel) {
-            RedstonePulse.detonate(pulseLevel, hitResult.getLocation());
+            // 【脉冲】本趟是否生效 —— 由 rollTraitsOnce() 在第一个 tick 掷定
+            if (this.traitFired(TRAIT_PULSE)) {
+                RedstonePulse.detonate(pulseLevel, hitResult.getLocation());
+            }
         }
 
         if (hitResult.getType() == HitResult.Type.ENTITY) {
             EntityHitResult entityHit = (EntityHitResult) hitResult;
 
             // 【穿透】触发概率（当前 100% 必触发；以后调这个常量即可）
-            if (this.level().getRandom().nextFloat() < TRAIT_CHANCE_PIERCE) {
-                if (this.getPierceLevel() > 0) {
-                    if (this.piercingIgnoreEntityIds == null) {
-                        this.piercingIgnoreEntityIds = new IntOpenHashSet(5);
-                    }
-                    if (this.piercingIgnoreEntityIds.size() >= this.getPierceLevel() + 1) {
-                        if (this.isTough()) {
-                            super.onHit(hitResult);
-                            // 同上：善良已经反射过就不要覆盖
-                            if (this.friendlyBounced) {
-                                this.friendlyBounced = false;
-                            } else {
-                                this.bounceBack();
-                            }
+            if (this.getPierceLevel() > 0) {
+                if (this.piercingIgnoreEntityIds == null) {
+                    this.piercingIgnoreEntityIds = new IntOpenHashSet(5);
+                }
+                if (this.piercingIgnoreEntityIds.size() >= this.getPierceLevel() + 1) {
+                    if (this.isTough()) {
+                        super.onHit(hitResult);
+                        // 同上：善良已经反射过就不要覆盖
+                        if (this.friendlyBounced) {
+                            this.friendlyBounced = false;
                         } else {
-                            this.burst();
+                            this.bounceBack();
                         }
-                        return;
+                    } else {
+                        this.burst();
                     }
-                    this.piercingIgnoreEntityIds.add(entityHit.getEntity().getId());
-                    super.onHit(hitResult);
-                    this.consumeDurability("穿透");
                     return;
                 }
+                this.piercingIgnoreEntityIds.add(entityHit.getEntity().getId());
+                super.onHit(hitResult);
+                this.consumeDurability("穿透");
+                return;
             }
 
             // 【反弹】触发概率（当前 100% 必触发；以后调这个常量即可）
-            if (this.level().getRandom().nextFloat() < TRAIT_CHANCE_BOUNCE) {
-                if (this.isTough()) {
-                    super.onHit(hitResult);
-                    // ⚠️ 【善良】命中友好生物时 super.onHit 已经走过 bounceOffEntity
-                    //    做过标准向量反射；这里再无条件 bounceBack()（水平整体取反）
-                    //    会把那次反射**覆盖成原路折回** —— 表现就是「善良的反弹不生效」。
-                    if (this.friendlyBounced) {
-                        this.friendlyBounced = false;   // 用完即清，别影响后续命中
-                    } else {
-                        this.bounceBack();
-                    }
-                    return;
+            if (this.isTough()) {
+                super.onHit(hitResult);
+                // ⚠️ 【善良】命中友好生物时 super.onHit 已经走过 bounceOffEntity
+                //    做过标准向量反射；这里再无条件 bounceBack()（水平整体取反）
+                //    会把那次反射**覆盖成原路折回** —— 表现就是「善良的反弹不生效」。
+                if (this.friendlyBounced) {
+                    this.friendlyBounced = false;   // 用完即清，别影响后续命中
+                } else {
+                    this.bounceBack();
                 }
+                return;
             }
         } else if (hitResult.getType() == HitResult.Type.BLOCK) {
             // ===== 【破坏王】钻石球：把撞到的方块砸掉 =====
@@ -1984,13 +2100,11 @@ public class BallProjectile extends ThrowableItemProjectile {
             //    原来是砸完照样走下面的 bounceOff()，球被弹开后又被重力带着往下坠，
             //    表现就是「因为反弹老是往下掉」。路已经砸开了，直接放它继续往前飞。
             // 【破坏王】触发概率（当前 100% 必触发；以后调这个常量即可）
-            if (this.level().getRandom().nextFloat() < TRAIT_CHANCE_BREAKER) {
-                if (this.profile().hasBreaker()
-                        && this.breakerUsed < this.profile().breaker()
-                        && this.level() instanceof ServerLevel breakerLevel) {
-                    if (this.breakerHit(breakerLevel, (BlockHitResult) hitResult)) {
-                        return;   // 砸成功 → 沿原方向继续飞，不结算反弹
-                    }
+            if (this.profile().hasBreaker()
+                    && this.breakerUsed < this.profile().breaker()
+                    && this.level() instanceof ServerLevel breakerLevel) {
+                if (this.breakerHit(breakerLevel, (BlockHitResult) hitResult)) {
+                    return;   // 砸成功 → 沿原方向继续飞，不结算反弹
                 }
             }
 
@@ -1998,7 +2112,10 @@ public class BallProjectile extends ThrowableItemProjectile {
             // 所以放在 isTough() 判断之外）
             if (this.profile().transmuteChance() > BallBehavior.NOT_TRANSMUTE
                     && this.level() instanceof ServerLevel serverLevel) {
-                BallTransmute.transmute(serverLevel, (BlockHitResult) hitResult);
+                // 【点金】本趟是否生效 —— 由 rollTraitsOnce() 在第一个 tick 掷定
+                if (this.traitFired(TRAIT_TRANSMUTE)) {
+                    BallTransmute.transmute(serverLevel, (BlockHitResult) hitResult);
+                }
             }
 
             if (!this.isTough()) {
@@ -2446,38 +2563,36 @@ public class BallProjectile extends ThrowableItemProjectile {
     private void lockOnto(LivingEntity target) {
 
         // 【智慧】触发概率（当前 100% 必触发；以后调这个常量即可）
-        if (this.level().getRandom().nextFloat() < TRAIT_CHANCE_WISDOM) {
-            // 【智慧N】每次成功锁定扣一次 —— 扣到 0 就不再追踪
-            // （作者 2026-10-09：数值代表可追踪次数，消耗完就不再锁定）
-            if (this.wisdomUsesLeft > 0) {
-                this.wisdomUsesLeft--;
-            }
-            // 命中后设一段宽限期：这期间不做静止判定，免得被按在地上滑行
-            this.wisdomHitGrace = WISDOM_HIT_GRACE_TICKS;
-
-            // 【智慧】成就：首次触发锁定 —— 记在**投掷者**头上（怪物扔的不算，
-            // 它没有成就页；作者给出的文案也是给玩家看的）
-            if (this.getOwner() instanceof Player wisdomOwner) {
-                ModAdvancements.award(wisdomOwner, ModAdvancements.WISDOM);
-            }
-
-            // 【智慧】瞄**上半身**（作者 2026-10-09 指定）—— 原来的 0.5 是身体中部，
-            // 锁定瞬间几乎没有抬升动作，看起来不像「抬头锁定」。
-            // 取 0.8 倍身高（接近胸部/头部），锁定时会有一个明显的上抬。
-            Vec3 aim = target.position().add(0.0, target.getBbHeight() * 0.8, 0.0);
-            Vec3 direction = aim.subtract(this.position());
-            if (direction.lengthSqr() < 1.0E-6) {
-                return;
-            }
-            // 【智慧】的锁定 = **只把方向转向目标，速度大小原样保留**。
-            //
-            // ⚠️ 这里**不要**加任何「向上抬升」之类的人为修正。
-            //    作者 2026-10-09 明确：智慧就该是「反弹之后保留速度、无视重力、让球自己飞」——
-            //    球在追踪期间本来就不吃重力（见 tick 里的三段式），它会自然保持高度飞过去。
-            //    我之前加的上抬分量反而是「直接往天上飞」的元凶，已删除。
-            double speed = Math.max(0.6, this.getDeltaMovement().length());
-            this.setDeltaMovement(direction.normalize().scale(speed));
+        // 【智慧N】每次成功锁定扣一次 —— 扣到 0 就不再追踪
+        // （作者 2026-10-09：数值代表可追踪次数，消耗完就不再锁定）
+        if (this.wisdomUsesLeft > 0) {
+            this.wisdomUsesLeft--;
         }
+        // 命中后设一段宽限期：这期间不做静止判定，免得被按在地上滑行
+        this.wisdomHitGrace = WISDOM_HIT_GRACE_TICKS;
+
+        // 【智慧】成就：首次触发锁定 —— 记在**投掷者**头上（怪物扔的不算，
+        // 它没有成就页；作者给出的文案也是给玩家看的）
+        if (this.getOwner() instanceof Player wisdomOwner) {
+            ModAdvancements.award(wisdomOwner, ModAdvancements.WISDOM);
+        }
+
+        // 【智慧】瞄**上半身**（作者 2026-10-09 指定）—— 原来的 0.5 是身体中部，
+        // 锁定瞬间几乎没有抬升动作，看起来不像「抬头锁定」。
+        // 取 0.8 倍身高（接近胸部/头部），锁定时会有一个明显的上抬。
+        Vec3 aim = target.position().add(0.0, target.getBbHeight() * 0.8, 0.0);
+        Vec3 direction = aim.subtract(this.position());
+        if (direction.lengthSqr() < 1.0E-6) {
+            return;
+        }
+        // 【智慧】的锁定 = **只把方向转向目标，速度大小原样保留**。
+        //
+        // ⚠️ 这里**不要**加任何「向上抬升」之类的人为修正。
+        //    作者 2026-10-09 明确：智慧就该是「反弹之后保留速度、无视重力、让球自己飞」——
+        //    球在追踪期间本来就不吃重力（见 tick 里的三段式），它会自然保持高度飞过去。
+        //    我之前加的上抬分量反而是「直接往天上飞」的元凶，已删除。
+        double speed = Math.max(0.6, this.getDeltaMovement().length());
+        this.setDeltaMovement(direction.normalize().scale(speed));
     }
 
     /**
@@ -2623,7 +2738,8 @@ public class BallProjectile extends ThrowableItemProjectile {
                     .toList();
             // 偏航只归【磁性】管 —— 空心铁球只有【感应】（只管积热），不该自己拐弯。
             // 之前这里无条件选目标，于是 2.0.0 给它加上感应之后它就开始「飞出去」了（作者反馈过）。
-            this.magnetTarget = this.profile().hasMagnetic()
+            // 【磁性】本趟是否生效 —— 同上，由 rollTraitsOnce() 掷定
+        this.magnetTarget = this.profile().hasMagnetic() && this.traitFired(TRAIT_MAGNETIC)
                     ? BallProspecting.bestMagnetTarget(serverLevel, this.position(), this.nearbyOres, candidates)
                     : null;
         }
@@ -2705,10 +2821,8 @@ public class BallProjectile extends ThrowableItemProjectile {
         }
 
         // 【融化】触发概率（当前 100% 必触发；以后调这个常量即可）
-        if (this.level().getRandom().nextFloat() < TRAIT_CHANCE_MELT) {
-            if (profile.hasMelt() && this.heat >= profile.meltThreshold()) {
-                this.melt(serverLevel);
-            }
+        if (profile.hasMelt() && this.heat >= profile.meltThreshold()) {
+            this.melt(serverLevel);
         }
 
         // 【引雷】—— 空心铜球：热量攒够阈值就释放一次雷电，并<b>清空自身热量</b>。
@@ -2716,11 +2830,9 @@ public class BallProjectile extends ThrowableItemProjectile {
         // 和【融化】并列放在这里判断 —— 两者都是热量系词条，区别是
         // 融化让自己消失，引雷把自己打出去（球留着，热量清零重新攒）。
         // 【引雷】触发概率（当前 100% 必触发；以后调这个常量即可）
-        if (this.level().getRandom().nextFloat() < TRAIT_CHANCE_THUNDER) {
-            if (profile.hasThunder() && this.heat >= profile.thunderThreshold()) {
-                this.heat = 0;
-                BallThunder.release(serverLevel, this);
-            }
+        if (profile.hasThunder() && this.heat >= profile.thunderThreshold()) {
+            this.heat = 0;
+            BallThunder.release(serverLevel, this);
         }
     }
 
@@ -3045,8 +3157,8 @@ public class BallProjectile extends ThrowableItemProjectile {
         // ⚠️ 不能直接用 damageSources().lightningBolt() —— 那样会把归属丢掉，
         //    于是击杀不计在投掷者头上、仇恨也记到「闪电」身上。
         //    这里用 source(类型, 归属) 两样都保住：伤害类型是闪电，归属仍是投掷者。
-        // 【电击】触发概率（当前 100% 必触发；以后调这个常量即可）
-        if (this.level().getRandom().nextFloat() < TRAIT_CHANCE_SHOCK) {
+        // 【电击】本趟是否生效 —— 由 rollTraitsOnce() 在第一个 tick 掷定
+        if (this.traitFired(TRAIT_SHOCK)) {
             if (this.profile().shockDamage()) {
                 return this.damageSources().source(
                         net.minecraft.world.damagesource.DamageTypes.LIGHTNING_BOLT, owner);
@@ -3076,7 +3188,10 @@ public class BallProjectile extends ThrowableItemProjectile {
         // 放在方法最开头 —— 这里是「球已经飞回主人身上」的那一刻，
         // 也就是作者说的「回收成功」。
         if (this.profile().hasFlag(BallBehavior.BallProfile.FLAG_MAGIC)) {
-            BallMagic.applyToOwner(level, owner);
+            // 【魔法】回收本趟是否生效 —— 由 rollTraitsOnce() 在第一个 tick 掷定
+            if (this.traitFired(TRAIT_MAGIC_RECOVER)) {
+                BallMagic.applyToOwner(level, owner);
+            }
         }
 
         // 作者指定：回归时对主人造成 1 滴血的物理伤害；
@@ -3171,8 +3286,8 @@ public class BallProjectile extends ThrowableItemProjectile {
         //
         // ⚠️ 多重射击的**附属弹不变形**（作者指定）：附属弹连掉落物都没有，
         //    会变成方块反而更奇怪。所以这里把它排除掉。
-        // 【变形】触发概率（当前 100% 必触发；以后调这个常量即可）
-        if (this.level().getRandom().nextFloat() < TRAIT_CHANCE_MORPH) {
+        // 【变形】本趟是否生效 —— 由 rollTraitsOnce() 在第一个 tick 掷定
+        if (this.traitFired(TRAIT_MORPH)) {
             if (!this.multishotSide
                     && profile.morphBlock() != null
                     && this.level() instanceof ServerLevel serverLevel) {

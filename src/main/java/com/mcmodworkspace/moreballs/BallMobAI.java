@@ -100,46 +100,6 @@ public final class BallMobAI {
     // ⚠️ 这里只放「运行期一次性生效」的触发点。生成期配置（携带球、掠夺者标记）、
     //    AI 状态机（幻翼三阶段、烈焰人球袋、苦力怕引信）一律不进闸门 —— 见各处的说明。
 
-    /**
-     * 【接球】的触发概率 —— 控制<strong>怪物接住飞来的球、把球收进手里并开始蓄力反掷</strong>。
-     *
-     * <p>这是<b>最外层</b>闸门：里面本来就有那套「按难度掷概率」
-     * （简单 10% / 普通 25% / 困难 50%，见 {@link #CATCH_CHANCE_EASY}）。
-     * 两层不是一回事 —— 内层管「这次机会里接不接得住」，这一层管「这次接球机会到底给不给」，
-     * 所以即使内层已有概率，外层照样留一道，保持全模组口径统一。</p>
-     *
-     * <p>当前 {@code 1.0F}（100% 必触发）。掷不中时 {@link #tryCatchBall} 返回 false，
-     * 球照常飞走并按命中结算 —— 与加闸门之前「没接住」那条路完全一样。</p>
-     */
-    public static final float TRAIT_CHANCE_CATCH = 1.0F;
-
-    /**
-     * 【捡球】的触发概率 —— 控制<strong>怪物把脚边的球捡进手里</strong>
-     * （飞行中的球实体与掉落物形态各有一处触发，共用这一个常量）。
-     *
-     * <p>同样是最外层闸门：里面还有「每次尝试 4%」（{@link #PICKUP_CHANCE} ×
-     * {@link #PICKUP_TRY_INTERVAL}，烈焰人是 {@link #BLAZE_PICKUP_CHANCE}）。
-     * 当前 {@code 1.0F}（100% 必触发）；掷不中只是这颗不捡，下一轮（2 刻后）照常再掷。</p>
-     */
-    public static final float TRAIT_CHANCE_PICKUP = 1.0F;
-
-    /**
-     * 【金光闪闪】的触发概率 —— 控制<strong>金球进猪灵手时当场结算那次交易</strong>
-     * （特殊交易会一口气给好几次产物，见 {@link PiglinLure}）。
-     *
-     * <p>当前 {@code 1.0F}（100% 必触发）；掷不中时球照样进猪灵的主手，只是不办事。</p>
-     */
-    public static final float TRAIT_CHANCE_GOLD_SHINY = 1.0F;
-
-    /**
-     * 【掠夺者弩弹药】的触发概率 —— 控制<strong>被打上弹药标记的掠夺者射出的箭，
-     * 在加入世界那一刻被换成球</strong>。
-     *
-     * <p>前置条件（{@code BALL_AMMO_MOB} 标记）不受它影响：这一道只管每次射击的替换。
-     * 当前 {@code 1.0F}（100% 必触发）；掷不中时原版那支箭照常留着、照常飞。</p>
-     */
-    public static final float TRAIT_CHANCE_PILLAGER_AMMO = 1.0F;
-
     public static final double PICKUP_RADIUS = 1.5D;
 
     /**
@@ -606,34 +566,31 @@ public final class BallMobAI {
         }
 
         // 【接球】触发概率（当前 100% 必触发；以后调这个常量即可）
-        if (mob.level().getRandom().nextFloat() < TRAIT_CHANCE_CATCH) {
-            float chance = catchChanceFor(mob.level().getDifficulty());
-            if (mob.getRandom().nextFloat() >= chance) {
-                return false;
-            }
-
-            ItemStack stack = ball.getItem().copy();
-            BallItem.stripIntangible(stack);
-            BallItem.applyToughness(stack, ball.getToughness());
-            if (stack.isEmpty()) {
-                return false;
-            }
-            mob.setItemSlot(EquipmentSlot.MAINHAND, stack);
-
-            // 记住是谁扔的，接着蓄力扔回去。
-            // 苦力怕也照设 —— 它本来就会追玩家（原版索敌），这条与它的原版行为一致，
-            // 作者明确要「保留原版的苦力怕所有机制，正常索敌」。
-            if (ball.getOwner() instanceof LivingEntity owner) {
-                mob.setTarget(owner);
-            }
-            // 这一轮怎么蓄交给 tick 里的统一流程掷概率（30/40/20/10）
-            mob.setData(ModAttachments.BALL_CHARGE_END.get(), 0);
-            mob.setData(ModAttachments.BALL_CHARGE_LEVEL.get(), -1);
-
-            ball.discard();
-            return true;
+        float chance = catchChanceFor(mob.level().getDifficulty());
+        if (mob.getRandom().nextFloat() >= chance) {
+            return false;
         }
-        return false;
+
+        ItemStack stack = ball.getItem().copy();
+        BallItem.stripIntangible(stack);
+        BallItem.applyToughness(stack, ball.getToughness());
+        if (stack.isEmpty()) {
+            return false;
+        }
+        mob.setItemSlot(EquipmentSlot.MAINHAND, stack);
+
+        // 记住是谁扔的，接着蓄力扔回去。
+        // 苦力怕也照设 —— 它本来就会追玩家（原版索敌），这条与它的原版行为一致，
+        // 作者明确要「保留原版的苦力怕所有机制，正常索敌」。
+        if (ball.getOwner() instanceof LivingEntity owner) {
+            mob.setTarget(owner);
+        }
+        // 这一轮怎么蓄交给 tick 里的统一流程掷概率（30/40/20/10）
+        mob.setData(ModAttachments.BALL_CHARGE_END.get(), 0);
+        mob.setData(ModAttachments.BALL_CHARGE_LEVEL.get(), -1);
+
+        ball.discard();
+        return true;
     }
 
     /** 各难度下的接球概率 */
@@ -738,10 +695,8 @@ public final class BallMobAI {
                 return;
             }
             // 【捡球】触发概率（当前 100% 必触发；以后调这个常量即可）
-            if (mob.level().getRandom().nextFloat() < TRAIT_CHANCE_PICKUP) {
-                if (mob.getRandom().nextFloat() < pickupChance(mob)) {
-                    pickUpBall(mob, candidate);
-                }
+            if (mob.getRandom().nextFloat() < pickupChance(mob)) {
+                pickUpBall(mob, candidate);
             }
             return;
         }
@@ -749,10 +704,8 @@ public final class BallMobAI {
         ItemEntity droppedNear = droppedNearList.isEmpty() ? null : droppedNearList.get(0);
         if (droppedNear != null) {
             // 【捡球】触发概率（当前 100% 必触发；以后调这个常量即可）
-            if (mob.level().getRandom().nextFloat() < TRAIT_CHANCE_PICKUP) {
-                if (mob.getRandom().nextFloat() < pickupChance(mob)) {
-                    pickUpDroppedBall(mob, droppedNear);
-                }
+            if (mob.getRandom().nextFloat() < pickupChance(mob)) {
+                pickUpDroppedBall(mob, droppedNear);
             }
             return;
         }
@@ -905,8 +858,8 @@ public final class BallMobAI {
         // 没被这颗球打过就是「特殊交易」，一口气给好几次产物（详见 PiglinLure）。
         // 猪灵蛮兵不算 Piglin，这里自然被排除在外：它们只会拿着球，不办事。
         if (BallBehavior.isGoldShiny(stack) && mob instanceof Piglin piglin) {
-            // 【金光闪闪】触发概率（当前 100% 必触发；以后调这个常量即可）
-            if (mob.level().getRandom().nextFloat() < TRAIT_CHANCE_GOLD_SHINY) {
+            // 【金光闪闪】本趟是否生效 —— 由那颗球在第一个 tick 掷定
+            if (source != null && source.traitFired(BallProjectile.TRAIT_GOLD_SHINY)) {
                 boolean special = !Boolean.TRUE.equals(
                         piglin.getExistingDataOrNull(ModAttachments.GOLD_BALL_HURT.get()));
                 PiglinLure.onPiglinPickedUpGoldBall(piglin, source);
@@ -1215,24 +1168,22 @@ public final class BallMobAI {
         }
 
         // 【掠夺者弩弹药】触发概率（当前 100% 必触发；以后调这个常量即可）
-        if (level.getRandom().nextFloat() < TRAIT_CHANCE_PILLAGER_AMMO) {
-            ItemStack ammo = BallBehavior.randomBall(pillager.getRandom());
-            if (ammo.isEmpty()) {
-                return;
-            }
-
-            BallProjectile ball = new BallProjectile(level, pillager, ammo);
-            ball.setPos(arrow.position());
-            ball.setDeltaMovement(arrow.getDeltaMovement());
-            ball.setToughness(BallItem.remainingToughness(ammo, BallBehavior.profileFor(ammo).toughness()));
-            ball.setBounce(BallBehavior.profileFor(ammo).bounce());
-            ball.setFromCrossbow(true);
-            // 弩弹药的伤害按同一套规则：基础伤害 × 2
-            ball.setDamage(BallBehavior.profileFor(ammo).damage() * BallAmmo.AMMO_DAMAGE_MULTIPLIER);
-
-            level.addFreshEntity(ball);
-            event.setCanceled(true); // 原版那支箭不要了
+        ItemStack ammo = BallBehavior.randomBall(pillager.getRandom());
+        if (ammo.isEmpty()) {
+            return;
         }
+
+        BallProjectile ball = new BallProjectile(level, pillager, ammo);
+        ball.setPos(arrow.position());
+        ball.setDeltaMovement(arrow.getDeltaMovement());
+        ball.setToughness(BallItem.remainingToughness(ammo, BallBehavior.profileFor(ammo).toughness()));
+        ball.setBounce(BallBehavior.profileFor(ammo).bounce());
+        ball.setFromCrossbow(true);
+        // 弩弹药的伤害按同一套规则：基础伤害 × 2
+        ball.setDamage(BallBehavior.profileFor(ammo).damage() * BallAmmo.AMMO_DAMAGE_MULTIPLIER);
+
+        level.addFreshEntity(ball);
+        event.setCanceled(true); // 原版那支箭不要了
     }
 
     // ===== 蓄力与投掷 =====

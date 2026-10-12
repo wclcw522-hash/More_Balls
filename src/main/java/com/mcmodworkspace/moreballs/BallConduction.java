@@ -31,15 +31,6 @@ public final class BallConduction {
     /** 导电球的引雷半径（格）—— 作者指定 32 */
     public static final double RADIUS = 32.0;
 
-    /**
-     * 【导电】的触发概率 —— 控制<strong>一次自然闪电被搬到铜球上</strong>的几率。
-     *
-     * <p>掷骰位置在 {@link #onEntityJoin} 里、已经确定「最近的导电球」之后：
-     * 当前 {@code 1.0F}（100% 必触发，与加闸门之前的行为完全一致）。
-     * 作者以后要削弱这个特性只调这一个常量即可；掷不中时闪电留在原落点。</p>
-     */
-    public static final float TRAIT_CHANCE_CONDUCTION = 1.0F;
-
     private BallConduction() {
     }
 
@@ -73,7 +64,7 @@ public final class BallConduction {
         }
 
         // 【导电】触发概率（当前 100% 必触发；以后调这个常量即可）
-        if (level.getRandom().nextFloat() < TRAIT_CHANCE_CONDUCTION) {
+        if (best.traitFired(BallProjectile.TRAIT_CONDUCTION)) {
             // 把落点搬到球身上，然后扣它 1 点耐久
             bolt.setPos(best.getX(), best.getY(), best.getZ());
             best.onStruckByLightning();

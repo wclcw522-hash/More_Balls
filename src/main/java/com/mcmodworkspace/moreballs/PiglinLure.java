@@ -141,23 +141,6 @@ public final class PiglinLure {
     private static final int[] TRADE_WEIGHTS = {40, 20, 10, 8, 5};
 
     /**
-     * 【金光闪闪】捡起金球后触发交易的触发概率 —— 控制
-     * {@link #onPiglinPickedUpGoldBall}（猪灵捡到金球 → 当场交易，含特殊交易那一段）那一处。
-     *
-     * <p><b>当前 1.0F = 100% 必触发</b>；以后想让「捡了球也不一定交易」改这个数即可。</p>
-     */
-    public static final float TRAIT_CHANCE_GOLD_SHINY = 1.0F;
-
-    /**
-     * 【金光闪闪】「伤害不结仇」的触发概率 —— 控制 {@link #forgetAnger}
-     * （金球砸到猪灵 → 抹掉它因这一下起的怒气）那一处。
-     *
-     * <p><b>当前 1.0F = 100% 必触发</b>；调小它等于「有时候还是会记仇」。
-     * 注意它同时管着 {@link #holdGoldBallPeacefully} 那条路径。</p>
-     */
-    public static final float TRAIT_CHANCE_GOLD_SHINY_PEACE = 1.0F;
-
-    /**
      * 特殊交易的产物池 —— 对齐原版猪灵交易的标准产出。
      *
      * <p>⚠️ <b>这里必须是「每次现构造」，不能提成 static final 字段</b>（2026-10-09 踩到的）。</p>
@@ -198,13 +181,10 @@ public final class PiglinLure {
      * 光清 {@code setTarget} 不够 —— 那只是抢它的当前目标，记忆还在，过一刻又会回来。</p>
      */
     public static void forgetAnger(AbstractPiglin piglin) {
-        // 【金光闪闪】不结仇的触发概率（当前 100% 必触发；以后调这个常量即可）
-        if (piglin.getRandom().nextFloat() < TRAIT_CHANCE_GOLD_SHINY_PEACE) {
-            // 清记忆模块本身就是幂等的，不需要先查有没有
-            piglin.getBrain().eraseMemory(MemoryModuleType.ANGRY_AT);
-            piglin.getBrain().eraseMemory(MemoryModuleType.ATTACK_TARGET);
-            piglin.setTarget(null);
-        }
+        // 清记忆模块本身就是幂等的，不需要先查有没有
+        piglin.getBrain().eraseMemory(MemoryModuleType.ANGRY_AT);
+        piglin.getBrain().eraseMemory(MemoryModuleType.ATTACK_TARGET);
+        piglin.setTarget(null);
     }
 
     // ===== 二、被金球吸引 =====
@@ -512,7 +492,7 @@ public final class PiglinLure {
      */
     public static void onPiglinPickedUpGoldBall(Piglin piglin, @Nullable BallProjectile ball) {
         // 【金光闪闪】触发概率（当前 100% 必触发；以后调这个常量即可）
-        if (piglin.getRandom().nextFloat() < TRAIT_CHANCE_GOLD_SHINY) {
+        if (ball != null && ball.traitFired(BallProjectile.TRAIT_GOLD_SHINY)) {
             if (piglin.isBaby()) {
                 return; // 幼小猪灵不交易
             }
