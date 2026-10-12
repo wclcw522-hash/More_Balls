@@ -649,33 +649,6 @@ public final class BallFragments {
         }
         return best;
     }
-    /**
-     * 特性类词条的**触发概率**（作者 2026-10-13 规格）。
-     *
-     * <p>这条概率判定的是「该词条在**接下来的一次投掷/发射**里是否生效」——
-     * 每次发射或掷出前判一次，不是每刻判。切球时按份数均分、组合时累加（封顶 1.0）：</p>
-     * <ul>
-     *   <li>完整球 → {@code 1.0}；半球 → {@code 0.5}；四分之一球 → {@code 0.25}</li>
-     *   <li>二合一（两个半球）→ {@code 0.5 + 0.5 = 1.0}</li>
-     *   <li>四合一（四个四分之一球）→ {@code 0.25 × 4 = 1.0}</li>
-     * </ul>
-     */
-    public static float traitChanceFor(ItemStack stack) {
-        Item item = stack.getItem();
-        if (item == ModItems.BALL_HALF.get()) {
-            return 0.5F;
-        }
-        if (item == ModItems.BALL_QUARTER.get()) {
-            return 0.25F;
-        }
-        if (item == ModItems.COMBO_BALL.get()) {
-            int slots = parseIndexes(stack.getOrDefault(ModComponents.COMBO_SOURCES.get(), "")).size();
-            // 二合一的格子放的是半球（各 0.5），四合一的格子放的是四分之一球（各 0.25）
-            float per = slots <= 2 ? 0.5F : 0.25F;
-            return Math.min(1.0F, per * slots);
-        }
-        return 1.0F;   // 完整球：特性类词条 100% 参与判定
-    }
     /** 数值向下取整（特质原样透传） */
     private static Fragment floor(Fragment f) {
         return new Fragment(

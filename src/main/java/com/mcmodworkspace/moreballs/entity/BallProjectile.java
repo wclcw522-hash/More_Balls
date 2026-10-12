@@ -178,54 +178,93 @@ public class BallProjectile extends ThrowableItemProjectile {
     /** 是否已经为本趟投掷掷过 —— 保证「一次投掷只判一次」。 */
     private boolean traitsRolled;
 
-    /** 这颗球**实际带着**哪些特性（还没掷概率）。 */
+    /** 某个 profile 是否带着这个特性位。 */
+    private static boolean hasTrait(BallBehavior.BallProfile profile, int traitBit) {
+        switch (traitBit) {
+            case TRAIT_KINDNESS:
+                return profile.kindness();
+            case TRAIT_SHOCK:
+                return profile.shockDamage();
+            case TRAIT_MORPH:
+                return profile.morphBlock() != null;
+            case TRAIT_CONDUCTION:
+                return profile.conduction();
+            case TRAIT_ILLUMINATE:
+                return profile.hasFlag(BallBehavior.BallProfile.FLAG_ILLUMINATE);
+            case TRAIT_LENS:
+                return profile.hasFlag(BallBehavior.BallProfile.FLAG_LENS);
+            case TRAIT_MAGIC:
+            case TRAIT_MAGIC_RECOVER:
+            case TRAIT_MAGIC_JACKPOT:
+                return profile.hasFlag(BallBehavior.BallProfile.FLAG_MAGIC);
+            case TRAIT_GOLD_SHINY:
+                return profile.glint();
+            case TRAIT_TRANSMUTE:
+                return profile.transmuteChance() > 0.0F;
+            case TRAIT_PULSE:
+                return profile.hasFlag(BallBehavior.BallProfile.FLAG_PULSE);
+            case TRAIT_MAGNET:
+                return profile.hasMagnet();
+            case TRAIT_MAGNETIC:
+                return profile.hasMagnetic();
+            default:
+                return false;
+        }
+    }
+
+    /** 这颗球实际带着哪些特性（还没掷概率）。 */
     private int ownedTraits() {
-        BallBehavior.BallProfile profile = this.profile();
         int bits = 0;
-        if (profile.kindness()) {
-            bits |= TRAIT_KINDNESS;
-        }
-        if (profile.shockDamage()) {
-            bits |= TRAIT_SHOCK;
-        }
-        if (profile.morphBlock() != null) {
-            bits |= TRAIT_MORPH;
-        }
-        if (profile.conduction()) {
-            bits |= TRAIT_CONDUCTION;
-        }
-        if (profile.hasFlag(BallBehavior.BallProfile.FLAG_ILLUMINATE)) {
-            bits |= TRAIT_ILLUMINATE;
-        }
-        if (profile.hasFlag(BallBehavior.BallProfile.FLAG_LENS)) {
-            bits |= TRAIT_LENS;
-        }
-        if (profile.hasFlag(BallBehavior.BallProfile.FLAG_MAGIC)) {
-            bits |= TRAIT_MAGIC | TRAIT_MAGIC_RECOVER | TRAIT_MAGIC_JACKPOT;
-        }
-        if (profile.glint()) {
-            bits |= TRAIT_GOLD_SHINY;
-        }
-        if (profile.transmuteChance() > 0.0F) {
-            bits |= TRAIT_TRANSMUTE;
-        }
-        if (profile.hasFlag(BallBehavior.BallProfile.FLAG_PULSE)) {
-            bits |= TRAIT_PULSE;
-        }
-        if (profile.hasMagnet()) {
-            bits |= TRAIT_MAGNET;
-        }
-        if (profile.hasMagnetic()) {
-            bits |= TRAIT_MAGNETIC;
+        for (int bit = 0; bit < 16; bit++) {
+            if (hasTrait(this.profile(), 1 << bit)) {
+                bits |= 1 << bit;
+            }
         }
         return bits;
     }
 
     /**
-     * 每趟投掷**只判一次**：把球带着的每个特性各掷一次，结果留在 {@link #firedTraits}。
+     * 某个特性在本趟投掷里的触发概率（作者 2026-10-13 规格）。
      *
-     * <p>概率来自 {@code BallFragments.traitChanceFor} —— 切球按份数均分、组合时累加。</p>
+     * <p>与数值类词条一样，概率随份数携带：完整球 1.0 / 半球 0.5 / 四分之一球 0.25；
+     * 组合球只统计**真正带着这个词条的那些份**，各自 + 本份大小，封顶 1.0。</p>
+     *
+     * <p>例：1 个红石四分之一球 + 3 个没有【脉冲】的 → 【脉冲】25%；
+     * 2 个四分之一球都带 → 50%；4 个都带 → 100%。</p>
      */
+    private float traitChance(int traitBit) {
+        ItemStack stack = this.getItem();
+        Item item = stack.getItem();
+        if (item == ModItems.COMBO_BALL.get()) {
+            List<Integer> indexes = BallFragments.parseIndexes(
+                    stack.getOrDefault(ModComponents.COMBO_SOURCES.get(), ""));
+            float per = indexes.size() <= 2 ? 0.5F : 0.25F;
+            float sum = 0.0F;
+            for (int index : indexes) {
+                if (index < 0 || index >= BallFragments.sources().size()) {
+                    continue;
+                }
+                BallBehavior.BallProfile part =
+                        BallBehavior.profileFor(new ItemStack(BallFragments.sources().get(index)));
+                if (hasTrait(part, traitBit)) {
+                    sum += per;
+                }
+            }
+            return Math.min(1.0F, sum);
+        }
+        if (!hasTrait(this.profile(), traitBit)) {
+            return 0.0F;
+        }
+        if (item == ModItems.BALL_HALF.get()) {
+            return 0.5F;
+        }
+        if (item == ModItems.BALL_QUARTER.get()) {
+            return 0.25F;
+        }
+        return 1.0F;
+    }
+
+    /** 每趟投掷只判一次：每个特性按**它自己的概率**各掷一次。 */
     private void rollTraitsOnce() {
         if (this.traitsRolled) {
             return;
@@ -235,12 +274,15 @@ public class BallProjectile extends ThrowableItemProjectile {
         if (owned == 0) {
             return;
         }
-        float chance = BallFragments.traitChanceFor(this.getItem());
         RandomSource random = this.getRandom();
         int fired = 0;
         for (int bit = 0; bit < 16; bit++) {
             int unit = 1 << bit;
-            if ((owned & unit) != 0 && random.nextFloat() < chance) {
+            if ((owned & unit) == 0) {
+                continue;
+            }
+            float chance = this.traitChance(unit);
+            if (chance > 0.0F && random.nextFloat() < chance) {
                 fired |= unit;
             }
         }
