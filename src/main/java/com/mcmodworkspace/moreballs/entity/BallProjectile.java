@@ -1944,7 +1944,10 @@ public class BallProjectile extends ThrowableItemProjectile {
             if (entity instanceof AbstractPiglin piglin
                     && BallBehavior.isGoldShiny(this.getItem())) {
                 piglin.setData(ModAttachments.GOLD_BALL_HURT.get(), true);
-                // 【金光闪闪】「砸猪灵不结仇」本趟是否生效 —— 由本球在第一个 tick 掷定                 if (this.traitFired(TRAIT_GOLD_SHINY)) {                     PiglinLure.forgetAnger(piglin);                 }
+                // 【金光闪闪】「砸猪灵不结仇」本趟是否生效 —— 由本球在第一个 tick 掷定
+                if (this.traitFired(TRAIT_GOLD_SHINY)) {
+                    PiglinLure.forgetAnger(piglin);
+                }
             }
 
             // 【敌对球 · 蜘蛛系】（作者 2026-10-11 指定）
