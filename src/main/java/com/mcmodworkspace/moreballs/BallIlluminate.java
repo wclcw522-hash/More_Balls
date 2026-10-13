@@ -40,7 +40,7 @@ import java.util.List;
  *
  * <h2>效果：区域内的生物被染色发光</h2>
  * <ul>
- *   <li>每在区内待 <b>1 tick</b>，就叠 <b>1 秒</b>的发光（持续待在区内＝一直亮着）</li>
+ *   <li>每在区内待 <b>1 tick</b>，就叠 <b>2 秒</b>的发光（持续待在区内＝一直亮着）</li>
  *   <li>颜色按阵营区分：<b>友好 → 蓝</b>、<b>中立 → 黄</b>、<b>敌对 / 有仇恨 → 红</b></li>
  *   <li><b>对隐身与穿墙的目标同样有效</b> —— 全程不做视线检测，
  *       只按坐标判是否在锥内，所以躲墙后面、喝了隐身药水都照得出来</li>
@@ -72,7 +72,7 @@ public final class BallIlluminate {
     /** 向下找地面的最大距离 */
     private static final double MAX_GROUND_SEARCH = 48.0D;
 
-    /** 每次叠多少刻的发光（作者指定：1 秒） */
+    /** 每次叠多少刻的发光（作者 2026-10-13 指定翻倍：2 秒） */
     private static final int GLOW_TICKS = 40;
 
     /** 友好阵营的颜色（蓝） */
