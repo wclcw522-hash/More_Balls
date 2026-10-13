@@ -82,7 +82,15 @@ public class BallRenderer extends ThrownItemRenderer<BallProjectile> {
         }
         TidalSurgeModel model = this.surgeModel();
         model.setupAnim(ballState);
+        // ⚠️ 原版那个模型是给**玩家**用的：EntityModel.MODEL_Y_OFFSET = -1.501，
+        //    渲染时会把模型整体下移 1.501 格（从脚底移成「人形」的坐标系）。
+        //    球没有那套变换，直接用就会整个沉到脚下 —— 表现就是作者报的「固定向下」。
+        //    所以这里把那个偏移**加回来**，再缩到球的大小让它贴合球体。
+        poseStack.pushPose();
+        poseStack.translate(0.0F, 1.501F, 0.0F);
+        poseStack.scale(0.30F, 0.30F, 0.30F);
         collector.submitModel(model, ballState, poseStack, TidalSurgeModel.TEXTURE,
                 lightCoords, net.minecraft.client.renderer.texture.OverlayTexture.NO_OVERLAY, 0, null);
+        poseStack.popPose();
     }
 }

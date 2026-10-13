@@ -71,7 +71,7 @@ import net.minecraft.world.level.block.Block;
  * </ul>
  *
  * <h3>④ 布尔 / 位掩码类 —— 按份数携带</h3>
- * <p>变形 / 磁性 / 善良 / 导电 / 电击 / 移形换位 / 潮涌 / 忠诚，以及【脉冲】【照明】【破坏王】【透镜】。</p>
+ * <p>变形 / 磁性 / 善良 / 导电 / 电击 / 移形换位 / 潮涌，以及【脉冲】【照明】【破坏王】【透镜】。</p>
  * <ul>
  *   <li>切开：原样透传（数据要留着，合成了还要数份数）</li>
  *   <li>合成：<b>≥1 份即携带</b> —— 二合一任一份有就带、四合一同样只要 ≥1 份。
@@ -79,7 +79,11 @@ import net.minecraft.world.level.block.Block;
  *       现在一份带着就保留（{@code QUAD_TRAIT_THRESHOLD} 因此已无任何使用点，只留作历史）</li>
  *   <li><b>例外：【金光闪闪】</b>是金球独占 —— <b>不参与合成</b>，被切开就永久失效，
  *       合回去也不能重新获得（作者 2026-10-09 指定）</li>
- * </ul>
+ *   <li><b>例外：【金光闪闪】</b>是金球独占 —— <b>不参与合成</b>，被切开就永久失效，
+ *       合回去也不能重新获得（作者 2026-10-09 指定）</li>
+ *   <li><b>另一条例外：【忠诚】</b>—— 潮汐球独占，作者 2026-10-13 把它归入
+ *       <b>「唯一特殊」</b>这一类：与【金光闪闪】同样的规则，<b>不继承、不参与合成</b>。
+ *       落地在 {@code of()} 硬写 false、{@code comboProfile} 也硬写 false</li> * </ul>
  *
  * <p>实现落点：{@code Fragment.scaled}（按份数缩放）、{@code Fragment.plus}（叠加）、
  * {@code combinePair} / {@code combineQuad}（二合一 / 四合一的份数判定）、
@@ -282,7 +286,7 @@ public final class BallFragments {
          *   <li><b>阈值类</b>（【融化x】【熔融x】【引雷x】）**不缩放**：各份都保留原阈值。
          *       引雷合成取最大值；融化 / 熔融见 {@code withThresholds}
          *       （融化取最低、熔融取最高）。缩放成 30 就永远回不到 120 了。</li>
-         *   <li><b>布尔 / 位掩码类</b>（变形/磁性/善良/导电/电击/移形换位/潮涌/忠诚、
+         *   <li><b>布尔 / 位掩码类</b>（变形/磁性/善良/导电/电击/移形换位/潮涌、
          *       脉冲/照明/破坏王/透镜）原样透传 ——
          *       「要够几份才激活」由 combine* 判定，不在这里动。</li>
          * </ul>
@@ -382,7 +386,7 @@ public final class BallFragments {
                 // 新增：穿透数值 + 位掩码型词条
                 p.penetration(),
                 p.flags(),
-                p.breaker(), p.transpose(), p.tidalSurge(), p.loyalty());
+                p.breaker(), p.transpose(), p.tidalSurge(), false /* 【忠诚】唯一特殊：不继承 */);
     }
 
     // ===== 合成球 =====
@@ -692,9 +696,12 @@ public final class BallFragments {
                 // 份数判定在 combineQuad（transposes >= 1）/ combinePair（plus 取或）里做完了，
                 // 这里只是把结果写回 profile。⚠️ 就是上面警告过的那个坑，别漏这一行。
                 .withTranspose(merged.transpose())
-                // 【潮涌】【忠诚】（同上：份数判定在 combine* 里做完了，这里写回 profile）
+                // 【潮涌】同上：份数判定在 combine* 里做完了，这里写回 profile
                 .withTidalSurge(merged.tidalSurge())
-                .withLoyalty(merged.loyalty());
+                // ⚠️ 【忠诚】是「唯一特殊」类 —— **不参与合成**，和上面【金光闪闪】同样的处理：
+                //    显式写回 false，而不是沿用 merged.loyalty()。组合球永远拿不到忠诚，
+                //    哪怕四份全是潮汐球。
+                .withLoyalty(false);
         return out;
     }
 
