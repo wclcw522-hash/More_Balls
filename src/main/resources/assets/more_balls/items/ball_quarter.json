@@ -80,7 +80,14 @@
           "type": "minecraft:model",
           "model": "more_balls:item/ball_quarter_10"
         }
-      }
+      },
+        {
+          "when": 11,
+          "model": {
+            "type": "minecraft:model",
+            "model": "more_balls:item/ball_quarter_11"
+          }
+        }
     ],
     "fallback": {
       "type": "minecraft:model",
