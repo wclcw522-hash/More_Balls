@@ -4,7 +4,7 @@
   "key": {
     "B": "#more_balls:coral_blocks",
     "C": "#more_balls:coral_plants",
-    "V": "minecraft:conduit"
+    "V": "minecraft:heart_of_the_sea"
   },
   "pattern": [ "CBC", "BVB", "CBC" ],
   "result": { "count": 1, "id": "more_balls:tidal_ball" },
