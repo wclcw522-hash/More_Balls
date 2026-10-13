@@ -125,7 +125,14 @@ public final class BallFragments {
                     //    它的下标是 10 —— 三张 json 下标表（ball_half / ball_quarter /
                     //    combo_ball）也必须同步补 when:10，否则碎片与组合球分片会
                     //    落到 fallback（木球的贴图）。
-                    ModItems.LAPIS_BALL.get());
+                    ModItems.LAPIS_BALL.get(),
+                    // ⚠️ 0.3.6.0 追加的**末影珍珠**（原版物品），同样**只在末尾追加** —— 下标 11。
+                    //    它是原版物品，所以有些东西早就齐了：#more_balls:balls 与
+                    //    balls/solid 标签里都有它、弩的 case 与 crossbow_ball_ender_pearl
+                    //    贴图也早就有了。真正缺的只是「进这张表」这一步。
+                    //    这里写全限定名 —— 本文件其它地方没用到 Items，省得为一个原版
+                    //    常量去动 import 区。
+                    net.minecraft.world.item.Items.ENDER_PEARL);
         }
         return sourcesCache;
     }
@@ -170,7 +177,7 @@ public final class BallFragments {
      */
     public static final List<String> SHORT_NAME =
             List.of("木", "圆石", "铁", "金", "空心铁", "紫水晶", "铜", "空心铜",
-                    "红石", "钻石", "青金石");
+                    "红石", "钻石", "青金石", "末影");
 
     /**
      * 组合球<b>内部 id</b> 里用的短名，与 {@link #sources()} <b>同序、同长度</b>。
@@ -180,7 +187,7 @@ public final class BallFragments {
     public static final List<String> SHORT_ID =
             List.of("wooden", "cobblestone", "iron", "gold", "hollow_iron",
                     "amethyst", "copper", "hollow_copper",
-                    "redstone", "diamond", "lapis");
+                    "redstone", "diamond", "lapis", "ender_pearl");
 
     /** 这颗球在 {@link #sources()} 里的下标；不属于其中就返回 -1（雪球会走到这里） */
     public static int indexOf(Item ball) {
