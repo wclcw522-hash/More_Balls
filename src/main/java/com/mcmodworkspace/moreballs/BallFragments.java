@@ -443,7 +443,7 @@ public final class BallFragments {
                 magnets >= 1,
                 glints >= 1,
                 // 【智慧N】是**带数值**的词条：分量够（≥2 份）才保留，保留时给四份之和
-                (wisdoms >= QUAD_TRAIT_THRESHOLD) ? (int) Math.max(1, Math.floor(sum.wisdom())) : 0,
+                (wisdoms >= 1) ? (int) Math.max(1, Math.floor(sum.wisdom())) : 0,
                 kindnesses >= 1,
                 conductions >= 1,
                 // 【引雷x】是**阈值类特殊**词条（作者 2026-10-10 分类）：
@@ -451,11 +451,11 @@ public final class BallFragments {
                 thunders >= QUAD_TRAIT_THRESHOLD,
                 shocks >= 1,
                 // 【穿透x】数值型：够份数才保留，保留时给四份之和
-                (penetrations >= QUAD_TRAIT_THRESHOLD)
+                (penetrations >= 1)
                         ? (int) Math.floor(sum.penetration()) : 0,
                 flagMask,
                 // 【破坏王N】数值类特性：够份数才激活，激活时四份之和取整
-                (breakers >= QUAD_TRAIT_THRESHOLD)
+                (breakers >= 1)
                         ? (int) Math.floor(sum.breaker()) : 0);
     }
 
