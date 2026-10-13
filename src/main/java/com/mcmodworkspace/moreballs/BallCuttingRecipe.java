@@ -116,6 +116,13 @@ public class BallCuttingRecipe extends StonecutterRecipe {
         if (BallFragments.indexOfBall(input.item().getItem()) < 0) {
             return false;
         }
+        // 【切割门槛】耐久必须 ≥ 80%（作者 2026-10-13 指定）——
+        // 球的耐久记在自定义组件 TOUGHNESS_LEFT 上（不是原版 MAX_DAMAGE），
+        // 所以走 BallItem 的口径；具体算法见 BallItem.canBeCut。
+        // 表现上：耐久条掉到 80% 以下时，这颗球就放不进切石机了。
+        if (!BallItem.canBeCut(input.item())) {
+            return false;
+        }
         return super.matches(input, level);
     }
 

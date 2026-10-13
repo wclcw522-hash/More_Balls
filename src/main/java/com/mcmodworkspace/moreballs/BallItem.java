@@ -80,6 +80,28 @@ public class BallItem extends Item {
      * <p>写满耐久时会把组件<b>移除</b>，让「刚合成的球」与「捡回来的满耐久球」
      * 保持完全一致的组件、可以叠成一堆。</p>
      */
+    /** 切割门槛 —— 耐久必须 ≥ 80%（作者 2026-10-13 指定） */
+    public static final float CUT_TOUGHNESS_RATIO = 0.80F;
+
+    /**
+     * 这颗球现在能不能被切石机切开。
+     *
+     * <p><b>规则</b>（作者 2026-10-13）：<b>任何球只有耐久 ≥ 80% 才能切割</b>。</p>
+     *
+     * <p>口径与耐久条的百分比完全一致（见 {@code getDurabilityBar}）：
+     * 上限取 {@code profile.toughness()}，剩余取 {@code TOUGHNESS_LEFT} 组件。
+     * 上限为 0 的球（不坚固的那几种：雪球系 / 碎片）本来就不在
+     * {@link BallFragments#sources()} 里，这里再挡一次防除零。</p>
+     */
+    public static boolean canBeCut(ItemStack stack) {
+        int max = Math.max(0, BallBehavior.profileFor(stack).toughness());
+        if (max <= 0) {
+            return false;
+        }
+        int left = Math.min(remainingToughness(stack, max), max);
+        return left >= Math.ceil(max * CUT_TOUGHNESS_RATIO);
+    }
+
     public static ItemStack applyToughness(ItemStack stack, int remaining) {
         int value = Math.max(0, remaining);
         int max = maxToughness(stack);
