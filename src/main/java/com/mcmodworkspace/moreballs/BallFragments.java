@@ -591,7 +591,6 @@ public final class BallFragments {
         //    用 1.0 当种子之后，任何**小于 1** 的来源都会被它盖掉（Math.max 取不到）。
         float scale = 0.0F;
         Block morph = null;
-        BallSound sound = null;
         for (BallProfile p : parts) {
             damage += p.damage() * fraction;
             weight += p.weight() * fraction;
@@ -602,10 +601,27 @@ public final class BallFragments {
             if (morph == null) {
                 morph = p.morphBlock();
             }
-            if (sound == null) {
-                sound = p.sound();
+        }
+
+        // ===== 【音效】从各个组件的音效里**随机抽一个**（作者 2026-10-13 指定）=====
+        //
+        // ⚠️ 不能用 Math.random()/RandomSource —— comboProfile 会被**客户端与服务端各自
+        //    算一遍**（tooltip、渲染、AI 全在调它），两边必须抽出同一个音效，否则
+        //    手上显示的音效和实际碰出来的不一样。
+        //    所以种子只由**来源下标**决定：同一颗组合球，在哪端、什么时候算，结果都相同。
+        //
+        //    注：音效为 null 的组件要跳过（BallSound 允许 null 吗？不允许 —— parts 里拿到的
+        //    都是 profile.sound()，DEFAULT 那个是有值的，所以实际不会出现 null；
+        //    这里仍然按「只收集非 null」来写，免得以后有人把 sound 改成可空时静默出错）。
+        List<BallSound> soundPool = new ArrayList<>(parts.size());
+        for (BallProfile p : parts) {
+            if (p.sound() != null && !soundPool.contains(p.sound())) {
+                soundPool.add(p.sound());
             }
         }
+        BallSound sound = soundPool.isEmpty()
+                ? null
+                : soundPool.get(pickSoundIndex(indexes, soundPool.size()));
 
         // 拿第一份当底子再逐项覆盖：这样所有「没列出来的字段」都能保持合法默认值，
         // 不用去猜每个字段的构造函数位置
@@ -688,6 +704,24 @@ public final class BallFragments {
      * <p>【引雷】是阈值型词条 —— 份数够就保留，但阈值本身要沿用真正带它的那颗球的，
      * 不能取第一格（那颗球很可能根本没有引雷）。</p>
      */
+    /**
+     * 用来源下标算一个**稳定**的抽取下标（作者 2026-10-13 的「音效随机抽一个」）。
+     *
+     * <p>「随机」指的是<b>不是固定取第一份</b>，而不是每次调用都变 ——
+     * 组合球的 profile 会被客户端与服务端分别算出来，两边必须一致，
+     * 所以种子只取自来源下标（下标本身又是存档数据，天然稳定）。</p>
+     */
+    private static int pickSoundIndex(List<Integer> indexes, int bound) {
+        if (bound <= 1) {
+            return 0;
+        }
+        int seed = 0;
+        for (int i : indexes) {
+            seed = seed * 31 + i;
+        }
+        return Math.floorMod(seed, bound);
+    }
+
     private static int thunderThresholdFrom(List<BallProfile> parts) {
         int best = BallBehavior.NOT_THUNDER;
         for (BallProfile p : parts) {
