@@ -199,7 +199,7 @@ public final class BallBehavior {
             DEFAULT_SOUND, List.of(), NOT_SENSE, NOT_MELT, NOT_MOLTEN, NOT_MAGNET, null, 1.0F, NOT_TRANSMUTE, false,
             // 2.6.0 新增的五个词条：智慧 / 善良 / 导电 / 引雷阈值 / 电击
             0, false, false, NOT_THUNDER, false,
-            false, 0, 0, NOT_BREAKER);   // glint（【金光闪闪】）、penetration（【穿透】）、flags（位掩码）、breaker（【破坏王N】）—— 默认都是关的
+            false, 0, 0, NOT_BREAKER, false);   // glint（【金光闪闪】）、penetration（【穿透】）、flags（位掩码）、breaker（【破坏王N】）—— 默认都是关的
 
     /**
      * 坚固值的「相加」——<b>哨兵值不参与算术</b>。
@@ -241,7 +241,11 @@ public final class BallBehavior {
         override(Items.SNOWBALL, DEFAULT
                 .withRarity(20)
                 .withMelt(DEFAULT_MELT_THRESHOLD));
-        override(Items.ENDER_PEARL, DEFAULT.withRarity(1));
+        // 【移形换位】（「其它特殊」类，作者 2026-10-13 指定）——
+        // 珍珠击中其它生物时与它换位，原有的瞬移效果保留。实现见 entity/BallEnderpearl。
+        override(Items.ENDER_PEARL, DEFAULT
+                .withRarity(1)
+                .withTranspose(true));
 
         // ===== 本模组物品：木球 =====
         override(ModItems.WOODEN_BALL.get(), DEFAULT
@@ -692,7 +696,17 @@ public final class BallBehavior {
              * <p>⚠️ 它是**数值类特性词条**（作者 2026-10-10 的分类），不是位开关 ——
              * 切开要均分、合成要激活后相加取整。所以单独立字段，不塞进 {@code flags}。</p>
              */
-            int breaker) {
+            int breaker,
+            /**
+             * 【移形换位】（原版 0.3.6.0 加入，末影珍珠专属）—— 珍珠击中其它生物时与它换位。
+             *
+             * <p>⚠️ 它属于**「其它特殊」类**（作者 2026-10-13 指定）：切开<b>原样透传</b>、
+             * 合成时 **≥1 份即携带**（不再需要激活）。</p>
+             *
+             * <p>字段**追加在末尾** —— record 加分量会牵动所有 {@code withXxx} 与
+             * {@link #DEFAULT}，所以只往末尾加，不动既有顺序。</p>
+             */
+            boolean transpose) {
 
         // ===== 新词条开关位（2026-10-10 加） =====
         /** 【脉冲】红石球 —— 命中时对周围金属目标施加「震荡」 */
@@ -743,22 +757,22 @@ public final class BallBehavior {
 
         public BallProfile withDamage(float value) {
             return new BallProfile(value, cooldownTicks, velocity, inaccuracy, weight, toughness,
-                    bounce, chargeLevels, rarity, sound, drops, sense, meltThreshold, moltenThreshold, magnetRadius, morphBlock, entityScale, transmuteChance, magnetic, wisdom, kindness, conduction, thunderThreshold, shockDamage, glint, penetration, flags, breaker);
+                    bounce, chargeLevels, rarity, sound, drops, sense, meltThreshold, moltenThreshold, magnetRadius, morphBlock, entityScale, transmuteChance, magnetic, wisdom, kindness, conduction, thunderThreshold, shockDamage, glint, penetration, flags, breaker, transpose);
         }
 
         public BallProfile withCooldown(int value) {
             return new BallProfile(damage, value, velocity, inaccuracy, weight, toughness,
-                    bounce, chargeLevels, rarity, sound, drops, sense, meltThreshold, moltenThreshold, magnetRadius, morphBlock, entityScale, transmuteChance, magnetic, wisdom, kindness, conduction, thunderThreshold, shockDamage, glint, penetration, flags, breaker);
+                    bounce, chargeLevels, rarity, sound, drops, sense, meltThreshold, moltenThreshold, magnetRadius, morphBlock, entityScale, transmuteChance, magnetic, wisdom, kindness, conduction, thunderThreshold, shockDamage, glint, penetration, flags, breaker, transpose);
         }
 
         public BallProfile withVelocity(float value) {
             return new BallProfile(damage, cooldownTicks, value, inaccuracy, weight, toughness,
-                    bounce, chargeLevels, rarity, sound, drops, sense, meltThreshold, moltenThreshold, magnetRadius, morphBlock, entityScale, transmuteChance, magnetic, wisdom, kindness, conduction, thunderThreshold, shockDamage, glint, penetration, flags, breaker);
+                    bounce, chargeLevels, rarity, sound, drops, sense, meltThreshold, moltenThreshold, magnetRadius, morphBlock, entityScale, transmuteChance, magnetic, wisdom, kindness, conduction, thunderThreshold, shockDamage, glint, penetration, flags, breaker, transpose);
         }
 
         public BallProfile withInaccuracy(float value) {
             return new BallProfile(damage, cooldownTicks, velocity, value, weight, toughness,
-                    bounce, chargeLevels, rarity, sound, drops, sense, meltThreshold, moltenThreshold, magnetRadius, morphBlock, entityScale, transmuteChance, magnetic, wisdom, kindness, conduction, thunderThreshold, shockDamage, glint, penetration, flags, breaker);
+                    bounce, chargeLevels, rarity, sound, drops, sense, meltThreshold, moltenThreshold, magnetRadius, morphBlock, entityScale, transmuteChance, magnetic, wisdom, kindness, conduction, thunderThreshold, shockDamage, glint, penetration, flags, breaker, transpose);
         }
 
         /**
@@ -772,7 +786,7 @@ public final class BallBehavior {
             float speed = BASE_LAUNCH_SPEED - (value - BallWeight.BASELINE);
             return new BallProfile(damage, cooldownTicks, speed, inaccuracy, value, toughness,
                     bounce, chargeLevels, rarity, sound, drops, sense, meltThreshold, moltenThreshold, magnetRadius,
-                    morphBlock, entityScale, transmuteChance, magnetic, wisdom, kindness, conduction, thunderThreshold, shockDamage, glint, penetration, flags, breaker);
+                    morphBlock, entityScale, transmuteChance, magnetic, wisdom, kindness, conduction, thunderThreshold, shockDamage, glint, penetration, flags, breaker, transpose);
         }
 
         /** 【初速度】—— 由重量推出来的基础数值，基准 10 对应雪球（重量 4） */
@@ -791,25 +805,25 @@ public final class BallBehavior {
         /** {@link #NOT_TOUGH}（默认）、{@link #TOUGH_FOREVER} 或可反弹次数 */
         public BallProfile withToughness(int value) {
             return new BallProfile(damage, cooldownTicks, velocity, inaccuracy, weight, value,
-                    bounce, chargeLevels, rarity, sound, drops, sense, meltThreshold, moltenThreshold, magnetRadius, morphBlock, entityScale, transmuteChance, magnetic, wisdom, kindness, conduction, thunderThreshold, shockDamage, glint, penetration, flags, breaker);
+                    bounce, chargeLevels, rarity, sound, drops, sense, meltThreshold, moltenThreshold, magnetRadius, morphBlock, entityScale, transmuteChance, magnetic, wisdom, kindness, conduction, thunderThreshold, shockDamage, glint, penetration, flags, breaker, transpose);
         }
 
         /** 弹射 0–10：反弹后速度保留 (value×10)%，只对坚固球有意义 */
         public BallProfile withBounce(int value) {
             return new BallProfile(damage, cooldownTicks, velocity, inaccuracy, weight, toughness,
-                    value, chargeLevels, rarity, sound, drops, sense, meltThreshold, moltenThreshold, magnetRadius, morphBlock, entityScale, transmuteChance, magnetic, wisdom, kindness, conduction, thunderThreshold, shockDamage, glint, penetration, flags, breaker);
+                    value, chargeLevels, rarity, sound, drops, sense, meltThreshold, moltenThreshold, magnetRadius, morphBlock, entityScale, transmuteChance, magnetic, wisdom, kindness, conduction, thunderThreshold, shockDamage, glint, penetration, flags, breaker, transpose);
         }
 
         /** 可蓄力等级；0 表示不能蓄力 */
         public BallProfile withChargeLevels(int value) {
             return new BallProfile(damage, cooldownTicks, velocity, inaccuracy, weight, toughness,
-                    bounce, value, rarity, sound, drops, sense, meltThreshold, moltenThreshold, magnetRadius, morphBlock, entityScale, transmuteChance, magnetic, wisdom, kindness, conduction, thunderThreshold, shockDamage, glint, penetration, flags, breaker);
+                    bounce, value, rarity, sound, drops, sense, meltThreshold, moltenThreshold, magnetRadius, morphBlock, entityScale, transmuteChance, magnetic, wisdom, kindness, conduction, thunderThreshold, shockDamage, glint, penetration, flags, breaker, transpose);
         }
 
         /** 稀有度权重：越大越容易在随机抽取里出现 */
         public BallProfile withRarity(int value) {
             return new BallProfile(damage, cooldownTicks, velocity, inaccuracy, weight, toughness,
-                    bounce, chargeLevels, value, sound, drops, sense, meltThreshold, moltenThreshold, magnetRadius, morphBlock, entityScale, transmuteChance, magnetic, wisdom, kindness, conduction, thunderThreshold, shockDamage, glint, penetration, flags, breaker);
+                    bounce, chargeLevels, value, sound, drops, sense, meltThreshold, moltenThreshold, magnetRadius, morphBlock, entityScale, transmuteChance, magnetic, wisdom, kindness, conduction, thunderThreshold, shockDamage, glint, penetration, flags, breaker, transpose);
         }
 
         /** 只用材质音效组（音量保持 1.0） */
@@ -820,13 +834,13 @@ public final class BallBehavior {
         /** 完整音效配置：材质 / 音量 / 指定音效 */
         public BallProfile withSound(BallSound value) {
             return new BallProfile(damage, cooldownTicks, velocity, inaccuracy, weight, toughness,
-                    bounce, chargeLevels, rarity, value, drops, sense, meltThreshold, moltenThreshold, magnetRadius, morphBlock, entityScale, transmuteChance, magnetic, wisdom, kindness, conduction, thunderThreshold, shockDamage, glint, penetration, flags, breaker);
+                    bounce, chargeLevels, rarity, value, drops, sense, meltThreshold, moltenThreshold, magnetRadius, morphBlock, entityScale, transmuteChance, magnetic, wisdom, kindness, conduction, thunderThreshold, shockDamage, glint, penetration, flags, breaker, transpose);
         }
 
         /** 碎裂掉落（可多层，每层独立掷概率） */
         public BallProfile withDrops(List<BallDrop> value) {
             return new BallProfile(damage, cooldownTicks, velocity, inaccuracy, weight, toughness,
-                    bounce, chargeLevels, rarity, sound, value, sense, meltThreshold, moltenThreshold, magnetRadius, morphBlock, entityScale, transmuteChance, magnetic, wisdom, kindness, conduction, thunderThreshold, shockDamage, glint, penetration, flags, breaker);
+                    bounce, chargeLevels, rarity, sound, value, sense, meltThreshold, moltenThreshold, magnetRadius, morphBlock, entityScale, transmuteChance, magnetic, wisdom, kindness, conduction, thunderThreshold, shockDamage, glint, penetration, flags, breaker, transpose);
         }
 
         /**
@@ -838,7 +852,7 @@ public final class BallBehavior {
          */
         public BallProfile withSense(int value) {
             return new BallProfile(damage, cooldownTicks, velocity, inaccuracy, weight, toughness,
-                    bounce, chargeLevels, rarity, sound, drops, value, meltThreshold, moltenThreshold, magnetRadius, morphBlock, entityScale, transmuteChance, magnetic, wisdom, kindness, conduction, thunderThreshold, shockDamage, glint, penetration, flags, breaker);
+                    bounce, chargeLevels, rarity, sound, drops, value, meltThreshold, moltenThreshold, magnetRadius, morphBlock, entityScale, transmuteChance, magnetic, wisdom, kindness, conduction, thunderThreshold, shockDamage, glint, penetration, flags, breaker, transpose);
         }
 
         /**
@@ -849,7 +863,7 @@ public final class BallBehavior {
          */
         public BallProfile withMelt(int value) {
             return new BallProfile(damage, cooldownTicks, velocity, inaccuracy, weight, toughness,
-                    bounce, chargeLevels, rarity, sound, drops, sense, value, moltenThreshold, magnetRadius, morphBlock, entityScale, transmuteChance, magnetic, wisdom, kindness, conduction, thunderThreshold, shockDamage, glint, penetration, flags, breaker);
+                    bounce, chargeLevels, rarity, sound, drops, sense, value, moltenThreshold, magnetRadius, morphBlock, entityScale, transmuteChance, magnetic, wisdom, kindness, conduction, thunderThreshold, shockDamage, glint, penetration, flags, breaker, transpose);
         }
 
         /**
@@ -862,7 +876,7 @@ public final class BallBehavior {
         public BallProfile withMagnet(double radius) {
             return new BallProfile(damage, cooldownTicks, velocity, inaccuracy, weight, toughness,
                     bounce, chargeLevels, rarity, sound, drops, sense, meltThreshold, moltenThreshold, radius,
-                    morphBlock, entityScale, transmuteChance, magnetic, wisdom, kindness, conduction, thunderThreshold, shockDamage, glint, penetration, flags, breaker);
+                    morphBlock, entityScale, transmuteChance, magnetic, wisdom, kindness, conduction, thunderThreshold, shockDamage, glint, penetration, flags, breaker, transpose);
         }
 
         /**
@@ -873,7 +887,7 @@ public final class BallBehavior {
          */
         public BallProfile withMolten(int value) {
             return new BallProfile(damage, cooldownTicks, velocity, inaccuracy, weight, toughness,
-                    bounce, chargeLevels, rarity, sound, drops, sense, meltThreshold, value, magnetRadius, morphBlock, entityScale, transmuteChance, magnetic, wisdom, kindness, conduction, thunderThreshold, shockDamage, glint, penetration, flags, breaker);
+                    bounce, chargeLevels, rarity, sound, drops, sense, meltThreshold, value, magnetRadius, morphBlock, entityScale, transmuteChance, magnetic, wisdom, kindness, conduction, thunderThreshold, shockDamage, glint, penetration, flags, breaker, transpose);
         }
 
         /**
@@ -893,7 +907,7 @@ public final class BallBehavior {
          */
         public BallProfile withMagnetic(boolean value) {
             return new BallProfile(damage, cooldownTicks, velocity, inaccuracy, weight, toughness,
-                    bounce, chargeLevels, rarity, sound, drops, sense, meltThreshold, moltenThreshold, magnetRadius, morphBlock, entityScale, transmuteChance, value, wisdom, kindness, conduction, thunderThreshold, shockDamage, glint, penetration, flags, breaker);
+                    bounce, chargeLevels, rarity, sound, drops, sense, meltThreshold, moltenThreshold, magnetRadius, morphBlock, entityScale, transmuteChance, value, wisdom, kindness, conduction, thunderThreshold, shockDamage, glint, penetration, flags, breaker, transpose);
         }
 
         /**
@@ -905,14 +919,14 @@ public final class BallBehavior {
         public BallProfile withMorph(Block block) {
             return new BallProfile(damage, cooldownTicks, velocity, inaccuracy, weight, toughness,
                     bounce, chargeLevels, rarity, sound, drops, sense, meltThreshold, moltenThreshold, magnetRadius,
-                    block, entityScale, transmuteChance, magnetic, wisdom, kindness, conduction, thunderThreshold, shockDamage, glint, penetration, flags, breaker);
+                    block, entityScale, transmuteChance, magnetic, wisdom, kindness, conduction, thunderThreshold, shockDamage, glint, penetration, flags, breaker, transpose);
         }
 
         /** 实体渲染尺寸倍率（1.0 = 基准球）；金球是「一格内切球<b>的一半</b>」，所以调得比较大 */
         public BallProfile withEntityScale(float scale) {
             return new BallProfile(damage, cooldownTicks, velocity, inaccuracy, weight, toughness,
                     bounce, chargeLevels, rarity, sound, drops, sense, meltThreshold, moltenThreshold, magnetRadius,
-                    morphBlock, scale, transmuteChance, magnetic, wisdom, kindness, conduction, thunderThreshold, shockDamage, glint, penetration, flags, breaker);
+                    morphBlock, scale, transmuteChance, magnetic, wisdom, kindness, conduction, thunderThreshold, shockDamage, glint, penetration, flags, breaker, transpose);
         }
 
         /**
@@ -924,7 +938,7 @@ public final class BallBehavior {
         public BallProfile withTransmute(float chance) {
             return new BallProfile(damage, cooldownTicks, velocity, inaccuracy, weight, toughness,
                     bounce, chargeLevels, rarity, sound, drops, sense, meltThreshold, moltenThreshold, magnetRadius,
-                    morphBlock, entityScale, chance, magnetic, wisdom, kindness, conduction, thunderThreshold, shockDamage, glint, penetration, flags, breaker);
+                    morphBlock, entityScale, chance, magnetic, wisdom, kindness, conduction, thunderThreshold, shockDamage, glint, penetration, flags, breaker, transpose);
         }
 
         // ===== 2.6.0 新增的五个词条（作者 2026-10-07 指定）=====
@@ -938,21 +952,21 @@ public final class BallBehavior {
         public BallProfile withWisdom(int value) {
             return new BallProfile(damage, cooldownTicks, velocity, inaccuracy, weight, toughness,
                     bounce, chargeLevels, rarity, sound, drops, sense, meltThreshold, moltenThreshold, magnetRadius,
-                    morphBlock, entityScale, transmuteChance, magnetic, value, kindness, conduction, thunderThreshold, shockDamage, glint, penetration, flags, breaker);
+                    morphBlock, entityScale, transmuteChance, magnetic, value, kindness, conduction, thunderThreshold, shockDamage, glint, penetration, flags, breaker, transpose);
         }
 
         /** 【善良】—— 不会伤害友好与中立生物；命中这类生物时原样反弹，不结算伤害 */
         public BallProfile withKindness(boolean value) {
             return new BallProfile(damage, cooldownTicks, velocity, inaccuracy, weight, toughness,
                     bounce, chargeLevels, rarity, sound, drops, sense, meltThreshold, moltenThreshold, magnetRadius,
-                    morphBlock, entityScale, transmuteChance, magnetic, wisdom, value, conduction, thunderThreshold, shockDamage, glint, penetration, flags, breaker);
+                    morphBlock, entityScale, transmuteChance, magnetic, wisdom, value, conduction, thunderThreshold, shockDamage, glint, penetration, flags, breaker, transpose);
         }
 
         /** 【导电】—— 处于实体状态时像避雷针一样让自然闪电优先击中自己；每次被劈消耗 1 点耐久 */
         public BallProfile withConduction(boolean value) {
             return new BallProfile(damage, cooldownTicks, velocity, inaccuracy, weight, toughness,
                     bounce, chargeLevels, rarity, sound, drops, sense, meltThreshold, moltenThreshold, magnetRadius,
-                    morphBlock, entityScale, transmuteChance, magnetic, wisdom, kindness, value, thunderThreshold, shockDamage, glint, penetration, flags, breaker);
+                    morphBlock, entityScale, transmuteChance, magnetic, wisdom, kindness, value, thunderThreshold, shockDamage, glint, penetration, flags, breaker, transpose);
         }
 
         /**
@@ -963,7 +977,7 @@ public final class BallBehavior {
         public BallProfile withThunder(int threshold) {
             return new BallProfile(damage, cooldownTicks, velocity, inaccuracy, weight, toughness,
                     bounce, chargeLevels, rarity, sound, drops, sense, meltThreshold, moltenThreshold, magnetRadius,
-                    morphBlock, entityScale, transmuteChance, magnetic, wisdom, kindness, conduction, threshold, shockDamage, glint, penetration, flags, breaker);
+                    morphBlock, entityScale, transmuteChance, magnetic, wisdom, kindness, conduction, threshold, shockDamage, glint, penetration, flags, breaker, transpose);
         }
 
         /** 【引雷】是否具备 */
@@ -991,14 +1005,14 @@ public final class BallBehavior {
                 bounce, chargeLevels, rarity, sound, drops, sense, meltThreshold, moltenThreshold,
                 magnetRadius, morphBlock, entityScale, transmuteChance, magnetic, wisdom,
                 kindness, conduction, thunderThreshold, shockDamage, glint, penetration,
-                flags, value);
+                flags, value, transpose);
     }
 
     public BallProfile withPenetration(int value) {
             return new BallProfile(damage, cooldownTicks, velocity, inaccuracy, weight, toughness,
                     bounce, chargeLevels, rarity, sound, drops, sense, meltThreshold, moltenThreshold, magnetRadius,
                     morphBlock, entityScale, transmuteChance, magnetic, wisdom, kindness, conduction,
-                    thunderThreshold, shockDamage, glint, value, flags, breaker);
+                    thunderThreshold, shockDamage, glint, value, flags, breaker, transpose);
         }
 
         /** 整体覆盖 flags —— 组合球合成时要「按份数判定后的结果」写回去，不能用 withFlag 的「或」 */
@@ -1007,7 +1021,7 @@ public final class BallBehavior {
                 bounce, chargeLevels, rarity, sound, drops, sense, meltThreshold, moltenThreshold,
                 magnetRadius, morphBlock, entityScale, transmuteChance, magnetic, wisdom,
                 kindness, conduction, thunderThreshold, shockDamage, glint, penetration,
-                newFlags, breaker);
+                newFlags, breaker, transpose);
     }
 
     /** 加一个词条开关（按位或） */
@@ -1015,20 +1029,28 @@ public final class BallBehavior {
             return new BallProfile(damage, cooldownTicks, velocity, inaccuracy, weight, toughness,
                     bounce, chargeLevels, rarity, sound, drops, sense, meltThreshold, moltenThreshold, magnetRadius,
                     morphBlock, entityScale, transmuteChance, magnetic, wisdom, kindness, conduction,
-                    thunderThreshold, shockDamage, glint, penetration, flags | flag, breaker);
+                    thunderThreshold, shockDamage, glint, penetration, flags | flag, breaker, transpose);
         }
 
         public BallProfile withGlint(boolean value) {
             return new BallProfile(damage, cooldownTicks, velocity, inaccuracy, weight, toughness,
                     bounce, chargeLevels, rarity, sound, drops, sense, meltThreshold, moltenThreshold, magnetRadius,
                     morphBlock, entityScale, transmuteChance, magnetic, wisdom, kindness, conduction,
-                    thunderThreshold, shockDamage, value, penetration, flags, breaker);
+                    thunderThreshold, shockDamage, value, penetration, flags, breaker, transpose);
         }
         /** 【电击】—— 这颗球直接造成的伤害改成<b>闪电类型</b>（数值不变，只换伤害类型） */
         public BallProfile withShockDamage(boolean value) {
             return new BallProfile(damage, cooldownTicks, velocity, inaccuracy, weight, toughness,
                     bounce, chargeLevels, rarity, sound, drops, sense, meltThreshold, moltenThreshold, magnetRadius,
-                    morphBlock, entityScale, transmuteChance, magnetic, wisdom, kindness, conduction, thunderThreshold, value, glint, penetration, flags, breaker);
+                    morphBlock, entityScale, transmuteChance, magnetic, wisdom, kindness, conduction, thunderThreshold, value, glint, penetration, flags, breaker, transpose);
         }
-    }
+
+
+        /** 【移形换位】—— 珍珠击中其它生物时与它换位（「其它特殊」类：切开透传、合成 ≥1 份即携带） */
+        public BallProfile withTranspose(boolean value) {
+            return new BallProfile(damage, cooldownTicks, velocity, inaccuracy, weight, toughness,
+                    bounce, chargeLevels, rarity, sound, drops, sense, meltThreshold, moltenThreshold, magnetRadius,
+                    morphBlock, entityScale, transmuteChance, magnetic, wisdom, kindness, conduction,
+                    thunderThreshold, shockDamage, glint, penetration, flags, breaker, value);
+        }    }
 }

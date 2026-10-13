@@ -237,6 +237,7 @@ public final class BallFragments {
      * @param penetration 【穿透N】（数值特性）
      * @param flags     位掩码型词条（脉冲 / 照明 / 透镜）
      * @param breaker   【破坏王N】（数值特性：切开均分、激活后相加取整）
+     * @param transpose 【移形换位】特质（其它特殊类：切开原样透传、合成 ≥1 份即携带）
      */
     public record Fragment(double toughness, double sense, double melt, double molten,
                            double magnet, double transmute,
@@ -247,10 +248,16 @@ public final class BallFragments {
                            boolean thunder, boolean shock,
                            double penetration, int flags,
                            /** 【破坏王N】—— 数值类特性词条：切开均分、激活后相加取整（同样保留小数） */
-                           double breaker) {
+                           double breaker,
+                           /**
+                            * 【移形换位】（原版 0.3.6.0 加入）—— 「其它特殊」类：
+                            * 切开<b>原样透传</b>、合成时 **≥1 份即携带**（和其它特殊类一致，
+                            * 不再需要激活）。字段**追加在末尾**，不动既有分量的顺序。
+                            */
+                           boolean transpose) {
 
         public static final Fragment EMPTY =
-                new Fragment(0, 0, 0, 0, 0, 0, false, false, false, 0, false, false, false, false, 0, 0, 0);
+                new Fragment(0, 0, 0, 0, 0, 0, false, false, false, 0, false, false, false, false, 0, 0, 0, false);
 
         /**
          * 按分数缩放一份词条（半球 0.5、四分之一球 0.25）。
@@ -262,7 +269,8 @@ public final class BallFragments {
          *   <li><b>阈值类</b>（【融化x】【熔融x】【引雷x】）**不缩放**：各份都保留原阈值。
          *       引雷合成取最大值；融化 / 熔融见 {@code withThresholds}
          *       （融化取最低、熔融取最高）。缩放成 30 就永远回不到 120 了。</li>
-         *   <li><b>布尔 / 位掩码类</b>（变形/磁性/善良/导电/电击、脉冲/照明/破坏王/透镜）原样透传 ——
+         *   <li><b>布尔 / 位掩码类</b>（变形/磁性/善良/导电/电击/移形换位、
+         *       脉冲/照明/破坏王/透镜）原样透传 ——
          *       「要够几份才激活」由 combine* 判定，不在这里动。</li>
          * </ul>
          */
@@ -282,7 +290,9 @@ public final class BallFragments {
                     penetration * factor,
                     flags,
                     // 【破坏王N】数值类**特性**：切开均分（够不够份数由 combine* 判），同样不取整
-                    breaker * factor);
+                    breaker * factor,
+                    // 【移形换位】布尔类：原样透传
+                    transpose);
         }
 
         /** 叠加 —— 数值相加，特质取「出现过」 */
@@ -299,7 +309,9 @@ public final class BallFragments {
                     // 位掩码型词条（【脉冲】【照明】【透镜】）取并集
                     flags | other.flags,
                     // 【破坏王N】数值类特性：相加（够不够份数由 combine* 判）
-                    breaker + other.breaker);
+                    breaker + other.breaker,
+                    // 【移形换位】布尔类：取或
+                    transpose || other.transpose);
         }
     }
 
@@ -355,7 +367,7 @@ public final class BallFragments {
                 // 新增：穿透数值 + 位掩码型词条
                 p.penetration(),
                 p.flags(),
-                p.breaker());
+                p.breaker(), p.transpose());
     }
 
     // ===== 合成球 =====
@@ -401,7 +413,7 @@ public final class BallFragments {
                 out.magnet(), out.transmute(),
                 out.morph(), out.magnetic(), out.glint(),
                 out.wisdom(), out.kindness(), out.conduction(), out.thunder(), out.shock(),
-                out.penetration(), out.flags(), out.breaker());
+                out.penetration(), out.flags(), out.breaker(), out.transpose());
     }
 
     /**
@@ -427,6 +439,8 @@ public final class BallFragments {
                 + (c.penetration() > 0 ? 1 : 0) + (d.penetration() > 0 ? 1 : 0);
         int breakers = (a.breaker() > 0 ? 1 : 0) + (b.breaker() > 0 ? 1 : 0)
                 + (c.breaker() > 0 ? 1 : 0) + (d.breaker() > 0 ? 1 : 0);
+        int transposes = (a.transpose() ? 1 : 0) + (b.transpose() ? 1 : 0)
+                + (c.transpose() ? 1 : 0) + (d.transpose() ? 1 : 0);
         // 位掩码型词条：【脉冲】【照明】【破坏王】【透镜】
         // 特性类词条**不再需要激活**（作者 2026-10-13）：只要有一份带着，四合一就保留它 ——
         // 逐位统计份数，各自判一次
@@ -463,7 +477,7 @@ public final class BallFragments {
                 flagMask,
                 // 【破坏王N】数值类特性：够份数才激活，激活时四份之和取整
                 (breakers >= 1)
-                        ? (int) Math.floor(sum.breaker()) : 0);
+                        ? (int) Math.floor(sum.breaker()) : 0, transposes >= 1);
     }
 
     /**
@@ -637,7 +651,11 @@ public final class BallFragments {
         out = out
                 .withPenetration((int) merged.penetration())
                 .withFlags(merged.flags())
-                .withBreaker((int) merged.breaker());
+                .withBreaker((int) merged.breaker())
+                // 【移形换位】（「其它特殊」类）：切开原样透传、合成 ≥1 份即携带 ——
+                // 份数判定在 combineQuad（transposes >= 1）/ combinePair（plus 取或）里做完了，
+                // 这里只是把结果写回 profile。⚠️ 就是上面警告过的那个坑，别漏这一行。
+                .withTranspose(merged.transpose());
         return out;
     }
 
@@ -665,7 +683,7 @@ public final class BallFragments {
                 f.morph(), f.magnetic(), f.glint(),
                 // 数值类特性（【智慧N】【穿透N】【破坏王N】）现在都是 double，二合一同样要向下取整
                 Math.floor(f.wisdom()), f.kindness(), f.conduction(), f.thunder(), f.shock(),
-                Math.floor(f.penetration()), f.flags(), Math.floor(f.breaker()));
+                Math.floor(f.penetration()), f.flags(), Math.floor(f.breaker()), f.transpose());
     }
 
     // ===== 组件 ↔ 下标列表 =====
