@@ -303,6 +303,18 @@ public final class BallTooltip {
                     line("tooltip.more_balls.desc.transpose")));
         }
 
+        // 【潮涌】—— 潮汐球：入水后不受重力、速度 ×3，并环绕激流的纹理特效
+        if (profile.tidalSurge()) {
+            out.add(Entry.of(line("tooltip.more_balls.entry.tidal_surge"), Kind.TRAIT,
+                    line("tooltip.more_balls.desc.tidal_surge")));
+        }
+
+        // 【忠诚】—— 潮汐球：永远带忠诚附魔，且不会被任何生物捡走
+        if (profile.loyalty()) {
+            out.add(Entry.of(line("tooltip.more_balls.entry.loyalty"), Kind.TRAIT,
+                    line("tooltip.more_balls.desc.loyalty")));
+        }
+
         // ===== 更早批次：【感应】自 2.0.0 起就有（渲染代码排在此处）=====
 
         // 【感应】—— 底层词条，不带数字即 1 级（【感应】与【感应1】是一回事）；
