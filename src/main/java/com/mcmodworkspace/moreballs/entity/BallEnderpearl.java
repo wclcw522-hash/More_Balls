@@ -48,7 +48,44 @@ public class BallEnderpearl extends ThrownEnderpearl {
         if (this.level() instanceof ServerLevel serverLevel) {
             entity.hurtServer(serverLevel, this.damageSources().thrown(this, this.getOwner()), AMMO_DAMAGE);
         }
+
+        // ===== 【移形换位】（「其它特殊」类，作者 2026-10-13 指定）=====
+        //
+        // 带这个词条时：珍珠击中**其它生物** → 与该生物**交换位置**（原有瞬移照旧保留）。
+        //
+        // 做法分三步，顺序不能颠倒：
+        //   ① 先记下射手**当前**的位置
+        //   ② 走 super —— 父类会把射手瞬移到珍珠落点（也就是目标身边）
+        //   ③ 再把目标送回「射手原来站的地方」
+        // 净效果就是两者互换。反过来先搬目标的话，父类之后又会把射手拉到落点，
+        // 目标等于被白白挪了一次。
+        //
+        // ⚠️ 判据走 profile（而不是物品 id）—— 组合球里只要有一份末影珍珠，
+        //    comboProfile 就会写下 transpose=true，这里同样认。
+        boolean transpose = com.mcmodworkspace.moreballs.BallBehavior
+                .profileFor(this.getItem()).transpose();
+        Entity owner = this.getOwner();
+        LivingEntity swapTarget = null;
+        double backX = 0.0D;
+        double backY = 0.0D;
+        double backZ = 0.0D;
+        if (transpose
+                && owner instanceof LivingEntity shooter
+                && entity instanceof LivingEntity target
+                && target != shooter
+                && target.isAlive()) {
+            backX = shooter.getX();
+            backY = shooter.getY();
+            backZ = shooter.getZ();
+            swapTarget = target;
+        }
+
         // 再走父类：原来的 0 伤害 + 后续传送链路
         super.onHitEntity(hitResult);
+
+        // ③ 把目标送回射手原来的位置 —— 换位完成
+        if (swapTarget != null && this.level() instanceof ServerLevel) {
+            swapTarget.teleportTo(backX, backY, backZ);
+        }
     }
 }
