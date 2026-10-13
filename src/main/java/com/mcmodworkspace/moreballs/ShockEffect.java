@@ -274,12 +274,15 @@ public class ShockEffect extends MobEffect {
             return;
         }
         Entity shooter = projectile.getOwner();
-        // 只管生物射的：玩家不是 Mob，这一条天然把玩家排除在外
-        // （而且玩家的弹道本来就只能朝视线前方，锁视角已经把方向一并锁住了）
-        if (!(shooter instanceof Mob mob)) {
+        // 判据用「生物」（LivingEntity）而**不是 Mob**：有些模组的怪物 / Boss 并不继承
+        // Mob，拿 Mob 当筛子会把它们整个漏掉（作者 2026-10-13 指出）。
+        // 玩家要排除 —— 玩家不是「生物射弹」那条语义，而且它的弹道本来就只能朝视线前方，
+        // 锁视角已经把方向一并锁住了。
+        if (!(shooter instanceof LivingEntity creature)
+                || shooter instanceof net.minecraft.world.entity.player.Player) {
             return;
         }
-        if (mob.getEffect(ModEffects.SHOCK) == null) {
+        if (creature.getEffect(ModEffects.SHOCK) == null) {
             return;
         }
         Vec3 velocity = projectile.getDeltaMovement();
@@ -287,7 +290,7 @@ public class ShockEffect extends MobEffect {
         if (speed < 1.0E-4D) {
             return;   // 还没给初速的（或静态生成的），不碰
         }
-        projectile.setDeltaMovement(mob.getLookAngle().scale(speed));
+        projectile.setDeltaMovement(creature.getLookAngle().scale(speed));
     }
 
     /**
