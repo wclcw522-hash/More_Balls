@@ -216,6 +216,15 @@ public final class ModItems {
             "lapis_ball",
             props -> new BallItem(props.stacksTo(BALL_STACK_SIZE)));
 
+    /**
+     * 「潮汐球」 —— 伤害 8、重量 6、<b>坚固 300</b>、弹射 0（不反弹）、蓄力 3。
+     *
+     * <p>【潮涌】入水后不受重力、速度 ×3，并环绕激流的纹理特效（雨天不算）；
+     * 【忠诚】永远带忠诚附魔，且不会被任何生物捡走。破碎<b>无掉落物</b>（作者指定）。</p>
+     *
+     * <p>配方（小键盘编号 7-8-9 / 4-5-6 / 1-2-3）：4/6/8/2 任意珊瑚块、
+     * 9/7/1/3 任意珊瑚、5 潮涌核心 —— 9 格占满。</p>
+     */
     public static final DeferredItem<Item> TIDAL_BALL = ITEMS.registerItem(
             "tidal_ball",
             props -> new BallItem(props.stacksTo(BALL_STACK_SIZE)));

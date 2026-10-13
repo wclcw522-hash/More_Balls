@@ -71,7 +71,7 @@ import net.minecraft.world.level.block.Block;
  * </ul>
  *
  * <h3>④ 布尔 / 位掩码类 —— 按份数携带</h3>
- * <p>变形 / 磁性 / 善良 / 导电 / 电击 / 移形换位，以及【脉冲】【照明】【破坏王】【透镜】。</p>
+ * <p>变形 / 磁性 / 善良 / 导电 / 电击 / 移形换位 / 潮涌 / 忠诚，以及【脉冲】【照明】【破坏王】【透镜】。</p>
  * <ul>
  *   <li>切开：原样透传（数据要留着，合成了还要数份数）</li>
  *   <li>合成：<b>≥1 份即携带</b> —— 二合一任一份有就带、四合一同样只要 ≥1 份。
@@ -263,10 +263,14 @@ public final class BallFragments {
                             * 切开<b>原样透传</b>、合成时 **≥1 份即携带**（和其它特殊类一致，
                             * 不再需要激活）。字段**追加在末尾**，不动既有分量的顺序。
                             */
-                           boolean transpose) {
+                           boolean transpose,
+                           /** 【潮涌】（「其它特殊」类）—— 入水后不受重力、速度 ×3，并环绕激流纹理 */
+                           boolean tidalSurge,
+                           /** 【忠诚】（「其它特殊」类）—— 永远带忠诚附魔，且不会被任何生物捡走 */
+                           boolean loyalty) {
 
         public static final Fragment EMPTY =
-                new Fragment(0, 0, 0, 0, 0, 0, false, false, false, 0, false, false, false, false, 0, 0, 0, false);
+                new Fragment(0, 0, 0, 0, 0, 0, false, false, false, 0, false, false, false, false, 0, 0, 0, false, false, false);
 
         /**
          * 按分数缩放一份词条（半球 0.5、四分之一球 0.25）。
@@ -278,7 +282,7 @@ public final class BallFragments {
          *   <li><b>阈值类</b>（【融化x】【熔融x】【引雷x】）**不缩放**：各份都保留原阈值。
          *       引雷合成取最大值；融化 / 熔融见 {@code withThresholds}
          *       （融化取最低、熔融取最高）。缩放成 30 就永远回不到 120 了。</li>
-         *   <li><b>布尔 / 位掩码类</b>（变形/磁性/善良/导电/电击/移形换位、
+         *   <li><b>布尔 / 位掩码类</b>（变形/磁性/善良/导电/电击/移形换位/潮涌/忠诚、
          *       脉冲/照明/破坏王/透镜）原样透传 ——
          *       「要够几份才激活」由 combine* 判定，不在这里动。</li>
          * </ul>
@@ -301,7 +305,7 @@ public final class BallFragments {
                     // 【破坏王N】数值类**特性**：切开均分（够不够份数由 combine* 判），同样不取整
                     breaker * factor,
                     // 【移形换位】布尔类：原样透传
-                    transpose);
+                    transpose, tidalSurge, loyalty);
         }
 
         /** 叠加 —— 数值相加，特质取「出现过」 */
@@ -320,7 +324,9 @@ public final class BallFragments {
                     // 【破坏王N】数值类特性：相加（够不够份数由 combine* 判）
                     breaker + other.breaker,
                     // 【移形换位】布尔类：取或
-                    transpose || other.transpose);
+                    transpose || other.transpose,
+                    tidalSurge || other.tidalSurge,
+                    loyalty || other.loyalty);
         }
     }
 
@@ -376,7 +382,7 @@ public final class BallFragments {
                 // 新增：穿透数值 + 位掩码型词条
                 p.penetration(),
                 p.flags(),
-                p.breaker(), p.transpose());
+                p.breaker(), p.transpose(), p.tidalSurge(), p.loyalty());
     }
 
     // ===== 合成球 =====
@@ -422,7 +428,8 @@ public final class BallFragments {
                 out.magnet(), out.transmute(),
                 out.morph(), out.magnetic(), out.glint(),
                 out.wisdom(), out.kindness(), out.conduction(), out.thunder(), out.shock(),
-                out.penetration(), out.flags(), out.breaker(), out.transpose());
+                out.penetration(), out.flags(), out.breaker(), out.transpose(),
+                out.tidalSurge(), out.loyalty());
     }
 
     /**
@@ -450,6 +457,10 @@ public final class BallFragments {
                 + (c.breaker() > 0 ? 1 : 0) + (d.breaker() > 0 ? 1 : 0);
         int transposes = (a.transpose() ? 1 : 0) + (b.transpose() ? 1 : 0)
                 + (c.transpose() ? 1 : 0) + (d.transpose() ? 1 : 0);
+        int tidals = (a.tidalSurge() ? 1 : 0) + (b.tidalSurge() ? 1 : 0)
+                + (c.tidalSurge() ? 1 : 0) + (d.tidalSurge() ? 1 : 0);
+        int loyalties = (a.loyalty() ? 1 : 0) + (b.loyalty() ? 1 : 0)
+                + (c.loyalty() ? 1 : 0) + (d.loyalty() ? 1 : 0);
         // 位掩码型词条：【脉冲】【照明】【破坏王】【透镜】
         // 特性类词条**不再需要激活**（作者 2026-10-13）：只要有一份带着，四合一就保留它 ——
         // 逐位统计份数，各自判一次
@@ -486,7 +497,7 @@ public final class BallFragments {
                 flagMask,
                 // 【破坏王N】数值类特性：够份数才激活，激活时四份之和取整
                 (breakers >= 1)
-                        ? (int) Math.floor(sum.breaker()) : 0, transposes >= 1);
+                        ? (int) Math.floor(sum.breaker()) : 0, transposes >= 1, tidals >= 1, loyalties >= 1);
     }
 
     /**
@@ -664,7 +675,10 @@ public final class BallFragments {
                 // 【移形换位】（「其它特殊」类）：切开原样透传、合成 ≥1 份即携带 ——
                 // 份数判定在 combineQuad（transposes >= 1）/ combinePair（plus 取或）里做完了，
                 // 这里只是把结果写回 profile。⚠️ 就是上面警告过的那个坑，别漏这一行。
-                .withTranspose(merged.transpose());
+                .withTranspose(merged.transpose())
+                // 【潮涌】【忠诚】（同上：份数判定在 combine* 里做完了，这里写回 profile）
+                .withTidalSurge(merged.tidalSurge())
+                .withLoyalty(merged.loyalty());
         return out;
     }
 
@@ -692,7 +706,8 @@ public final class BallFragments {
                 f.morph(), f.magnetic(), f.glint(),
                 // 数值类特性（【智慧N】【穿透N】【破坏王N】）现在都是 double，二合一同样要向下取整
                 Math.floor(f.wisdom()), f.kindness(), f.conduction(), f.thunder(), f.shock(),
-                Math.floor(f.penetration()), f.flags(), Math.floor(f.breaker()), f.transpose());
+                Math.floor(f.penetration()), f.flags(), Math.floor(f.breaker()), f.transpose(),
+                f.tidalSurge(), f.loyalty());
     }
 
     // ===== 组件 ↔ 下标列表 =====
