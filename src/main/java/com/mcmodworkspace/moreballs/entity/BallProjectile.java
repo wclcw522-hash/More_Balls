@@ -736,7 +736,25 @@ public class BallProjectile extends ThrowableItemProjectile {
     }
 
     public byte getPierceLevel() {
-        return this.entityData.get(PIERCE_LEVEL);
+        byte fromLaunch = this.entityData.get(PIERCE_LEVEL);
+        if (fromLaunch > 0) {
+            return fromLaunch;
+        }
+        // ⚠️ 回退到**球自带的【穿透N】**（作者 2026-10-13 报「潮汐球的【穿透5】未生效」）。
+        //
+        //    PIERCE_LEVEL 这个同步位**只有** BallAmmo.createProjectile() 写过一处
+        //    （BallAmmo.java:322），而那个方法**只被弩的发射路径调用**
+        //    （CrossbowItemMixin.java:81）。也就是说：**手扔的球根本走不到那里**，
+        //    这个位从头到尾是 0 → onHitEntity 里的 `getPierceLevel() > 0` 不成立
+        //    → 穿透分支根本不进，表现就是「手扔一颗带穿透的球，永远不穿透」。
+        //    钻石球自带的【穿透3】其实也一直受这个影响（那边只修过「弩没附魔」那半边）。
+        //    球自带的穿透是**球自己的性质**，不该因为发射方式不同就失效。
+        //
+        //    弩射时仍然优先用发射时算好的值（那里已把「弩的穿透附魔」和球自带的取过 max）。
+        if (this.profile().hasPenetration()) {
+            return (byte) Math.max(0, Math.min(127, this.profile().penetration()));
+        }
+        return 0;
     }
 
     public void setPierceLevel(byte pierceLevel) {
