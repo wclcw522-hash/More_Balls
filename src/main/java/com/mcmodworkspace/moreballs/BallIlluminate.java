@@ -73,7 +73,7 @@ public final class BallIlluminate {
     private static final double MAX_GROUND_SEARCH = 48.0D;
 
     /** 每次叠多少刻的发光（作者指定：1 秒） */
-    private static final int GLOW_TICKS = 20;
+    private static final int GLOW_TICKS = 40;
 
     /** 友好阵营的颜色（蓝） */
     private static final int COLOR_FRIENDLY = 0x4A90FF;
@@ -120,8 +120,8 @@ public final class BallIlluminate {
             }
 
             // 【照明】触发概率（当前 100% 必触发；以后调这个常量即可）
-            // 叠 1 秒发光。用 setEffect 而不是太频繁的 addEffect：
-            // 这里每 tick 都会走到，等价于「只要还在区内就一直亮着，离开后 1 秒熄灭」。
+            // 叠 2 秒发光（作者 2026-10-13 指定翻倍）。每 tick 都会走到：
+            // 等价于「只要还在区内就一直亮着，离开后 2 秒熄灭」。
             target.addEffect(new MobEffectInstance(
                     MobEffects.GLOWING, GLOW_TICKS, 0, false, false, false));
 

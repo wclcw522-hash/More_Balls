@@ -101,6 +101,11 @@ public class BallProjectile extends ThrowableItemProjectile {
             SynchedEntityData.defineId(BallProjectile.class, EntityDataSerializers.BOOLEAN);
     private static final EntityDataAccessor<Boolean> ROLLING =
             SynchedEntityData.defineId(BallProjectile.class, EntityDataSerializers.BOOLEAN);
+    /**
+     * 本趟投掷**生效的特性位**（服务端掷定、自动同步到客户端 —— 客户端只负责按它放粒子）。
+     */
+    private static final EntityDataAccessor<Integer> FIRED_TRAITS =
+            SynchedEntityData.defineId(BallProjectile.class, EntityDataSerializers.INT);
 
     /** 判定为静止的速度平方阈值（约 0.03 格/刻） */
     private static final double SETTLE_SPEED_SQR = 0.0009D;
@@ -172,8 +177,7 @@ public class BallProjectile extends ThrowableItemProjectile {
     /** 【磁性】飞行途中朝铁磁性目标偏航 */
     public static final int TRAIT_MAGNETIC = 1 << 13;
 
-    /** 本趟投掷里**生效**的特性位集合。第一个 tick 掷定，整趟不变。 */
-    private int firedTraits;
+
 
     /** 是否已经为本趟投掷掷过 —— 保证「一次投掷只判一次」。 */
     private boolean traitsRolled;
@@ -293,6 +297,12 @@ public class BallProjectile extends ThrowableItemProjectile {
         if (this.traitsRolled) {
             return;
         }
+        // ⚠️ 只在服务端掷！客户端球实体也会 tick，但它不是权威 ——
+        //    而且 TRAIT_MISS_STREAKS 是 static，两端各掷会把同一个计数器互相冲掉
+        //    （2026-10-13 实测日志：判定全在 Render thread、保底却永远攒不满，就是这个）。
+        if (this.level().isClientSide()) {
+            return;
+        }
         this.traitsRolled = true;
         int owned = this.ownedTraits();
         if (owned == 0) {
@@ -322,14 +332,14 @@ public class BallProjectile extends ThrowableItemProjectile {
                 hit = random.nextFloat() < chance;
             }
             if (misses != null) {
-                MoreBalls.LOGGER.info("[ball][保底] 词条位{} 概率{} 保底{} 连未中{} 本次{}", bit, chance, pityLimit(chance), misses[bit], hit ? "触发" : "未中");
+                MoreBalls.LOGGER.debug("[ball][保底] 词条位{} 概率{} 保底{} 连未中{} 本次{}", bit, chance, pityLimit(chance), misses[bit], hit ? "触发" : "未中");
                 misses[bit] = hit ? 0 : misses[bit] + 1;
             }
             if (hit) {
                 fired |= unit;
             }
         }
-        this.firedTraits = fired;
+        this.getEntityData().set(FIRED_TRAITS, fired);
         // 全清零就整条移除，别让 Map 无限长
         if (misses != null) {
             boolean anyLeft = false;
@@ -347,7 +357,7 @@ public class BallProjectile extends ThrowableItemProjectile {
 
     /** 本趟投掷里，这个特性生不生效（{@code TRAIT_*} 之一）。 */
     public boolean traitFired(int traitBit) {
-        return (this.firedTraits & traitBit) != 0;
+        return (this.getEntityData().get(FIRED_TRAITS) & traitBit) != 0;
     }
     /**
      * 【破坏王】砸掉方块后保留的速度比例。
@@ -995,6 +1005,7 @@ public class BallProjectile extends ThrowableItemProjectile {
         builder.define(BOUNCE, BallBehavior.DEFAULT_BOUNCE);
         builder.define(SETTLED, false);
         builder.define(ROLLING, false);
+        builder.define(FIRED_TRAITS, 0);
     }
 
     @Override
@@ -2146,7 +2157,10 @@ public class BallProjectile extends ThrowableItemProjectile {
                 && this.level() instanceof ServerLevel pulseLevel) {
             // 【脉冲】本趟是否生效 —— 由 rollTraitsOnce() 在第一个 tick 掷定
             if (this.traitFired(TRAIT_PULSE)) {
+                MoreBalls.LOGGER.info("[ball][脉冲] 命中触发脉冲，位置={}", hitResult.getLocation());
                 RedstonePulse.detonate(pulseLevel, hitResult.getLocation());
+            } else {
+                MoreBalls.LOGGER.info("[ball][脉冲] 本趟脉冲未生效（本球判定为未触发）");
             }
         }
 
