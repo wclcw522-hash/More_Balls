@@ -295,6 +295,14 @@ public final class BallTooltip {
                             effectWithDuration(ModEffects.IMMORTAL, ImmortalEffect.REWARD_TICKS, 0))));
         }
 
+        // 【移形换位】—— 末影珍珠（含带它的组合球）：
+        // 作为弹药击中其它生物时与它换位。词条名走常显、说明只在 Shift 展开时出现，
+        // 和上面【照明】【透镜】一个做法。
+        if (profile.transpose()) {
+            out.add(Entry.of(line("tooltip.more_balls.entry.transpose"), Kind.TRAIT,
+                    line("tooltip.more_balls.desc.transpose")));
+        }
+
         // ===== 更早批次：【感应】自 2.0.0 起就有（渲染代码排在此处）=====
 
         // 【感应】—— 底层词条，不带数字即 1 级（【感应】与【感应1】是一回事）；

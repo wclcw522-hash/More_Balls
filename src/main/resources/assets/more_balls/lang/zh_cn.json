@@ -134,6 +134,8 @@
   "tooltip.more_balls.desc.thunder": "热量值满后，释放雷电。",
   "tooltip.more_balls.entry.shock": "【电击】什么玩意电了我一下",
   "tooltip.more_balls.desc.shock": "造成闪电伤害。",
+  "tooltip.more_balls.entry.transpose": "【移形换位】过~来~。",
+  "tooltip.more_balls.desc.transpose": "（shift）可以交换位置。",
   "advancements.more_balls.root.title": "玩个球啊",
   "advancements.more_balls.root.description": "你怎么不方啊",
   "advancements.more_balls.rubble.title": "有点石粒",

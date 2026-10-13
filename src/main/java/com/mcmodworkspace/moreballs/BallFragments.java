@@ -70,18 +70,25 @@ import net.minecraft.world.level.block.Block;
  *       （<b>融化取最低、熔融取最高</b>），见 {@code withThresholds}</li>
  * </ul>
  *
- * <h3>④ 布尔 / 位掩码类 —— 按份数激活</h3>
- * <p>变形 / 磁性 / 善良 / 导电 / 电击，以及【脉冲】【照明】【破坏王】【透镜】。</p>
+ * <h3>④ 布尔 / 位掩码类 —— 按份数携带</h3>
+ * <p>变形 / 磁性 / 善良 / 导电 / 电击 / 移形换位，以及【脉冲】【照明】【破坏王】【透镜】。</p>
  * <ul>
  *   <li>切开：原样透传（数据要留着，合成了还要数份数）</li>
- *   <li>合成：<b>二合一任一份有即激活；四合一要 ≥2 份</b></li>
+ *   <li>合成：<b>≥1 份即携带</b> —— 二合一任一份有就带、四合一同样只要 ≥1 份。
+ *       ⚠️ 作者 2026-10-13 起<b>取消了「激活」门槛</b>：以前四合一要 ≥2 份才保留，
+ *       现在一份带着就保留（{@code QUAD_TRAIT_THRESHOLD} 因此已无任何使用点，只留作历史）</li>
  *   <li><b>例外：【金光闪闪】</b>是金球独占 —— <b>不参与合成</b>，被切开就永久失效，
  *       合回去也不能重新获得（作者 2026-10-09 指定）</li>
  * </ul>
  *
  * <p>实现落点：{@code Fragment.scaled}（按份数缩放）、{@code Fragment.plus}（叠加）、
- * {@code combinePair} / {@code combineQuad}（二合一 / 四合一的激活判定）、
+ * {@code combinePair} / {@code combineQuad}（二合一 / 四合一的份数判定）、
  * {@code comboProfile}（落回 BallProfile）。<b>这四处加词条时要一起改。</b></p>
+ *
+ * <p>⚠️ <b>注意 {@code comboProfile} 那处写回编译器抓不到</b> —— 少写一行不会报错，
+ * 只会让「各来源球上明明有的词条」在组合球上凭空消失。历史上
+ * wisdom / kindness / conduction / thunder / shock 五个就是这么丢的（作者 2026-10-08 报的）。
+ * <b>加任何新词条之后，都要回头确认 {@code comboProfile} 里有它的一行。</b></p>
  */
 public final class BallFragments {
 

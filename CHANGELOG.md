@@ -1,3 +1,36 @@
+## 1.0.0.7 — 末影珍珠成为第 12 颗来源球 + 新增【移形换位】词条（作者 2026-10-13 指定）
+
+### 新增词条【移形换位】—— 末影珍珠专属
+
+**珍珠（作弩弹药）击中其它生物时，与该生物交换位置**；原有的瞬移效果保留。
+tooltip：`【移形换位】过~来~。` / `（shift）可以交换位置。`
+
+- 归类**「其它特殊」**：切开**原样透传**、合成 **≥1 份即携带**（不再需要激活）
+- **底层 11 处全部同步**：`BallProfile` 加字段与 `withTranspose` · `Fragment` record 字段与 javadoc ·
+  `scaled` 透传 · `plus` 取或 · `of(BallProfile)` 读取 · `floor` 透传 · `combineQuad` 份数与门槛 ·
+  `combinePair` · **★`comboProfile` 写回** · `withThresholds` 透传 · `DEFAULT` 传 false
+- **效果实现**（`BallEnderpearl`）：① 先记下射手原位 → ② 走 `super`（父类把射手瞬移到落点）→
+  ③ 把目标送回射手原位 —— 净效果即**互换**。顺序不能颠倒，否则目标会被白白挪一次
+- 判据走 `profileFor(stack).transpose()`（**不是物品 id**），所以**带末影珍珠的组合球也认**
+
+### 末影珍珠成为第 12 颗来源球（下标 11）
+
+- `sources()` 追加 `Items.ENDER_PEARL`（**末尾追加** ✓ 不动老存档下标）；
+  `SHORT_NAME` / `SHORT_ID` 各补「末影」/`ender_pearl` → **三张表各 12 项**
+- 三张按下标枚举的 json 各补 `when:11`：`ball_half` / `ball_quarter` 各 1 处、
+  `combo_ball` **四层共 4 处**；并新建 6 个 model json
+- **11 张贴图**：碎片 5 张（四象限 + 上半，**直接裁原版末影珍珠贴图**，不借球体形状）+
+  弩装填 6 张（球缩到 6×6 球区后切 3×3 象限）
+- **本来就有、无需改动**：`#more_balls:balls` 与 `balls/solid` 标签里已有末影珍珠、
+  弩的 `crossbow.json` 已有 case、`crossbow_ball_ender_pearl.png` 早已存在
+
+### 顺带更正
+
+- `BallFragments` 类注释第 ④ 类说明：**「四合一要 ≥2 份」已过时**（2026-10-13 起 ≥1 份即携带），
+  并补上「**`comboProfile` 写回编译器抓不到**」的警告 —— 历史上 wisdom/kindness/conduction/
+  thunder/shock 五个词条就是这么在组合球上凭空消失的
+
+---
 ## 1.0.0.6 — 【震荡】的两项追加效果（作者 2026-10-13 规格）
 
 ### ① 前若干个百分比的时长里「锁死朝向与移动方向」
