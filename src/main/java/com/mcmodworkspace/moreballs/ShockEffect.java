@@ -333,7 +333,14 @@ public class ShockEffect extends MobEffect {
         } else if (mob instanceof Mob creature) {
             applyToMob(creature);
         } else {
-            // 连 Mob 都不是（盔甲架那类），只能扭一下朝向
+            // 既不是玩家、也不是 Mob 的生物 —— **模组 Boss 常常如此**（不继承 Mob 也能是正经 Boss），
+            // 也可能是盔甲架那类。没有 MoveControl 可改，就直接把它的**速度方向**绕 Y 轴随机转一下：
+            // 与玩家那条同款，区别只在于不用发包（没有客户端要同步它的朝向）。
+            Vec3 velocity = mob.getDeltaMovement();
+            if (velocity.lengthSqr() > 1.0E-6D) {
+                float radians = (mob.getRandom().nextFloat() - 0.5F) * 2.0F * (float) Math.PI;
+                mob.setDeltaMovement(velocity.yRot(radians));
+            }
             float yaw = mob.getYRot() + (mob.getRandom().nextFloat() - 0.5F) * YAW_SWING;
             mob.setYRot(yaw);
             mob.setYHeadRot(yaw);
