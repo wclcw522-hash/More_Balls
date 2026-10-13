@@ -73,9 +73,11 @@ public final class BallAnvilHandler {
         BallItem.applyToughness(out, repaired);
         event.setOutput(out);
         event.setMaterialCost(1);
-        // TODO（下一轮补）：经验的等级消耗 —— NeoForge 这个事件上的方法名不是 setCost，
-        // 先留成原版铁砧的默认行为；查清正确 API 后按「补了多少比例」折算写进来。
-        // 参考量：MAX_REPAIR_COST = 30 级（补满时）。
+        // 等级消耗按「补了多少比例」折算（补满 = MAX_REPAIR_COST 级）。
+        // ⚠️ 26.x 上这个 setter 叫 **setXpCost**（不是 setCost）——
+        //    旧版 NeoForge 20.x/21.x 才叫 setCost，写错了编译器只会说「找不到符号」。
+        event.setXpCost(Math.max(1,
+                (int) Math.ceil((repaired - leftNow) / (double) max * MAX_REPAIR_COST)));
     }
 
     /** 是不是球（普通球或组合球都算） */
