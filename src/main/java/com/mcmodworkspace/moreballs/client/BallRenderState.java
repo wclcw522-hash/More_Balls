@@ -13,4 +13,10 @@ public class BallRenderState extends ThrownItemRenderState {
 
     /** 这个球的渲染尺寸倍率；1.0 就是普通球 */
     public float ballScale = 1.0F;
+
+    /** 【潮涌】是否激活 —— 球在水里时由服务端的同步位置位，决定要不要画那圈环绕水纹 */
+    public boolean tidalSurge = false;
+
+    /** 【潮涌】的旋转相位（用实体年龄，和原版激流同一种走法） */
+    public float surgeTicks = 0.0F;
 }

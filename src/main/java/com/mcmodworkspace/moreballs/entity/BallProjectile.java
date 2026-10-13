@@ -1187,6 +1187,17 @@ public class BallProjectile extends ThrowableItemProjectile {
 
     /** tick 的前半段：上限检查、回归开关、票据 */
     private void ballTickPre() {
+        // 【忠诚】（「其它特殊」类，作者 2026-10-13）——
+        // 潮汐球**永远带忠诚附魔**，且这个附魔不能因为球被改变状态而消失。
+        //
+        // 实现上不逐个改 returnToOwner 的 5 个读取点（homingToOwner + 4 个分支），
+        // 而是**每刻把它压成 true** —— 这样连 setMultishotSide(true) 那句
+        // 「附属弹不回家」的清除也会被自动盖回来，正合「永远」二字。
+        // 判据走 profile，所以带潮汐球的组合球同样享有忠诚。
+        if (this.profile().loyalty()) {
+            this.returnToOwner = true;
+        }
+
         // 【潮涌】（「其它特殊」类，作者 2026-10-13）——
         // 有词条 + 球在水里 ⇒ 不受重力、速度 ×3，并环绕激流的纹理特效（雨天不算，靠 isInWater 天然满足）。
         // 从水底射出后离开水面 ⇒ 结束潮涌、还原重力；再落回水面会重新触发；直到停止。

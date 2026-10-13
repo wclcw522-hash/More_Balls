@@ -19,9 +19,23 @@ import net.minecraft.client.renderer.state.level.CameraRenderState;
  * <p>普通球的倍率是 1.0，走的是和以前完全一样的路径。</p>
  */
 public class BallRenderer extends ThrownItemRenderer<BallProjectile> {
+    /** 环绕层用全亮 —— 它在水下，不该被头顶的方块阴影压暗 */
+    private static final int LIGHT_FULL = 0x00F000F0;
+
+    /** 【潮涌】的环绕模型 —— 层定义直接用原版注册好的那个，懒 bake 一次 */
+    private TidalSurgeModel surgeModel;
 
     public BallRenderer(EntityRendererProvider.Context context) {
         super(context, 1.0F, true);
+    }
+
+    private TidalSurgeModel surgeModel() {
+        if (this.surgeModel == null) {
+            this.surgeModel = new TidalSurgeModel(
+                    net.minecraft.client.Minecraft.getInstance().getEntityModels()
+                            .bakeLayer(net.minecraft.client.model.geom.ModelLayers.PLAYER_SPIN_ATTACK));
+        }
+        return this.surgeModel;
     }
 
     @Override
@@ -34,6 +48,8 @@ public class BallRenderer extends ThrownItemRenderer<BallProjectile> {
         super.extractRenderState(entity, state, partialTick);
         if (state instanceof BallRenderState ballState) {
             ballState.ballScale = BallBehavior.profileFor(entity.getItem()).entityScale();
+            ballState.tidalSurge = entity.isTidalSurge();
+            ballState.surgeTicks = entity.tickCount;
         }
     }
 
@@ -44,6 +60,7 @@ public class BallRenderer extends ThrownItemRenderer<BallProjectile> {
 
         if (scale == 1.0F) {
             super.submit(state, poseStack, collector, cameraState);
+            this.submitSurge(state, poseStack, collector, LIGHT_FULL);
             return;
         }
 
@@ -52,6 +69,20 @@ public class BallRenderer extends ThrownItemRenderer<BallProjectile> {
         poseStack.translate(0.0F, (scale - 1.0F) * 0.125F, 0.0F);
         poseStack.scale(scale, scale, scale);
         super.submit(state, poseStack, collector, cameraState);
+        // 缩放分支同样要画环绕层（否则只有普通球的潮涌看得见，金球那种就漏了）
+        this.submitSurge(state, poseStack, collector, LIGHT_FULL);
         poseStack.popPose();
+    }
+
+    /** 【潮涌】的环绕水纹 —— 球在水里时套在外面那一圈（几何与纹理都来自原版激流） */
+    private void submitSurge(ThrownItemRenderState state, PoseStack poseStack, SubmitNodeCollector collector,
+                             int lightCoords) {
+        if (!(state instanceof BallRenderState ballState) || !ballState.tidalSurge) {
+            return;
+        }
+        TidalSurgeModel model = this.surgeModel();
+        model.setupAnim(ballState);
+        collector.submitModel(model, ballState, poseStack, TidalSurgeModel.TEXTURE,
+                lightCoords, net.minecraft.client.renderer.texture.OverlayTexture.NO_OVERLAY, 0, null);
     }
 }
