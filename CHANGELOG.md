@@ -1,3 +1,35 @@
+## 1.0.0.12 — 修复【潮涌】的「水中不受阻力」未生效
+
+作者实测报「水中速度不衰减未生效」—— **我上一次改错了地方**。
+
+### 根因
+
+```java
+ThrowableProjectile.applyInertia()   // private，覆盖不了
+    if (this.isInWater()) {
+        …BUBBLE 泡泡粒子…
+        inertia = 0.8F;              // ★ 水里是**写死**的
+    } else {
+        inertia = this.getAirDrag(); // 只有不在水里才问这里
+    }
+    this.setDeltaMovement(movement.scale(inertia));
+```
+
+我上一版改的是 `BallProjectile.getAirDrag()` —— **而水里根本不会调到它**，
+所以那处改了等于没改。（我当时以为「26.2 的水里衰减也走 getAirDrag」，
+那是个没有验证过的推测，错了。）
+
+### 修法
+
+`applyInertia()` 是 private，重写不了，所以在 `tickTidalSurge()` 里**反向抵消**：
+潮涌激活时先把速度 ×(1/0.8)，tick 内再被 ×0.8，净效果 = **1.0，完全不衰减**。
+
+位移不受影响 —— `applyInertia()` 是在算新位置**之前**乘的，
+所以这一 tick 的位置用的仍然是抵消后的正确速度。
+
+顺带把 `getAirDrag()` 里那段基于错误推测的注释更正了。
+
+---
 ## 1.0.0.11 — 潮汐球第三轮修正（作者 2026-10-13）
 
 ### 词条文本格式（严格按作者给的规范重做）

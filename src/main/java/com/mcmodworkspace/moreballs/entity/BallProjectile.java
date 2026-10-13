@@ -1020,10 +1020,33 @@ public class BallProjectile extends ThrowableItemProjectile {
             this.tidalSurgeActive = false;
         }
 
+        // ===== 【潮涌】的「不受阻力」（作者 2026-10-13 第三轮追加）=====
+        //
+        // ⚠️ 为什么不能像原来那样改 getAirDrag()：原版的阻力**不在** getAirDrag 里。
+        //    ThrowableProjectile.applyInertia()（private，覆盖不了）在水里是**写死的**
+        //    `inertia = 0.8F`，只有不在水里时才去问 getAirDrag() —— 所以那处改了等于没改，
+        //    这正是作者实测报的「水中速度不衰减未生效」。
+        //
+        // 做法：在这里（= super.tick() **之前**）把系数反向预乘回去 ——
+        //    tick 内 applyInertia() 再乘 0.8，净效果 1.0 = 完全不衰减。
+        //    位移不受影响：applyInertia() 是在算新位置**之前**乘的，
+        //    所以位置用的仍然是抵消后的正确速度。
+        if (this.tidalSurgeActive) {
+            this.setDeltaMovement(this.getDeltaMovement().scale(1.0F / WATER_INERTIA));
+        }
+
         if (this.level() instanceof ServerLevel && this.getEntityData().get(TIDAL_SURGE) != this.tidalSurgeActive) {
             this.getEntityData().set(TIDAL_SURGE, this.tidalSurgeActive);
         }
     }
+
+    /**
+     * 原版 {@code ThrowableProjectile.applyInertia()} 在水里写死的衰减系数。
+     *
+     * <p>⚠️ 它是<b>硬编码</b>的（且那个方法是 private，既重写不了、也不会走 {@code getAirDrag()}），
+     * 所以【潮涌】要「不受阻力」只能反着抵消 —— 见 {@code tickTidalSurge}。</p>
+     */
+    private static final float WATER_INERTIA = 0.8F;
 
     /** 【潮涌】速度倍率（作者指定：当前值的 3 倍） */
     public static final float TIDAL_SPEED_MULTIPLIER = 3.0F;
