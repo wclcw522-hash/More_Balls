@@ -542,6 +542,35 @@ public final class BallMobAI {
     }
 
     /**
+     * 自然生成时的「抽一颗球」—— 在 {@link BallBehavior#randomBall} 外面加一层持有者限制。
+     *
+     * <p><b>规则（作者 2026-10-13 指定）</b>：潮汐球权重 20（会进随机抽取），
+     * 但它<b>只能出现在溺尸手中</b>，且<b>自然生成的耐久必定为 1</b>。</p>
+     *
+     * <p>为什么不改 {@code BallBehavior.randomBall}：那个方法不知道「是谁在抽」，
+     * 掠夺者 / 烈焰人 / 普通怪三条路都调它，所以限制放在这里、由调用方把持有者传进来。</p>
+     *
+     * <p>⚠️ 判据用的是<b>自家物品 id</b>（{@code more_balls:tidal_ball}），不违反
+     * 「不硬编码第三方 id」那条规矩。将来若还有别的「限定持有者」的球，把这里抽成一张小表即可。</p>
+     *
+     * <p>⚠️ 溺尸的包名是 {@code ...entity.monster.zombie.Drowned}（26.x 把它搬进了子包，
+     * 和村民/铁傀儡一样），所以这里直接用全限定名，免得再猜错 import。</p>
+     */
+    private static ItemStack randomBallFor(Mob mob, RandomSource random) {
+        ItemStack ball = BallBehavior.randomBall(random);
+        if (ball.isEmpty()) {
+            return ball;
+        }
+        if (ball.is(ModItems.TIDAL_BALL.get())) {
+            if (!(mob instanceof net.minecraft.world.entity.monster.zombie.Drowned)) {
+                return ItemStack.EMPTY;   // 非溺尸：这一发不发，下次生成再抽
+            }
+            BallItem.applyToughness(ball, 1);   // 自然生成的潮汐球：耐久必定为 1
+        }
+        return ball;
+    }
+
+    /**
      * 尝试让怪物接住飞来的球 —— 由 {@link BallProjectile} 命中实体时调用。
      *
      * @return 是否接住了（接住则球已被移除，命中伤害不该再结算）
@@ -1125,7 +1154,7 @@ public final class BallMobAI {
                 int count = BLAZE_CARRY_MIN
                         + random.nextInt(BLAZE_CARRY_MAX - BLAZE_CARRY_MIN + 1);
                 for (int i = 0; i < count; i++) {
-                    ItemStack one = BallBehavior.randomBall(random);
+                    ItemStack one = randomBallFor(mob, random);
                     if (!one.isEmpty()) {
                         blazeAddBall(blaze, one);
                     }
@@ -1143,7 +1172,7 @@ public final class BallMobAI {
         if (random.nextFloat() >= CARRY_CHANCE) {
             return;
         }
-        ItemStack ball = BallBehavior.randomBall(random);
+        ItemStack ball = randomBallFor(mob, random);
         if (ball.isEmpty()) {
             return;
         }
@@ -1184,7 +1213,7 @@ public final class BallMobAI {
         }
 
         // 【掠夺者弩弹药】触发概率（当前 100% 必触发；以后调这个常量即可）
-        ItemStack ammo = BallBehavior.randomBall(pillager.getRandom());
+        ItemStack ammo = randomBallFor(pillager, pillager.getRandom());
         if (ammo.isEmpty()) {
             return;
         }

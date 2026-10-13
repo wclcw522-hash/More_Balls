@@ -256,7 +256,8 @@ public final class BallBehavior {
                 .withToughness(300)
                 .withBounce(0)
                 .withChargeLevels(3)
-                .withRarity(0)
+                // 【权重 20】（作者 2026-10-13 指定）—— 会进随机抽取，但只给溺尸（见 BallMobAI.randomBallFor）
+                .withRarity(20)
                 .withSound(BallBehavior.BallSound.of(
                         net.minecraft.sounds.SoundEvents.TRIDENT_HIT_GROUND,
                         net.minecraft.sounds.SoundEvents.TRIDENT_HIT,
