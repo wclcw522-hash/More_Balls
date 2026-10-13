@@ -1,3 +1,36 @@
+## 1.0.0.13 — 潮汐球配方修好（JEI 里能看到了）+ 加【穿透5】
+
+### 修复：潮汐球配方解析失败 → JEI 里看不到
+
+作者反馈「潮汐球没有 JEI 配方」。**不是没写配方**，而是**配方引用的标签类型错了**。
+
+游戏日志给了确切原因：
+
+```
+Couldn't parse data file 'more_balls:tidal_ball':
+DataResult.Error['Map entry 'B' : Missing tag: 'minecraft:coral_blocks'
+                   in 'minecraft:item'; Not a JSON object: "#minecraft:coral_blocks"']
+```
+
+`minecraft:coral_blocks` / `minecraft:coral_plants` **只在 `tags/block/` 下有**，
+**item 侧根本不存在** —— 而合成配方的材料要求的是 **item 标签**。
+配方 JSON 因此解析失败、被直接丢掉，JEI 自然什么也看不到。
+
+（我当初查的时候确实看到了「标签存在」，但**没分清是 block 还是 item**，这是我的疏忽。）
+
+**修法**：自建两个 item 标签，配方改引自己的命名空间 —— **不碰原版标签**：
+
+- `data/more_balls/tags/item/coral_blocks.json` —— 列 5 种珊瑚块的**物品 id**
+- `data/more_balls/tags/item/coral_plants.json` —— 列 5 种珊瑚的物品 id
+- `recipe/tidal_ball.json` 的 key 改成 `#more_balls:coral_blocks` / `#more_balls:coral_plants`
+
+**没有新增任何物品**，只是把原版那 5 个方块物品列进一张自己的标签。
+
+### 新增：【穿透5】
+
+潮汐球加上【穿透5】（数值类特性：切开均分、合成够份数后相加取整）。
+
+---
 ## 1.0.0.12 — 修复【潮涌】的「水中不受阻力」未生效
 
 作者实测报「水中速度不衰减未生效」—— **我上一次改错了地方**。

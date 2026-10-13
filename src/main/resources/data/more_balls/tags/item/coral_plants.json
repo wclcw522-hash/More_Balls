@@ -1,0 +1,10 @@
+{
+  "__comment": "潮汐球合成用的「任意珊瑚」。原版只有 block 侧的 coral_plants，item 侧没有，理由同上。",
+  "values": [
+    "minecraft:tube_coral",
+    "minecraft:brain_coral",
+    "minecraft:bubble_coral",
+    "minecraft:fire_coral",
+    "minecraft:horn_coral"
+  ]
+}

@@ -2,8 +2,8 @@
   "type": "minecraft:crafting_shaped",
   "category": "misc",
   "key": {
-    "B": "#minecraft:coral_blocks",
-    "C": "#minecraft:coral_plants",
+    "B": "#more_balls:coral_blocks",
+    "C": "#more_balls:coral_plants",
     "V": "minecraft:conduit"
   },
   "pattern": [ "CBC", "BVB", "CBC" ],

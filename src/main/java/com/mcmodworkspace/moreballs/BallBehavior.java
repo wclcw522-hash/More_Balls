@@ -261,6 +261,8 @@ public final class BallBehavior {
                         net.minecraft.sounds.SoundEvents.TRIDENT_HIT_GROUND,
                         net.minecraft.sounds.SoundEvents.TRIDENT_HIT,
                         1.0F))
+                // 【穿透5】（作者 2026-10-13 指定）—— 数值类特性：切开均分、合成够份数后相加取整
+                .withPenetration(5)
                 // 【潮涌】【忠诚】—— 两条都是「其它特殊」类：切开原样透传、合成 ≥1 份即携带
                 .withTidalSurge(true)
                 .withLoyalty(true));

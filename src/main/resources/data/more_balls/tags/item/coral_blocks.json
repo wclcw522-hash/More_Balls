@@ -1,0 +1,10 @@
+{
+  "__comment": "潮汐球合成用的「任意珊瑚块」。原版的 minecraft:coral_blocks 只在 block 标签里有（item 侧不存在），而合成配方的材料要求 item 标签，所以这里自己列一份原版物品 id —— 不新增任何物品。",
+  "values": [
+    "minecraft:tube_coral_block",
+    "minecraft:brain_coral_block",
+    "minecraft:bubble_coral_block",
+    "minecraft:fire_coral_block",
+    "minecraft:horn_coral_block"
+  ]
+}
