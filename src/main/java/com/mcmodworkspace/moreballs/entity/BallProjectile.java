@@ -177,6 +177,9 @@ public class BallProjectile extends ThrowableItemProjectile {
     /** 【磁性】飞行途中朝铁磁性目标偏航 */
     public static final int TRAIT_MAGNETIC = 1 << 13;
 
+    /** 【移形换位】珍珠（含带它的组合球）击中其它生物时与它换位 */
+    public static final int TRAIT_TRANSPOSE = 1 << 14;
+
 
 
     /** 是否已经为本趟投掷掷过 —— 保证「一次投掷只判一次」。 */
@@ -211,6 +214,8 @@ public class BallProjectile extends ThrowableItemProjectile {
                 return profile.hasMagnet();
             case TRAIT_MAGNETIC:
                 return profile.hasMagnetic();
+            case TRAIT_TRANSPOSE:
+                return profile.transpose();
             default:
                 return false;
         }
@@ -1896,6 +1901,33 @@ public class BallProjectile extends ThrowableItemProjectile {
     @Override
     protected void onHitEntity(EntityHitResult hitResult) {
         super.onHitEntity(hitResult);
+
+        // ===== 【移形换位】（「其它特殊」类，作者 2026-10-13 指定）=====
+        //
+        // 珠子自身是 BallEnderpearl 管，但**切出来的碎片 / 组合球射的是本类** ——
+        // 所以换位逻辑必须在这里也有一份，否则「带词条的组合球打人不换位」（作者实测报的）。
+        //
+        // 做法就是直接对调两者坐标：先把双方位置都读出来，再各写一次。
+        // ⚠️ 必须**先读全、再写**，边读边写的话第二次写入会读到已经被改过的坐标。
+        if (this.profile().transpose() && this.traitFired(TRAIT_TRANSPOSE)
+                && this.level() instanceof ServerLevel swapLevel) {
+            Entity ballOwner = this.getOwner();
+            Entity hitEntity = hitResult.getEntity();
+            if (ballOwner instanceof LivingEntity shooter
+                    && hitEntity instanceof LivingEntity target
+                    && target != shooter
+                    && target.isAlive()) {
+                double shooterX = shooter.getX();
+                double shooterY = shooter.getY();
+                double shooterZ = shooter.getZ();
+                double targetX = target.getX();
+                double targetY = target.getY();
+                double targetZ = target.getZ();
+                shooter.teleportTo(targetX, targetY, targetZ);
+                target.teleportTo(shooterX, shooterY, shooterZ);
+                MoreBalls.LOGGER.debug("[ball][移形换位] 与 {} 互换位置", target.getName().getString());
+            }
+        }
 
         // 【空气动力球】回家途中撞到主人：这一下就是「到家」，直接交付。
         //
