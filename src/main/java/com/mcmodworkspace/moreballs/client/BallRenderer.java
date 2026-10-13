@@ -8,6 +8,9 @@ import net.minecraft.client.renderer.entity.EntityRendererProvider;
 import net.minecraft.client.renderer.entity.ThrownItemRenderer;
 import net.minecraft.client.renderer.entity.state.ThrownItemRenderState;
 import net.minecraft.client.renderer.state.level.CameraRenderState;
+import net.minecraft.util.Mth;
+import net.minecraft.world.phys.Vec3;
+import com.mojang.math.Axis;
 
 /**
  * 球的投射物渲染器 —— 在 {@link ThrownItemRenderer} 基础上支持<b>按球缩放</b>。
@@ -50,6 +53,15 @@ public class BallRenderer extends ThrownItemRenderer<BallProjectile> {
             ballState.ballScale = BallBehavior.profileFor(entity.getItem()).entityScale();
             ballState.tidalSurge = entity.isTidalSurge();
             ballState.surgeTicks = entity.tickCount;
+            // 【潮涌】环绕要朝向**速度方向**（作者 2026-10-13 第三轮反馈：
+            // 原来的朝向被锁死了）。球自己的渲染不按速度转（ThrownItemRenderer 只跟着相机），
+            // 所以这里把速度方向换算成 yaw/pitch 交给环绕层用。
+            Vec3 velocity = entity.getDeltaMovement();
+            if (velocity.lengthSqr() > 1.0E-6D) {
+                ballState.surgeYaw = (float) (Mth.atan2(velocity.x, velocity.z) * 180.0D / Math.PI);
+                ballState.surgePitch = (float) (Mth.atan2(velocity.y,
+                        Math.sqrt(velocity.x * velocity.x + velocity.z * velocity.z)) * 180.0D / Math.PI);
+            }
         }
     }
 
@@ -82,13 +94,19 @@ public class BallRenderer extends ThrownItemRenderer<BallProjectile> {
         }
         TidalSurgeModel model = this.surgeModel();
         model.setupAnim(ballState);
-        // ⚠️ 原版那个模型是给**玩家**用的：EntityModel.MODEL_Y_OFFSET = -1.501，
-        //    渲染时会把模型整体下移 1.501 格（从脚底移成「人形」的坐标系）。
-        //    球没有那套变换，直接用就会整个沉到脚下 —— 表现就是作者报的「固定向下」。
-        //    所以这里把那个偏移**加回来**，再缩到球的大小让它贴合球体。
+        // 【潮涌】环绕的朝向：原版那圈水纹「绕的是玩家的身体轴」，玩家开激流时人是躺着的，
+        // 身体轴自然就对准了视线（= 速度）方向 —— 所以原版看着是对的。
+        // 球没有这套：ThrownItemRenderer 只按相机转，球的朝向跟速度无关，
+        // 于是环绕的轴被**锁死在竖直**（作者 2026-10-13 第三轮反馈：「方向被锁定了」）。
+        //
+        // 这里显式把模型转成「对齐速度方向」：先按 yaw 绕竖轴、再按 pitch 把
+        // 「原本朝上的那一面」压到速度方向上。
+        //
+        // ⚠️ 上一版我误判成「太大」，加了缩放和 Y 偏移 —— 作者指出那不是问题，已撤掉，
+        //    现在只做旋转，尺寸保持原样。
         poseStack.pushPose();
-        poseStack.translate(0.0F, 1.501F, 0.0F);
-        poseStack.scale(0.30F, 0.30F, 0.30F);
+        poseStack.mulPose(Axis.YP.rotationDegrees(ballState.surgeYaw));
+        poseStack.mulPose(Axis.XP.rotationDegrees(90.0F - ballState.surgePitch));
         collector.submitModel(model, ballState, poseStack, TidalSurgeModel.TEXTURE,
                 lightCoords, net.minecraft.client.renderer.texture.OverlayTexture.NO_OVERLAY, 0, null);
         poseStack.popPose();

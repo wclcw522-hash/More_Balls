@@ -19,4 +19,10 @@ public class BallRenderState extends ThrownItemRenderState {
 
     /** 【潮涌】的旋转相位（用实体年龄，和原版激流同一种走法） */
     public float surgeTicks = 0.0F;
+
+    /** 【潮涌】环绕要对齐的**速度方向** —— 偏航角（度） */
+    public float surgeYaw = 0.0F;
+
+    /** 【潮涌】环绕要对齐的**速度方向** —— 俯仰角（度） */
+    public float surgePitch = 0.0F;
 }
