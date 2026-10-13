@@ -6,13 +6,21 @@ import net.minecraft.util.Mth;
 import net.minecraft.world.effect.MobEffect;
 import net.minecraft.world.effect.MobEffectCategory;
 import net.minecraft.world.effect.MobEffectInstance;
+import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.LivingEntity;
+import net.minecraft.world.entity.Mob;
+import net.minecraft.world.entity.projectile.Projectile;
 import net.minecraft.world.phys.Vec3;
 import net.minecraft.util.RandomSource;
-import net.minecraft.world.entity.Mob;
 import net.neoforged.bus.api.SubscribeEvent;
 import net.neoforged.fml.common.EventBusSubscriber;
+import net.neoforged.neoforge.event.entity.EntityJoinLevelEvent;
 import net.neoforged.neoforge.event.entity.living.MobEffectEvent;
+import net.neoforged.neoforge.event.tick.EntityTickEvent;
+
+import java.util.Map;
+import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * 【震荡】—— 五级的「晕头转向」debuff（作者 2026-10-10 指定的规格）。
@@ -23,6 +31,21 @@ import net.neoforged.neoforge.event.entity.living.MobEffectEvent;
  *   <li>转向同时作用于<b>视角方向</b>与<b>运动方向</b> —— 两边都扭</li>
  *   <li>五级的间隔分别是 <b>20 / 17 / 13 / 8 / 2</b> 刻（越高越频繁）</li>
  * </ul>
+ *
+ * <h2>「锁定」—— 前若干个百分比的时长里，只能被本效果扭</h2>
+ * <p>作者 2026-10-13 追加：<b>持续时间的前百分之几</b>里，持有者的<b>朝向与移动方向都锁死</b>，
+ * 期间只有本效果自己到点的那一下能改它的朝向 —— 也就是说，这段窗口里
+ * 生物转不了头、也改不了要走的方向，玩家也压不住被扭过去的视角。</p>
+ * <p>占比按等级走：一级 <b>15%</b>、二级 <b>30%</b>、三级 <b>45%</b>、四级 <b>60%</b>、
+ * 五级 <b>75%</b>（见 {@link #LOCK_FRACTION}）。窗口之外只保留原有的「到点扭一下」，
+ * 不再锁。</p>
+ *
+ * <h2>射弹方向：整段效果期间都按「正前方」发射</h2>
+ * <p>作者 2026-10-13 追加：<b>生物</b>在受影响期间发射的射弹，方向一律取<b>它当前的朝向</b>
+ * （水平与垂直都跟），而不是原版那种「朝目标重新修正」的方向 —— 小白蓄力时被扭歪了视角，
+ * 箭仍按原计划按时射出，但飞向歪掉之后的方向（见 {@link #onProjectileJoin}）。</p>
+ * <p>玩家不在其列：玩家本来就只能朝视线前方发射，锁视角已经把方向一并锁住了。
+ * 另外，模组里那种自带追踪的弹幕也不受影响 —— 它们本来就不看发射时的朝向。</p>
  *
  * <h2>「无视药水效果免疫」怎么做到</h2>
  * <p>查 {@code LivingEntity.addEffect} 的实现：它只调
@@ -66,11 +89,42 @@ public class ShockEffect extends MobEffect {
      */
     private static final int[] INTERVAL_TICKS = {20, 17, 13, 8, 2};
 
+    /**
+     * 每一级「锁死朝向与移动方向」占持续时间的比例（作者 2026-10-13 指定）：
+     * <b>15% / 30% / 45% / 60% / 75%</b>。
+     *
+     * <p>窗口从效果挂上那一刻起算；窗口里除本效果到点扭的那一下之外，
+     * 持有者改不动自己的朝向，也改不动要去的方向。</p>
+     */
+    private static final float[] LOCK_FRACTION = {0.15F, 0.30F, 0.45F, 0.60F, 0.75F};
+
     /** 单次转向的最大水平偏移（度）—— 取 ±60°，即左右各可扭 60° */
     private static final float YAW_SWING = 120.0F;
 
     /** 单次转向的最大俯仰偏移（度）—— 取 ±30°，即上下各可扭 30° */
     private static final float PITCH_SWING = 60.0F;
+
+    /** 生物在锁定窗口里被压回去时，行走目标点取多远 —— 只要方向对，距离无所谓 */
+    private static final double LOCK_WANDER_DISTANCE = 3.0D;
+
+    /**
+     * 每只受影响实体的「锁定值」。
+     *
+     * @param yaw           本效果最近一次扭完之后朝向的水平角
+     * @param pitch         同上，俯仰角
+     * @param totalDuration 效果<b>本次</b>的总时长（刻）—— 用来算「前 X%」的边界。
+     *                      效果被刷新 / 重挂时跟着更新
+     */
+    private record Lock(float yaw, float pitch, int totalDuration) {
+    }
+
+    /**
+     * 受影响实体 → 锁定值。
+     *
+     * <p>原版 {@code MobEffectInstance} 存不了自定义字段，所以另开一张表。
+     * 效果到期时在 {@link #onExpired} 里清掉，不会越攒越多。</p>
+     */
+    private static final Map<UUID, Lock> LOCKS = new ConcurrentHashMap<>();
 
     public ShockEffect() {
         // HARMFUL = 红框（debuff），颜色取暗红，与「熔融物烧伤」的暖色区分开
@@ -80,6 +134,11 @@ public class ShockEffect extends MobEffect {
     /** 这一级每隔多少刻扭一次 */
     public static int intervalFor(int amplifier) {
         return INTERVAL_TICKS[Mth.clamp(amplifier, 0, INTERVAL_TICKS.length - 1)];
+    }
+
+    /** 这一级的「锁定占比」（0–1） */
+    public static float lockFractionFor(int amplifier) {
+        return LOCK_FRACTION[Mth.clamp(amplifier, 0, LOCK_FRACTION.length - 1)];
     }
 
     /**
@@ -119,13 +178,20 @@ public class ShockEffect extends MobEffect {
     }
 
     /**
-     * 每刻（实体 tick 之后）检查【震荡】并执行转向。
+     * 每刻（实体 tick 之后）检查【震荡】并执行转向 / 维持锁定。
      *
      * <p>放在 {@code EntityTickEvent.Post} 是关键：这时 AI 已经跑完，
      * 我们设的速度/朝向会一直保留到下一刻的移动结算 —— 生物这才真的会歪。</p>
+     *
+     * <p>处理分两种情形：</p>
+     * <ul>
+     *   <li><b>到点该扭了</b>：扭一下，并把扭完的朝向记进 {@link #LOCKS}</li>
+     *   <li><b>还没到点、且仍在锁定窗口内</b>：把朝向与行走目标<b>压回</b>记下的值 ——
+     *       这就是「这段时长里只有本效果能改方向」的实现方式</li>
+     * </ul>
      */
     @SubscribeEvent
-    public static void onEntityTickPost(net.neoforged.neoforge.event.tick.EntityTickEvent.Post event) {
+    public static void onEntityTickPost(EntityTickEvent.Post event) {
         if (!(event.getEntity() instanceof LivingEntity mob) || mob.level().isClientSide()) {
             return;
         }
@@ -133,10 +199,108 @@ public class ShockEffect extends MobEffect {
         if (instance == null) {
             return;
         }
-        if (instance.getDuration() % intervalFor(instance.getAmplifier()) != 0) {
+
+        int remaining = instance.getDuration();
+        int interval = intervalFor(instance.getAmplifier());
+        Lock previous = LOCKS.get(mob.getUUID());
+        // 效果被刷新 / 重挂（剩余时长变大）时，把「总时长」跟着更新，窗口边界才不会算错
+        int totalDuration = previous == null ? remaining : Math.max(previous.totalDuration(), remaining);
+
+        if (remaining % interval == 0) {
+            // —— 到点扭一下，并把结果记成新的锁定值 ——
+            applyShock(mob);
+            LOCKS.put(mob.getUUID(), new Lock(mob.getYRot(), mob.getXRot(), totalDuration));
             return;
         }
-        applyShock(mob);
+
+        if (previous == null) {
+            // 没记录（比如刚挂上、还没轮到第一个转向刻）—— 就以当前朝向为基准先锁住
+            LOCKS.put(mob.getUUID(), new Lock(mob.getYRot(), mob.getXRot(), totalDuration));
+            return;
+        }
+
+        // —— 还没到点：若仍在锁定窗口内，压回记下的朝向 ——
+        int elapsed = totalDuration - remaining;
+        float fraction = lockFractionFor(instance.getAmplifier());
+        if (elapsed >= totalDuration * fraction) {
+            return;   // 窗口已过，放它自由行动
+        }
+        restoreLock(mob, previous);
+    }
+
+    /**
+     * 把持有者的朝向与移动方向<b>压回</b>锁定的值。
+     *
+     * <p>玩家与非玩家分头处理：玩家的朝向是客户端状态、必须发包（坐标不变，只改朝向）；
+     * 生物的朝向在服务端改即可，另外还要把 {@code MoveControl} 的行走目标
+     * 重新指回锁定方向 —— 只改朝向不改目标点的话，下一刻 AI 就会照自己的目标拐走。</p>
+     */
+    private static void restoreLock(LivingEntity mob, Lock lock) {
+        if (mob instanceof ServerPlayer player) {
+            player.setYRot(lock.yaw());
+            player.setXRot(lock.pitch());
+            player.connection.teleport(player.getX(), player.getY(), player.getZ(),
+                    lock.yaw(), lock.pitch());
+            return;
+        }
+        mob.setYRot(lock.yaw());
+        mob.setXRot(lock.pitch());
+        mob.setYHeadRot(lock.yaw());
+        if (mob instanceof Mob creature) {
+            creature.yBodyRot = lock.yaw();
+            double radians = Math.toRadians(lock.yaw());
+            creature.getMoveControl().setWantedPosition(
+                    creature.getX() - Math.sin(radians) * LOCK_WANDER_DISTANCE,
+                    creature.getY(),
+                    creature.getZ() + Math.cos(radians) * LOCK_WANDER_DISTANCE,
+                    0.6D);
+        }
+    }
+
+    /**
+     * <b>射弹方向</b>：受影响期间，生物射出去的射弹一律按它<b>当前的朝向</b>飞
+     * （水平与垂直都跟），速率保持原样 —— 也就是「照原计划射出去，只是方向被扭了」。
+     *
+     * <p>为什么必须在实体生成时改写：原版生物（骷髅、烈焰人、女巫…）射弹时是
+     * <b>朝目标重新算方向</b>的，光把它的视角扭歪没用 —— 箭照样飞向玩家。
+     * 在这里把速度方向替换成持有者的视线方向，才能让它真的歪着射出去。</p>
+     *
+     * <p>不处理的：<b>玩家</b>射的（玩家本来只能朝视线前方发射，锁视角已经把方向锁住了）、
+     * 以及自带追踪的弹幕（它们不看发射瞬间的朝向，本来就不受影响）。</p>
+     */
+    @SubscribeEvent
+    public static void onProjectileJoin(EntityJoinLevelEvent event) {
+        if (event.getLevel().isClientSide() || !(event.getEntity() instanceof Projectile projectile)) {
+            return;
+        }
+        Entity shooter = projectile.getOwner();
+        // 只管生物射的：玩家不是 Mob，这一条天然把玩家排除在外
+        // （而且玩家的弹道本来就只能朝视线前方，锁视角已经把方向一并锁住了）
+        if (!(shooter instanceof Mob mob)) {
+            return;
+        }
+        if (mob.getEffect(ModEffects.SHOCK) == null) {
+            return;
+        }
+        Vec3 velocity = projectile.getDeltaMovement();
+        double speed = velocity.length();
+        if (speed < 1.0E-4D) {
+            return;   // 还没给初速的（或静态生成的），不碰
+        }
+        projectile.setDeltaMovement(mob.getLookAngle().scale(speed));
+    }
+
+    /**
+     * 效果到期 —— 清掉锁定记录，避免这张表越攒越多。
+     *
+     * <p>「被刷新」走的是 {@code MobEffectEvent.Added} 那条路，不在这里清；
+     * 刷新时 {@link #onEntityTickPost} 会把总时长跟着更新。</p>
+     */
+    @SubscribeEvent
+    public static void onExpired(MobEffectEvent.Expired event) {
+        if (event.getEffectInstance().is(ModEffects.SHOCK)) {
+            LOCKS.remove(event.getEntity().getUUID());
+        }
     }
 
     /**
