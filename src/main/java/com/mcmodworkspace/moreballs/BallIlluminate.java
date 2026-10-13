@@ -25,7 +25,7 @@ import java.util.List;
 /**
  * 【照明】—— 雪球-红石的专属词条（作者 2026-10-10 指定的规格）。
  *
- * <h2>判定区：一个倒扣的正四棱锥</h2>
+ * <h2>判定区：倒扣的正四棱锥 + 地面以下的正四棱柱</h2>
  * <p>以<b>球心为顶点</b>，向下张开四条棱、一直到地面，再把底面四个顶点连起来 ——
  * 这个四棱锥就是判定区。作者给的夹角是「斜边与邻边成 60°」，
  * 换成计算式就是：底面半对角线 = 高度 × tan(30°)。</p>
@@ -72,6 +72,14 @@ public final class BallIlluminate {
     /** 向下找地面的最大距离 */
     private static final double MAX_GROUND_SEARCH = 48.0D;
 
+    /**
+     * 地面以下**额外延伸**的正四棱柱高度（作者 2026-10-13 指定：60 格）。
+     *
+     * <p>棱柱的横截面就是棱锥的底面那个正方形，所以总判定区 =
+     * <b>棱锥（球心 → 地面）+ 棱柱（地面往下 60 格）</b>。</p>
+     */
+    private static final double PRISM_DEPTH = 60.0D;
+
     /** 每次叠多少刻的发光（作者 2026-10-13 指定翻倍：2 秒） */
     private static final int GLOW_TICKS = 40;
 
@@ -88,91 +96,48 @@ public final class BallIlluminate {
     private static final int PARTICLES_PER_ENTITY = 2;
 
     /**
-     * 球的每刻照明逻辑 —— 由 {@code BallProjectile} 在实体状态时调用。
+     * 判断目标是否落在判定区内 —— 区域 = <b>棱锥</b>（球心为顶点、底面在地面）+ <b>棱柱</b>
+     * （地面往下 {@link #PRISM_DEPTH} 格，横截面就是棱锥的底面那个正方形）。
      *
-     * @param level   服务端世界
-     * @param ballPos 球心（棱锥的顶点）
-     */
-    public static void tick(ServerLevel level, Vec3 ballPos) {
-        double groundY = findGroundY(level, ballPos);
-        if (Double.isNaN(groundY)) {
-            return;   // 下面没有可站的地面（悬空在虚空上）
-        }
-        double height = ballPos.y - groundY;
-        if (height < MIN_HEIGHT) {
-            return;   // 球几乎贴地了，锥体退化成一条线，没意义
-        }
-        double halfDiagonal = height * SPREAD;
-
-        // 用锥体外接立方体粗筛，再做精确的锥内判定
-        double reach = Math.max(halfDiagonal, 1.0D);
-        AABB box = new AABB(
-                ballPos.x - reach, groundY - 1.0D, ballPos.z - reach,
-                ballPos.x + reach, ballPos.y + 1.0D, ballPos.z + reach);
-
-        List<LivingEntity> nearby = level.getEntitiesOfClass(LivingEntity.class, box);
-        for (LivingEntity target : nearby) {
-            if (!target.isAlive()) {
-                continue;
-            }
-            if (!insidePyramid(ballPos, groundY, halfDiagonal, target)) {
-                continue;
-            }
-
-            // 【照明】触发概率（当前 100% 必触发；以后调这个常量即可）
-            // 叠 2 秒发光（作者 2026-10-13 指定翻倍）。每 tick 都会走到：
-            // 等价于「只要还在区内就一直亮着，离开后 2 秒熄灭」。
-            target.addEffect(new MobEffectInstance(
-                    MobEffects.GLOWING, GLOW_TICKS, 0, false, false, false));
-
-            emitFactionParticles(level, target);
-        }
-    }
-
-
-    /**
-     * 判断目标是否落在棱锥内。
-     *
-     * <p>做法：先按高度求出这一层的「允许半对角线」，再看目标的水平偏移是否在正方形截面内。
-     * 正方形用 {@code max(|dx|, |dz|) <= 半边长} 判，其中半边长 = 半对角线 / √2。</p>
+     * <p>判定顺序：先用**地面那一层的正方形**（整个区域最宽的一层）粗判水平偏移，
+     * 出不去的直接否掉；然后按目标所在高度分两段 ——</p>
+     * <ul>
+     *   <li><b>地面以上</b>：走棱锥判据，越往上越窄（{@code t} 从地面 1 收到顶点 0）</li>
+     *   <li><b>地面以下</b>：走棱柱判据，截面恒等于地面那个正方形，只要没超过
+     *       {@link #PRISM_DEPTH} 就算在内</li>
+     * </ul>
      *
      * <p><b>取样高度取的是目标碰撞箱顶面</b>（{@code maxY} 再向下让开一点点浮点误差），
-     * 并且夹在顶点高度以内。锥体自顶点向下是**越走越宽**的，所以顶面这一层是
-     * 目标所占据的整段高度里**锥体最窄的一层**，容许的半边长最小；
-     * 拿它去比目标**中心**的水平偏移，等于把容差压到最小 —— 这是**最严**的一种取法。</p>
-     *
-     * <p>也就是说这个判据是<b>偏保守</b>的：它宁可漏判、也不放进误判。
-     * 代价落在<b>锥体边缘</b>上 —— 又高又宽的实体（碰撞箱顶面高、中心又偏）
-     * 会被判成「不在区内」，哪怕它的下半身确实在锥内的；判定返回 {@code false}
-     * 只说明目标中心超出了这一层的容许范围，<b>不能反推目标一定站在锥外</b>。
-     * （若改成取碰撞箱中心高度，那一层更宽、判得宽松得多。）
-     * epsilon 只用来避免「恰好贴边」被浮点误差判出去。</p>
+     * 并夹在顶点高度以内。棱锥自顶点向下是**越走越宽**的，所以顶面这一层是目标所占据的
+     * 整段高度里**最窄的一层**，容许的半边长最小；拿它去比目标**中心**的水平偏移，
+     * 等于把容差压到最小 —— 这是**最严**的一种取法，宁可漏判也不放进误判。</p>
      */
-    private static boolean insidePyramid(Vec3 apex, double groundY, double halfDiagonal, LivingEntity target) {
+    private static boolean insideRegion(Vec3 apex, double groundY, double halfDiagonal, LivingEntity target) {
         AABB targetBox = target.getBoundingBox();
-        // 取碰撞箱顶面所在的层来判 —— 这是目标所跨的整段高度里锥体最窄的一层，
-        // 因此是最严的判据（详见方法注释）
-        double sampleY = Math.min(targetBox.maxY - 1.0E-3D, apex.y);
-        if (sampleY < groundY) {
-            sampleY = groundY;
+        double halfSideGround = halfDiagonal / Math.sqrt(2.0D);
+        double dx = targetBox.getCenter().x - apex.x;
+        double dz = targetBox.getCenter().z - apex.z;
+        // 先过最宽那一层：过不了就哪个段都进不去
+        if (Math.max(Math.abs(dx), Math.abs(dz)) > halfSideGround) {
+            return false;
         }
 
+        double sampleY = Math.min(targetBox.maxY - 1.0E-3D, apex.y);
+
+        // ① 地面以下 —— 棱柱段，截面恒等于地面正方形
+        if (sampleY < groundY) {
+            return sampleY >= groundY - PRISM_DEPTH;
+        }
+
+        // ② 地面以上 —— 棱锥段，越往上越窄
         double height = apex.y - groundY;
         if (height <= 0.0D) {
             return false;
         }
-        // 这一层的收缩比例：0 在顶点、1 在地面
         double t = (apex.y - sampleY) / height;
         t = Math.max(0.0D, Math.min(1.0D, t));
-
-        double allowedHalfDiagonal = halfDiagonal * t;
-        double halfSide = allowedHalfDiagonal / Math.sqrt(2.0D);
-
-        double dx = targetBox.getCenter().x - apex.x;
-        double dz = targetBox.getCenter().z - apex.z;
-        return Math.max(Math.abs(dx), Math.abs(dz)) <= halfSide;
+        return Math.max(Math.abs(dx), Math.abs(dz)) <= halfDiagonal * t / Math.sqrt(2.0D);
     }
-
     /** 按阵营给生物裹一层对应颜色的粒子 */
     private static void emitFactionParticles(ServerLevel level, LivingEntity target) {
         int color = factionColor(target);
