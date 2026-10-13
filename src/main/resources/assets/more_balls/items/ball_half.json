@@ -87,6 +87,13 @@
             "type": "minecraft:model",
             "model": "more_balls:item/ball_half_11"
           }
+        },
+        {
+          "when": 12,
+          "model": {
+            "type": "minecraft:model",
+            "model": "more_balls:item/ball_half_12"
+          }
         }
     ],
     "fallback": {
