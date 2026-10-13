@@ -81,22 +81,33 @@ public final class BallTooltip {
     }
 
     /**
-     * 药水效果名 + 时长，按原版 tooltip 的样子摆 —— {@code 效果名 (0:01)}。
+     * 效果名 + 时长，带上等级 —— 一级显示「震荡」、二级显示「震荡 II」。
      *
-     * <p>时长用 {@link MobEffectUtil#formatDuration} 生成：它给出的才是 MC 的药水格式
-     * （分:秒、秒补两位），而且随语言与 tick 速率变化。
-     * 之前是在 lang 里写死「（0:01）」，那只是碰巧和本模组当前时长一致的一段文本，
-     * 时长一改就会对不上。</p>
-     *
-     * <p>参数收 {@code Holder<MobEffect>} 而不是 {@code MobEffect} ——
-     * {@code MobEffectInstance} 的构造器要的是 holder，而 {@code ModEffects} 里注册的
-     * {@code DeferredHolder} 本身就是 holder，直接传即可，别 {@code .get()}。</p>
+     * <p>名字必须取自 MobEffectInstance#getDisplayName()（它会把放大器渲染成罗马数字），
+     * 不能取 effect.value() 的裸名字 —— 那样两级看起来一模一样，高护甲那一档就白写了
+     * （作者 2026-10-13 报告）。</p>
      */
-    private static Component effectWithDuration(net.minecraft.core.Holder<MobEffect> effect, int ticks) {
-        Component duration = MobEffectUtil.formatDuration(
-                new MobEffectInstance(effect, ticks), 1.0F, 20.0F);
+    private static Component effectWithDuration(net.minecraft.core.Holder<MobEffect> effect,
+            int ticks, int amplifier) {
+        MobEffectInstance instance = new MobEffectInstance(effect, ticks, amplifier);
+        Component duration = MobEffectUtil.formatDuration(instance, 1.0F, 20.0F);
         return Component.translatable("tooltip.more_balls.effect_duration",
-                effectName(effect.value()), duration);
+                effectNameWithLevel(effect.value(), amplifier), duration);
+    }
+
+    /**
+     * 效果名 + 等级后缀 —— 一级「震荡」、二级「震荡 II」。
+     *
+     * <p>用原版现成的两个键拼：{@code potion.withAmplifier}（「%s %s」）与
+     * {@code enchantment.level.N}（罗马数字）。这样不必依赖任何会随版本变动的 API。</p>
+     */
+    private static Component effectNameWithLevel(MobEffect effect, int amplifier) {
+        Component name = effectName(effect);
+        if (amplifier <= 0) {
+            return name;
+        }
+        return Component.translatable("potion.withAmplifier", name,
+                Component.translatable("enchantment.level." + (amplifier + 1)));
     }
 
     /**
@@ -173,7 +184,7 @@ public final class BallTooltip {
                     // 效果名 + 时长整体走原版格式（名字带效果颜色、时长是药水格式）
                     line("tooltip.more_balls.desc.molten",
                             effectWithDuration(ModEffects.MOLTEN_BURN,
-                                    BallBehavior.MOLTEN_BURN_TICKS))));
+                                    BallBehavior.MOLTEN_BURN_TICKS, 0))));
         }
 
         // 【变形】—— 金球
@@ -249,8 +260,8 @@ public final class BallTooltip {
         if (profile.hasFlag(BallBehavior.BallProfile.FLAG_PULSE)) {
             out.add(Entry.of(line("tooltip.more_balls.entry.pulse"), Kind.TRAIT,
                     Component.translatable("tooltip.more_balls.desc.pulse",
-                            effectWithDuration(ModEffects.SHOCK, RedstonePulse.DURATION_BASE),
-                            effectWithDuration(ModEffects.SHOCK, RedstonePulse.DURATION_STRONG))));
+                            effectWithDuration(ModEffects.SHOCK, RedstonePulse.DURATION_BASE, 0),
+                            effectWithDuration(ModEffects.SHOCK, RedstonePulse.DURATION_STRONG, RedstonePulse.AMPLIFIER_STRONG))));
         }
 
         // 【照明】—— 雪球-红石：下方四棱锥区域内的生物被染色发光
@@ -281,7 +292,7 @@ public final class BallTooltip {
         if (profile.hasFlag(BallBehavior.BallProfile.FLAG_MAGIC)) {
             out.add(Entry.of(line("tooltip.more_balls.entry.magic"), Kind.TRAIT,
                     Component.translatable("tooltip.more_balls.desc.magic",
-                            effectWithDuration(ModEffects.IMMORTAL, ImmortalEffect.REWARD_TICKS))));
+                            effectWithDuration(ModEffects.IMMORTAL, ImmortalEffect.REWARD_TICKS, 0))));
         }
 
         // ===== 更早批次：【感应】自 2.0.0 起就有（渲染代码排在此处）=====

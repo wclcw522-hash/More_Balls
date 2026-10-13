@@ -448,7 +448,7 @@ public final class BallFragments {
                 conductions >= 1,
                 // 【引雷x】是**阈值类特殊**词条（作者 2026-10-10 分类）：
                 // 切开不变、**需要激活**（四合一 ≥2 份）、合成取**最高**（阈值由 thunderThresholdFrom 取 max）
-                thunders >= QUAD_TRAIT_THRESHOLD,
+                thunders >= 1,
                 shocks >= 1,
                 // 【穿透x】数值型：够份数才保留，保留时给四份之和
                 (penetrations >= 1)

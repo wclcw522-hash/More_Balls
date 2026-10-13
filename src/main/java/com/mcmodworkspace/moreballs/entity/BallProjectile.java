@@ -322,6 +322,7 @@ public class BallProjectile extends ThrowableItemProjectile {
                 hit = random.nextFloat() < chance;
             }
             if (misses != null) {
+                MoreBalls.LOGGER.info("[ball][保底] 词条位{} 概率{} 保底{} 连未中{} 本次{}", bit, chance, pityLimit(chance), misses[bit], hit ? "触发" : "未中");
                 misses[bit] = hit ? 0 : misses[bit] + 1;
             }
             if (hit) {

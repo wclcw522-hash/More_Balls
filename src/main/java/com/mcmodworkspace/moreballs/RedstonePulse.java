@@ -43,6 +43,9 @@ public final class RedstonePulse {
     /** 【震荡】的持续时长：<b>3 秒</b> = 60 刻 */
     public static final int DURATION_BASE = 60;
 
+    /** 【震荡 II】的放大器 —— 1 就是第二级（tooltip 靠它渲染成「震荡 II」） */
+    public static final int AMPLIFIER_STRONG = 1;
+
     /** 【震荡 2】的持续时长：<b>5 秒</b> = 100 刻 */
     public static final int DURATION_STRONG = 100;
 
@@ -97,7 +100,7 @@ public final class RedstonePulse {
             target.addEffect(new MobEffectInstance(
                     ModEffects.SHOCK,
                     strong ? DURATION_STRONG : DURATION_BASE,
-                    strong ? 1 : 0));
+                    strong ? AMPLIFIER_STRONG : 0));
         }
     }
 }
