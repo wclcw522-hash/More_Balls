@@ -1053,6 +1053,14 @@ public class BallProjectile extends ThrowableItemProjectile {
     /** 滚动（以及静止）时阻力由地面摩擦负责，不叠加空气阻力 */
     @Override
     protected float getAirDrag() {
+        // 【潮涌】（「其它特殊」类，作者 2026-10-13 追加的规格）——
+        // 在水中时除了不受重力，**也不受阻力**（即没有速度衰减）。
+        // 返回 1.0 就是「完全不衰减」，和下面滚动/静止用的是同一个手法。
+        // 为什么只改这一处就够：26.2 的原版 Entity 没有单独的「水中阻力」钩子
+        // （fluidInteraction 那条是「被流体推动」，不是减速），在水里走的同样是 getAirDrag()。
+        if (this.tidalSurgeActive) {
+            return 1.0F;
+        }
         return (this.isRolling() || this.isSettled()) ? 1.0F : super.getAirDrag();
     }
 
