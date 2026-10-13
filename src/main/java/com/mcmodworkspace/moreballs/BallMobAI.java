@@ -560,6 +560,12 @@ public final class BallMobAI {
         if (!canUseBalls(mob)) {
             return false;
         }
+
+        // 【忠诚】的球**不会被任何生物捡走**（作者 2026-10-13 指定）—— 主动接球这条路的拦截。
+        // 顺手捡球那条在 tryPickUpBall 里，挂在金球锁同一个判据上。
+        if (isLoyal(ball)) {
+            return false;
+        }
         // 手上已经拿着东西就腾不出手接
         if (!mob.getMainHandItem().isEmpty()) {
             return false;
@@ -616,7 +622,17 @@ public final class BallMobAI {
         }
         return ball.isGoldLuring(ball.level().getGameTime());
     }
+
     /**
+     * 【忠诚】的球永远不会被任何生物捡走（作者 2026-10-13 指定）。
+     *
+     * <p>判据走 {@code profile}，所以**带潮汐球的组合球同样免疫** ——
+     * 和【移形换位】那边一个道理：只要合成时 {@code comboProfile} 写回了 loyalty，
+     * 这里就认。两个捡球入口（{@link #tryCatchBall} 与 {@link #tryPickUpBall}）都要过这一关。</p>
+     */
+    private static boolean isLoyal(BallProjectile ball) {
+        return BallBehavior.profileFor(ball.getItem()).loyalty();
+    }    /**
      * 顺手把脚边停着的球捡起来 —— 作者指定的规则：范围 1.5 格、<b>每 2 刻判定一次</b>、
      * 每次 <b>4%</b> 概率（= {@link #PICKUP_CHANCE} × {@link #PICKUP_TRY_INTERVAL}）；
      * 前提是怪的手空着。
@@ -691,7 +707,7 @@ public final class BallMobAI {
             // **不能被捡起** —— 那段窗口是留给玩家看清「猪灵被吸引过来」的，
             // 球一落地就被捡走的话，这个效果根本看不见。
             BallProjectile candidate = near.get(0);
-            if (isGoldLureLocked(candidate)) {
+            if (isGoldLureLocked(candidate) || isLoyal(candidate)) {
                 return;
             }
             // 【捡球】触发概率（当前 100% 必触发；以后调这个常量即可）

@@ -101,6 +101,9 @@ public class BallProjectile extends ThrowableItemProjectile {
             SynchedEntityData.defineId(BallProjectile.class, EntityDataSerializers.BOOLEAN);
     private static final EntityDataAccessor<Boolean> ROLLING =
             SynchedEntityData.defineId(BallProjectile.class, EntityDataSerializers.BOOLEAN);
+    /** 【潮涌】状态 —— 球在水里时由服务端置位；客户端据此决定要不要画激流的环绕纹理 */
+    private static final EntityDataAccessor<Boolean> TIDAL_SURGE =
+            SynchedEntityData.defineId(BallProjectile.class, EntityDataSerializers.BOOLEAN);
     /**
      * 本趟投掷**生效的特性位**（服务端掷定、自动同步到客户端 —— 客户端只负责按它放粒子）。
      */
@@ -535,6 +538,10 @@ public class BallProjectile extends ThrowableItemProjectile {
 
     /** 连着泡在水里的刻数 —— 够了就当作「落定」，见 WATER_SETTLE_TICKS */
     private int inWaterTicks;
+    /** 【潮涌】是否已激活（服务端权威；客户端读同步位） */
+    private boolean tidalSurgeActive;
+    /** 【潮涌】激活前的重力状态 —— 出水时要还原成它，而不是硬写 false */
+    private boolean tidalGravityBefore = true;
 
     /** 低速持续的刻数 —— 够了就当作「落定」（只给带空气动力球的球用） */
     private int stuckTicks;
@@ -977,6 +984,55 @@ public class BallProjectile extends ThrowableItemProjectile {
     }
 
     /**
+     * 【潮涌】的状态机（作者 2026-10-13 规格）。
+     *
+     * <p>判据只有一条：<b>有【潮涌】词条 且 {@link #isInWater()}</b> —— 「雨天不算」天然成立，
+     * 因为 {@code isInWater} 只认流体方块，不看天气。所以「离开水面就结束、落回水面又触发」
+     * 不需要额外记忆，每一刻按当前是否在水里重新判定即可。</p>
+     *
+     * <p>两件事只在<b>状态真正翻转</b>时做（{@code setNoGravity} 是同步数据，
+     * 每 tick 都调会出现「卡一下闪现一下」—— 这条坑在【智慧】球那边踩过）：</p>
+     * <ul>
+     *   <li>进入潮涌：记下原重力状态 → 关重力 → <b>当前速度 ×3</b> → 放三叉戟「激流」音效</li>
+     *   <li>结束潮涌：还原重力（用记下的原值，不是硬写 false）</li>
+     * </ul>
+     *
+     * <p>速度只在进入的那一刻乘一次 —— 不是每刻 ×3（那会指数爆炸）。潮涌期间不受重力，
+     * 所以这个速度会一直保持到出水或撞上东西。</p>
+     */
+    private void tickTidalSurge() {
+        boolean hasSurge = this.profile().tidalSurge();
+        boolean inWater = hasSurge && this.isInWater();
+
+        if (inWater && !this.tidalSurgeActive) {
+            this.tidalGravityBefore = this.isNoGravity();
+            this.setNoGravity(true);
+            this.setDeltaMovement(this.getDeltaMovement().scale(TIDAL_SPEED_MULTIPLIER));
+            if (this.level() instanceof ServerLevel surgeLevel) {
+                surgeLevel.playSound(null, this.getX(), this.getY(), this.getZ(),
+                        net.minecraft.sounds.SoundEvents.TRIDENT_RIPTIDE_1,
+                        net.minecraft.sounds.SoundSource.NEUTRAL, 1.0F, 1.0F);
+            }
+            this.tidalSurgeActive = true;
+        } else if (!inWater && this.tidalSurgeActive) {
+            // 还原成**进入前**的重力状态（不是硬写 false）—— 见【智慧】球那边同款注释
+            this.setNoGravity(this.tidalGravityBefore);
+            this.tidalSurgeActive = false;
+        }
+
+        if (this.level() instanceof ServerLevel && this.getEntityData().get(TIDAL_SURGE) != this.tidalSurgeActive) {
+            this.getEntityData().set(TIDAL_SURGE, this.tidalSurgeActive);
+        }
+    }
+
+    /** 【潮涌】速度倍率（作者指定：当前值的 3 倍） */
+    public static final float TIDAL_SPEED_MULTIPLIER = 3.0F;
+
+    /** 客户端渲染用：这颗球此刻在不在潮涌状态 */
+    public boolean isTidalSurge() {
+        return this.getEntityData().get(TIDAL_SURGE);
+    }
+    /**
      * 【空气动力球】的兜底落定：连续 {@value #STUCK_SETTLE_TICKS} 刻速度都不高，就当球停下了。
      *
      * <p>严格的静止条件（速度 &lt; 0.03 格/刻、脚下有支撑、不在脉冲保护期）在球卡进方块边缘、
@@ -1010,6 +1066,7 @@ public class BallProjectile extends ThrowableItemProjectile {
         builder.define(BOUNCE, BallBehavior.DEFAULT_BOUNCE);
         builder.define(SETTLED, false);
         builder.define(ROLLING, false);
+        builder.define(TIDAL_SURGE, false);
         builder.define(FIRED_TRAITS, 0);
     }
 
@@ -1130,6 +1187,10 @@ public class BallProjectile extends ThrowableItemProjectile {
 
     /** tick 的前半段：上限检查、回归开关、票据 */
     private void ballTickPre() {
+        // 【潮涌】（「其它特殊」类，作者 2026-10-13）——
+        // 有词条 + 球在水里 ⇒ 不受重力、速度 ×3，并环绕激流的纹理特效（雨天不算，靠 isInWater 天然满足）。
+        // 从水底射出后离开水面 ⇒ 结束潮涌、还原重力；再落回水面会重新触发；直到停止。
+        this.tickTidalSurge();
         // 【特性类词条的本次判定】每趟投掷只判一次 —— 放这里能覆盖所有发射入口
         // （玩家手扔 / 弩 / 怪物投掷 / 掠夺者），不用去改那四个文件。
         this.rollTraitsOnce();
