@@ -216,6 +216,10 @@ public final class ModItems {
             "lapis_ball",
             props -> new BallItem(props.stacksTo(BALL_STACK_SIZE)));
 
+    public static final DeferredItem<Item> TIDAL_BALL = ITEMS.registerItem(
+            "tidal_ball",
+            props -> new BallItem(props.stacksTo(BALL_STACK_SIZE)));
+
     /**
      * 「雪球-红石」 —— 不坚固、重量 3、<b>伤害 0</b>、蓄力 6。
      *

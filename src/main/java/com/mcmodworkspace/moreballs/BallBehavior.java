@@ -247,6 +247,21 @@ public final class BallBehavior {
                 .withRarity(1)
                 .withTranspose(true));
 
+        // ===== 潮汐球：伤害 8、重量 6、坚固 300、弹射 0、蓄力 3（作者 2026-10-13）=====
+        // 破碎无掉落物（作者的规格里明确「无掉落物」，所以这里不写 withDrops）。
+        // 碰撞/命中走三叉戟的音效；进入潮涌时的「激流」音效是状态音，在效果代码里播。
+        override(ModItems.TIDAL_BALL.get(), DEFAULT
+                .withDamage(8.0F)
+                .withWeight(6)
+                .withToughness(300)
+                .withBounce(0)
+                .withChargeLevels(3)
+                .withRarity(0)
+                .withSound(BallBehavior.BallSound.of(
+                        net.minecraft.sounds.SoundEvents.TRIDENT_HIT_GROUND,
+                        net.minecraft.sounds.SoundEvents.TRIDENT_HIT,
+                        1.0F)));
+
         // ===== 本模组物品：木球 =====
         override(ModItems.WOODEN_BALL.get(), DEFAULT
                 .withToughness(8)

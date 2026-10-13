@@ -139,7 +139,9 @@ public final class BallFragments {
                     //    贴图也早就有了。真正缺的只是「进这张表」这一步。
                     //    这里写全限定名 —— 本文件其它地方没用到 Items，省得为一个原版
                     //    常量去动 import 区。
-                    net.minecraft.world.item.Items.ENDER_PEARL);
+                    net.minecraft.world.item.Items.ENDER_PEARL,
+                    // ⚠️ 0.3.6.0 追加的**潮汐球**，同样**只在末尾追加** —— 下标 12。
+                    ModItems.TIDAL_BALL.get());
         }
         return sourcesCache;
     }
@@ -184,7 +186,7 @@ public final class BallFragments {
      */
     public static final List<String> SHORT_NAME =
             List.of("木", "圆石", "铁", "金", "空心铁", "紫水晶", "铜", "空心铜",
-                    "红石", "钻石", "青金石", "末影");
+                    "红石", "钻石", "青金石", "末影", "潮汐");
 
     /**
      * 组合球<b>内部 id</b> 里用的短名，与 {@link #sources()} <b>同序、同长度</b>。
@@ -194,7 +196,7 @@ public final class BallFragments {
     public static final List<String> SHORT_ID =
             List.of("wooden", "cobblestone", "iron", "gold", "hollow_iron",
                     "amethyst", "copper", "hollow_copper",
-                    "redstone", "diamond", "lapis", "ender_pearl");
+                    "redstone", "diamond", "lapis", "ender_pearl", "tidal");
 
     /** 这颗球在 {@link #sources()} 里的下标；不属于其中就返回 -1（雪球会走到这里） */
     public static int indexOf(Item ball) {
