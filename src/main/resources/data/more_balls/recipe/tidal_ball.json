@@ -1,0 +1,12 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "category": "misc",
+  "key": {
+    "B": "#minecraft:coral_blocks",
+    "C": "#minecraft:coral_plants",
+    "V": "minecraft:conduit"
+  },
+  "pattern": [ "CBC", "BVB", "CBC" ],
+  "result": { "count": 1, "id": "more_balls:tidal_ball" },
+  "show_notification": false
+}
