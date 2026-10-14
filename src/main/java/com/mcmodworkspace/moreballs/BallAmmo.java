@@ -301,6 +301,18 @@ public final class BallAmmo {
         boolean side = claimSideProjectile();
         ball.setMultishotSide(side);
 
+        // 【三军听令】：本次发射出现了多重射击的附属弹 ⇒ 给射手发成就。
+        //
+        // ⚠️ 原来这个成就**只在 BallMobAI（怪物侧）发**，玩家用弩打出多重射击领不到
+        //    —— 作者 2026-10-14 报的「三军听令没触发」就是这个。
+        //
+        //    side 为 true 代表「同一次 performShooting 里出现了第 2 颗以上的球」，
+        //    这正是多重射击生效的判据（见 claimSideProjectile 的注释）。
+        //    不放进 BallAchievementWatcher 是因为那是「状态型」成就的 20 刻巡查，
+        //    而这是一次性事件 —— 巡查看不到「刚射出去的那一发」。
+        if (side && shooter instanceof Player player) {
+            ModAdvancements.award(player, ModAdvancements.MULTISHOT);
+        }
         // 【空气动力球】：给球打上「静止后自己飞回来」的标记（附属弹不给）。
         // 真正的回归逻辑在 BallProjectile 里
         if (!side) {

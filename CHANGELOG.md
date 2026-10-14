@@ -1,3 +1,26 @@
+## 1.0.1.9 — 修复【三军听令】玩家侧不触发
+
+作者 2026-10-14 报「用多重射击射一次球，成就没触发」。
+
+**根因**：`ModAdvancements.MULTISHOT` 的**唯一**发放点是 `BallMobAI.java:2204` ——
+那是**怪物 AI 一侧**。玩家用弩打出多重射击走的是
+`CrossbowItemMixin:81 → BallAmmo.createProjectile()`，那里在 `BallAmmo.java:302`
+设了 `ball.setMultishotSide(side)` 标记「这是附属弹」，**但从来没有调 `award`**。
+
+**修法**：在 `createProjectile()` 里 `side == true` 时给射手发成就 ——
+`side` 来自 `claimSideProjectile()`，它的语义就是「同一次 `performShooting` 里
+出现了第 2 颗以上的球」，正是「多重射击生效」的判据。
+**不放进 `BallAchievementWatcher`**：那是「状态型」成就的 20 刻巡查，
+而多重射击是一次性事件，巡查看不到「刚射出去的那一发」。
+
+**顺带清点**（第 ⑥ 项）：把全部 10 个代码发放点过了一遍，
+**只有 `MULTISHOT` 是「只挂怪物侧」**，其余都有玩家侧路径
+（`CROSSBOW_AMMO` / `LIGHTNESS` 在 `BallAchievementWatcher`，
+`HEAT_SMELT` / `PIGLIN_TRADE` / `WISDOM` / `HURT_BY_MOB_BALL` / `SNOWBALL_HURT` /
+`AERODYNAMIC_RETURN` / `KILLED_BY_OWN_BALL` 各有玩家侧入口），
+`ROOT` / `RUBBLE` / `COMBO_BALL` / `IRON_BALL_FROM_BLOCKS` / `FUFU` 是数据驱动。
+
+---
 ## 1.0.1.7 — 【三军听令】图标改成自定义 cube 模型
 
 作者 2026-10-14 反馈：用 composite + transformation 拼的三角**整体太暗、偏左下，
