@@ -1,3 +1,21 @@
+## 1.0.1.7 — 【三军听令】图标改成自定义 cube 模型
+
+作者 2026-10-14 反馈：用 composite + transformation 拼的三角**整体太暗、偏左下，
+左下那颗雪球被裁掉三分之一**。
+
+**根因**：原版从来不用 composite 的 `transformation` 去**排列**部件 ——
+全原版 33 个 composite 里带 transformation 的只有「床」（一维 `z=1.0`）和「铜傀儡雕像」
+（方块坐标系 + 翻正），部件位置一律是**在模型文件里画好的**。
+我拿 6 个小数位移 + 0.42 缩放去摆三角，属于自创用法，坐标系语义没吃透，
+所以每次偏的方向都不一样。
+
+**改法**：照原版的路子，位置写进模型里 ——
+新建 `models/item/advancement/three_snowballs.json`，用 **3 个 4×4×4 的 cube** 摆成三角
+（x 范围 2~14、y 范围 3~14，全在 16×16×16 的模型空间内，**不可能越界**），
+贴图直接引用原版的 `minecraft:item/snowball`。
+`items/advancement/three_snowballs.json` 只做一次转发。
+
+---
 ## 1.0.1.6 — 成就系统一批改动
 
 作者 2026-10-14 指定：

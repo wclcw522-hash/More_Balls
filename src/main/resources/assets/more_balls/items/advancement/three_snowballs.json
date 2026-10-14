@@ -1,38 +1,7 @@
 {
-  "__comment": "成就「三军听令！」的图标：三颗原版雪球摆成三角。全用原版模型 + transformation 拼合，不需要贴图。数值按原版范围（scale 0.667~1.0 附近、位移尽量小）取，之前用 0.62 + ±0.26 会顶出物品格子，成就界面里只能看到边角（作者 2026-10-14 报的）。",
+  "__comment": "成就「三军听令！」的图标入口。真正的模型在 models/item/advancement/three_snowballs.json（三个 cube 拼的三角），这里只做一次转发。",
   "model": {
-    "type": "minecraft:composite",
-    "models": [
-      {
-        "type": "minecraft:model",
-        "model": "minecraft:item/snowball",
-        "transformation": {
-          "left_rotation": [ 0.0, 0.0, 0.0, 1.0 ],
-          "right_rotation": [ 0.0, 0.0, 0.0, 1.0 ],
-          "scale": [ 0.42, 0.42, 0.42 ],
-          "translation": [ 0.0, 0.24, 0.0 ]
-        }
-      },
-      {
-        "type": "minecraft:model",
-        "model": "minecraft:item/snowball",
-        "transformation": {
-          "left_rotation": [ 0.0, 0.0, 0.0, 1.0 ],
-          "right_rotation": [ 0.0, 0.0, 0.0, 1.0 ],
-          "scale": [ 0.42, 0.42, 0.42 ],
-          "translation": [ -0.19, -0.1, 0.0 ]
-        }
-      },
-      {
-        "type": "minecraft:model",
-        "model": "minecraft:item/snowball",
-        "transformation": {
-          "left_rotation": [ 0.0, 0.0, 0.0, 1.0 ],
-          "right_rotation": [ 0.0, 0.0, 0.0, 1.0 ],
-          "scale": [ 0.42, 0.42, 0.42 ],
-          "translation": [ 0.19, -0.1, 0.0 ]
-        }
-      }
-    ]
+    "type": "minecraft:model",
+    "model": "more_balls:item/advancement/three_snowballs"
   }
 }
