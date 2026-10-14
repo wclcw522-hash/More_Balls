@@ -313,6 +313,7 @@ public final class BallAmmo {
         if (side && shooter instanceof Player player) {
             ModAdvancements.award(player, ModAdvancements.MULTISHOT);
         }
+
         // 【空气动力球】：给球打上「静止后自己飞回来」的标记（附属弹不给）。
         // 真正的回归逻辑在 BallProjectile 里
         if (!side) {
