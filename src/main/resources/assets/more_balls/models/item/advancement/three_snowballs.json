@@ -1,0 +1,55 @@
+{
+  "__comment": "成就「三军听令！」的图标：三颗雪球摆成三角。三个 cube 各 4x4x4，全部落在 16x16x16 的模型空间里（x 2~14、y 3~14、z 6~10），所以不可能越界、也不会偏。贴图直接引用原版的 minecraft:item/snowball。之前用 composite + transformation 排列，那个坐标系语义没吃透，成就界面里会整体偏左下、左下那颗还被裁掉三分之一（作者 2026-10-14 报的）。",
+  "textures": {
+    "snowball": "minecraft:item/snowball",
+    "particle": "minecraft:item/snowball"
+  },
+  "elements": [
+    {
+      "name": "snowball_top",
+      "from": [ 6, 10, 6 ],
+      "to": [ 10, 14, 10 ],
+      "faces": {
+        "north": { "uv": [ 0, 0, 16, 16 ], "texture": "#snowball" },
+        "east":  { "uv": [ 0, 0, 16, 16 ], "texture": "#snowball" },
+        "south": { "uv": [ 0, 0, 16, 16 ], "texture": "#snowball" },
+        "west":  { "uv": [ 0, 0, 16, 16 ], "texture": "#snowball" },
+        "up":    { "uv": [ 0, 0, 16, 16 ], "texture": "#snowball" },
+        "down":  { "uv": [ 0, 0, 16, 16 ], "texture": "#snowball" }
+      }
+    },
+    {
+      "name": "snowball_lower_left",
+      "from": [ 2, 3, 6 ],
+      "to": [ 6, 7, 10 ],
+      "faces": {
+        "north": { "uv": [ 0, 0, 16, 16 ], "texture": "#snowball" },
+        "east":  { "uv": [ 0, 0, 16, 16 ], "texture": "#snowball" },
+        "south": { "uv": [ 0, 0, 16, 16 ], "texture": "#snowball" },
+        "west":  { "uv": [ 0, 0, 16, 16 ], "texture": "#snowball" },
+        "up":    { "uv": [ 0, 0, 16, 16 ], "texture": "#snowball" },
+        "down":  { "uv": [ 0, 0, 16, 16 ], "texture": "#snowball" }
+      }
+    },
+    {
+      "name": "snowball_lower_right",
+      "from": [ 10, 3, 6 ],
+      "to": [ 14, 7, 10 ],
+      "faces": {
+        "north": { "uv": [ 0, 0, 16, 16 ], "texture": "#snowball" },
+        "east":  { "uv": [ 0, 0, 16, 16 ], "texture": "#snowball" },
+        "south": { "uv": [ 0, 0, 16, 16 ], "texture": "#snowball" },
+        "west":  { "uv": [ 0, 0, 16, 16 ], "texture": "#snowball" },
+        "up":    { "uv": [ 0, 0, 16, 16 ], "texture": "#snowball" },
+        "down":  { "uv": [ 0, 0, 16, 16 ], "texture": "#snowball" }
+      }
+    }
+  ],
+  "display": {
+    "gui": { "rotation": [ 30, 225, 0 ], "translation": [ 0, 0, 0 ], "scale": [ 0.625, 0.625, 0.625 ] },
+    "ground": { "rotation": [ 0, 0, 0 ], "translation": [ 0, 3, 0 ], "scale": [ 0.25, 0.25, 0.25 ] },
+    "fixed": { "rotation": [ 0, 0, 0 ], "translation": [ 0, 0, 0 ], "scale": [ 0.5, 0.5, 0.5 ] },
+    "thirdperson_righthand": { "rotation": [ 75, 45, 0 ], "translation": [ 0, 2.5, 0 ], "scale": [ 0.375, 0.375, 0.375 ] },
+    "firstperson_righthand": { "rotation": [ 0, 45, 0 ], "translation": [ 0, 0, 0 ], "scale": [ 0.4, 0.4, 0.4 ] }
+  }
+}
