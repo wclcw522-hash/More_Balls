@@ -296,7 +296,10 @@ public class BallClusterItem extends Item {
         tooltip.accept(Component.translatable("tooltip.more_balls.cluster.count", count)
                 .withStyle(ChatFormatting.GOLD));
         if (!lowest.isEmpty()) {
-            tooltip.accept(Component.translatable("tooltip.more_balls.cluster.lowest", left(lowest))
+            // 带上「这一档有几颗」（作者 2026-10-15 要求）—— 也就是「最低耐久的那一组」的大小，
+            // 和 Shift+右键 扔出去的数量是同一个口径
+            tooltip.accept(Component.translatable("tooltip.more_balls.cluster.lowest",
+                            left(lowest), contents.lowestGroupSize())
                     .withStyle(ChatFormatting.GRAY));
         }
         tooltip.accept(Component.translatable("tooltip.more_balls.cluster.hint_alt")
@@ -349,37 +352,32 @@ public class BallClusterItem extends Item {
     public InteractionResult use(Level level, Player player, InteractionHand hand) {
         ItemStack shell = player.getItemInHand(hand);
         BallClusterContents contents = contents(shell);
-        if (contents.isEmpty()) {
-            // 空壳：没球可取。返回 PASS 让它落到原版后续处理（不摆手臂、不消耗动作）
-            return InteractionResult.PASS;
-        }
-        if (player.isSpectator()) {
+        if (contents.isEmpty() || player.isSpectator()) {
             return InteractionResult.PASS;
         }
 
-        // ⚠️ 这里**不区分客户端/服务端**地写完整流程 —— 和 BallPouchItem.use 的写法对齐。
+        // ===== 作者 2026-10-15 指定的两套动作 =====
         //
-        //    原先的版本在客户端提前 `return SUCCESS`，服务端再走一遍真正的取球。
-        //    理论上两端都会调 use，但那样客户端会先报「成功」，而这是一个**改玩家背包状态**
-        //    的操作 —— 作者 2026-10-15 反馈的「右键取球未生效」就出在这里。
-        //    改成两端走同一段：客户端取出来的那份不会落地（它随即被服务端同步覆盖），
-        //    服务端那份才是真的 —— 代价只是客户端多算一次，换来行为确定。
-
-        ItemStack ball = contents.lowest().copy();     // 耐久最低的那颗
-        BallClusterContents rest = contents.withoutLowest();
-
-        if (rest.isEmpty()) {
-            // 最后一颗：壳把自己交出去（stacksTo(1)，shrink(1) 即整格消失）
-            shell.shrink(1);
-        } else {
-            setContents(shell, rest);
+        //   右键        → 扔出**一颗**最低耐久的球
+        //   Shift+右键  → 扔出**一组**最低耐久的球（见 lowestGroupSize 的口径）
+        //
+        // ⚠️ 一律**只在服务端**动手 —— use 两端都会调，客户端也扔一颗就是扔两份。
+        //    客户端只负责回一个 CONSUME，告诉原版这次右键用掉了（不消耗动作的话
+        //    原版可能继续往下传，行为不确定）。
+        if (level.isClientSide()) {
+            return InteractionResult.CONSUME;
         }
 
-        if (!player.getInventory().add(ball)) {
-            player.drop(ball, false);
+        boolean wholeGroup = player.isShiftKeyDown();
+        int take = wholeGroup ? contents.lowestGroupSize() : 1;
+        for (int i = 0; i < take; i++) {
+            ItemStack one = takeOne(shell);
+            if (one.isEmpty()) {
+                break;   // 掏空了
+            }
+            // 复用球自己那条投掷路径 —— 不另写一份
+            com.mcmodworkspace.moreballs.BallThrowHandler.throwBall(player, one, 0);
         }
-        // 这是个**改状态**的操作 —— 要用 CONSUME（consumesAction() 为 true）而不是 SUCCESS，
-        // 否则原版可能仍把它当成「没被消耗的一次交互」继续往下传
         return InteractionResult.CONSUME;
     }
 }

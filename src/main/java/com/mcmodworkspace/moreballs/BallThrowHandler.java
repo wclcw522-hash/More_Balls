@@ -114,7 +114,14 @@ public final class BallThrowHandler {
      *
      * @param chargeLevel 蓄力等级（0 = 无蓄力）
      */
-    private static void throwBall(Player player, ItemStack stack, int chargeLevel) {
+    /**
+     * 把一颗球扔出去（供球堆复用，作者 2026-10-15）。
+     *
+     * <p>原先是 private —— 球堆不是「球」（{@code BallBehavior.handles} 对它返回 false），
+     * 所以走不到 {@code onRightClickItem} 那条事件，只能自己调这里。
+     * 投掷逻辑只有一份，不另写。
+     */
+    public static void throwBall(Player player, ItemStack stack, int chargeLevel) {
         Level level = player.level();
         BallBehavior.BallProfile profile = BallBehavior.profileFor(stack);
 

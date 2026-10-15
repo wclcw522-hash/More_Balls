@@ -122,6 +122,43 @@ public record BallClusterContents(ItemStack icon, List<ItemStack> balls) {
         return ItemStack.isSameItem(ball, this.balls.get(0));
     }
 
+    /**
+     * <b>「最低耐久的那一组」的大小</b> —— 从下标 0 起、连续与最低那颗<b>耐久完全相同</b>的颗数。
+     *
+     * <h2>什么叫「一组」（作者 2026-10-15 定的口径）</h2>
+     * <p>作者原话是「释放一组耐久最低的球」，同时又要「显示该耐久的球有几个」——
+     * 这两句说的是同一件事：<b>「一组」= 耐久值相同的那一批</b>，
+     * 不是固定 64 颗、也不是随便一批。</p>
+     *
+     * <p>{@link #balls} 始终按剩余耐久升序，所以这一组天然就排在开头，
+     * 只要从 0 往后数到耐久变了为止 —— <b>不用新增字段</b>。</p>
+     */
+    public int lowestGroupSize() {
+        if (this.balls.isEmpty()) {
+            return 0;
+        }
+        int first = toughnessLeft(this.balls.get(0));
+        int n = 1;
+        while (n < this.balls.size() && toughnessLeft(this.balls.get(n)) == first) {
+            n++;
+        }
+        return n;
+    }
+
+    /**
+     * 取走开头 {@code n} 颗（也就是最低耐久的那一组），返回取完后的新内容。
+     *
+     * @param n 取走多少颗；超出总数时按总数算
+     */
+    public BallClusterContents withoutFirst(int n) {
+        if (this.balls.isEmpty() || n <= 0) {
+            return this;
+        }
+        int take = Math.min(n, this.balls.size());
+        List<ItemStack> next = new ArrayList<>(this.balls.subList(take, this.balls.size()));
+        return new BallClusterContents(next.isEmpty() ? ItemStack.EMPTY : this.icon, next);
+    }
+
     /** 这一堆还装得下吗 */
     public boolean hasRoom() {
         return this.balls.size() < MAX_BALLS;
