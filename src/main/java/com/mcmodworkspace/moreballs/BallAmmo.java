@@ -265,6 +265,17 @@ public final class BallAmmo {
     public static boolean claimSideProjectile() {
         Integer index = SHOT_INDEX.get();
         if (index == null) {
+            // 【临时诊断】作者 2026-10-15 报「多重射击的附属球卡在墙上不碎」。
+            //
+            // 这一条能直接定位**mixin 到底有没有生效**：
+            //   · 打出来 ⇒ `performShooting` 的那两个注入没命中（都是 require = 0，
+            //     原版一改方法结构就静默跳过）⇒ SHOT_INDEX 恒 null
+            //     ⇒ **每一颗球都被当主弹** ⇒ 附属弹不碎、不回家（正是当前症状）
+            //   · 没打出来 ⇒ 夹住了，问题在别处
+            if (DIAG_NULL_INDEX.compareAndSet(false, true)) {
+                MoreBalls.LOGGER.info("[ball][诊断] claimSideProjectile: SHOT_INDEX 未初始化"
+                        + " ⇒ performShooting 的 mixin 可能没生效（所有球都会被当主弹）");
+            }
             return false;
         }
         // 保险丝：上一轮的出口没跑到时，这个值会一直挂着，
@@ -279,10 +290,23 @@ public final class BallAmmo {
         if (index > 0) {
             // 每次多重射击都走这里，别用 INFO 刷日志
             MoreBalls.LOGGER.debug("[ball] 同一次发射的第 {} 颗 -> 判定为多重射击附属弹", index + 1);
+            // 【临时诊断】确认 side 真的判成了 true（只报一次）
+            if (DIAG_SIDE.compareAndSet(false, true)) {
+                MoreBalls.LOGGER.info("[ball][诊断] claimSideProjectile: 第 {} 颗判为附属弹 side=true",
+                        index + 1);
+            }
             return true;
         }
         return false;
     }
+
+    /** 【临时诊断】「mixin 没生效」这条只报一次，免得刷屏 */
+    private static final java.util.concurrent.atomic.AtomicBoolean DIAG_NULL_INDEX =
+            new java.util.concurrent.atomic.AtomicBoolean(false);
+
+    /** 【临时诊断】「side=true」这条只报一次 */
+    private static final java.util.concurrent.atomic.AtomicBoolean DIAG_SIDE =
+            new java.util.concurrent.atomic.AtomicBoolean(false);
 
     /**
      * 为一件 balls 弹药创建对应的投射物实体。
@@ -328,7 +352,13 @@ public final class BallAmmo {
                 * ModEnchantments.repeaterDamageFactor(
                         ModEnchantments.repeaterCrossbowLevel(level, weapon)));
         ball.setWeight(weight);
-        ball.setToughness(profile.toughness());
+        // ⚠️⚠️ 耐久必须取**这颗球的剩余**，不是 profile 的满耐久
+        //     （作者 2026-10-15 实测：弩射出去的球卡在墙上不碎）。
+        //
+        //     手扔那条路（`BallThrowHandler.throwBall`）用的就是 `remainingToughness`；
+        //     这里原先写的是 `profile.toughness()` —— 于是**弩射出的球永远按「刚出炉」算**：
+        //     潮汐球坚固 300 ⇒ 要撞 300 次才碎 ⇒ 看起来就是「粘在墙上永不破碎」。
+        ball.setToughness(BallItem.remainingToughness(ammo, profile.toughness()));
         ball.setBounce(profile.bounce());
         // 弩发射：重量基准取箭矢的重力，使重量 4 的球飞出与箭一致的弹道
         ball.setFromCrossbow(true);
