@@ -187,12 +187,29 @@ public class MoreBallsJeiPlugin implements IModPlugin {
      */
     @Override
     public void onRuntimeAvailable(mezz.jei.api.runtime.IJeiRuntime runtime) {
-        try {
-            runtime.getIngredientManager().removeIngredientsAtRuntime(
-                    mezz.jei.api.constants.VanillaTypes.ITEM_STACK,
-                    java.util.List.of(new ItemStack(ModItems.BALL_CLUSTER.get())));
-        } catch (Throwable ignored) {
-            // JEI 版本差异导致口子对不上时安静跳过 —— 顶多是列表里多一个条目，不影响游戏
+        // ===== ★ 已停用「把球堆从 JEI 列表移除」（作者 2026-10-15 实测反馈）=====
+        //
+        // 当时写的是「注册子类型 + 运行期移除」两步，并在上面的注释里标注了**未知项**：
+        //   移除究竟是「只影响列表显示」还是「同时也把配方索引摘了」——
+        //   `runClient` 只到主菜单，我这边无法实测。
+        //
+        // 作者实测的结果是**后者**：「对准球堆按 r 键并不能唤出对应球的配方」——
+        // 移除的同时把配方索引一起摘了 ⇒ `registerItemSubtypes` 白注册，按 R 什么都查不到。
+        //
+        // ⇒ 按当时写下的预案停用它。代价是 JEI 的物品列表里会多出最多 8 个球堆条目
+        //   （每种球一个，见 `registerItemSubtypes` 的子类型解释器），
+        //   **换来的是「悬停球堆按 R 跳到那颗球的配方」** —— 后者才是作者要的功能。
+        //
+        // 下面这段保留着：将来若找到「只隐藏列表、保留配方索引」的口子，把 `false` 改成
+        // `true` 就能启用。（用 `if (false)` 而不是直接删，是为了留下可对照的实现。）
+        if (false) {
+            try {
+                runtime.getIngredientManager().removeIngredientsAtRuntime(
+                        mezz.jei.api.constants.VanillaTypes.ITEM_STACK,
+                        java.util.List.of(new ItemStack(ModItems.BALL_CLUSTER.get())));
+            } catch (Throwable ignored) {
+                // JEI 版本差异导致口子对不上时安静跳过 —— 顶多是列表里多一个条目，不影响游戏
+            }
         }
     }
 
