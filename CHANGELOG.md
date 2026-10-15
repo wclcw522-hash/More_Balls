@@ -1,3 +1,92 @@
+## 1.1.0.12 ~ 1.1.0.16 — 球堆第二批实测反馈（作者 2026-10-15）
+
+**八条要求，两批出包。** 这一批里我犯过一次崩溃级错误，一并记在下面。
+
+### ① 图标「只有一个小角」（1.1.0.12）
+
+**双重变换。** `ItemStackRenderState.submit` 的字节码是
+`layers[i].submit(pose, ...)` —— **原样把 pose 传给每一层，中间不做变换**。
+所以走到 `BallClusterSpecialRenderer.submit` 时，pose **已经是 GUI 摆好的坐标系**；
+而我当时又用 `ItemDisplayContext.GUI` 建了一次 → 叠了两层 → 那颗球被推到画布外。
+
+**改法**：`GUI` → `NONE`（不做额外变换）。
+
+`getExtents` 也从 `±0.5` 放宽到 `±0.6` —— 原版的 `getExtents` 一律**问模型要真实包围盒**
+（核过 Trident / ShulkerBox / Book / Conduit / CopperGolemStatue 五个，**没有一个写固定常量**）；
+我拿不到「那一刻那个球」的模型，所以给略大值（GUI 按它缩放，**给大了顶多缩一点，给小了会被裁**）。
+
+### ② 没装袋子也被自动填充（1.1.0.12）
+
+`BallAmmoAutoLoader` 原先的判据是「主手是弩 + 未装填 + 轮盘选过弹药」，
+**完全没看有没有装备袋子**。而本机制的定位就是「袋子里的弹药自动补到副手」。
+
+**改法**：`if (BallPouchHelper.allPouchStacks(player).isEmpty()) { return; }`
+
+### ⑤⑥ 右键扔球 / Shift 右键扔一组（1.1.0.13）
+
+`use` 从「取出来放背包」改成**扔出去**，复用球自己那条投掷路径 ——
+`BallThrowHandler.throwBall` 从 private 改 public（球堆不是「球」，
+`BallBehavior.handles` 对它返回 false，走不到那条事件）。
+
+**⚠️ 只服务端动手** —— `use` 两端都会调，客户端也扔就是扔两份。
+
+### ⑧ tooltip 带「共 N 颗」（1.1.0.13）
+
+```
+内含 12 颗
+最低耐久：173（共 3 颗）
+按住 Alt 查看耐久最少的 6 颗 · Shift+右键 扔出一组
+```
+
+### ④ 主手切走时收回副手的球（1.1.0.14）
+
+原先「主手不是弩就 return」，副手那颗自动补上去的球会一直挂着，切到镐子还在。
+
+**改法**：加 ⓪ 分支 + `recallOffhandBall`。三条自律：只收「是球」的副手 ·
+没袋子不擅自挪玩家的东西 · 走 `deliverReturned`（绝不凭空消失）。
+
+### ⑦ 背包右键 = 取一组到光标（1.1.0.15）
+
+**NeoForge 没有容器点击事件**（查遍 `event/`，只有 `PlayerContainerEvent.Open/Close`），
+所以新加一个 mixin 拦 `AbstractContainerMenu.clicked`。项目里本来就有 mixin 框架。
+
+**四条限制全满足才接管**：`input == PICKUP` + `button == 1` + 光标空 + 槽里是球堆。
+其余情况一律放行 —— 左键拿起 / Shift 快速移动 / 数字键交换 / 丢弃全不受影响。
+
+### ③ 副手持球堆上膛直接扣壳（1.1.0.16）
+
+原先「先把最低那颗掏出来放副手，再走原版装填」—— 作者反馈那多了一次中间态。
+
+**改法**：让副手**全程保持是壳**：
+1. `getSupportedHeldProjectiles` 的 predicate 也认壳 → 壳成为合法副手弹药
+2. `createProjectile` 注入里摊开成一颗球来建实体，并从**副手那一格真扣一颗**
+
+⚠️ 两个位置必须分清：`projectile` 是从 `CHARGED_PROJECTILES` 拿出来的**副本**，
+从它 `takeOne` 不影响玩家背包；`shooter.getOffhandItem()` 才是真身。
+
+### 「一组」的口径
+
+作者两句话指向同一件事：「释放**一组**耐久最低的球」+「显示该耐久的球有几个」。
+所以 **「一组」= 耐久值相同的那一批**，不是固定 64 颗也不是随便一批。
+
+`BallClusterContents.lowestGroupSize()` —— `balls` 始终升序，从下标 0 往后数到耐久变了为止，
+**不新增字段**。⑤⑥⑦⑧ 四个入口共用它，行为必然一致。
+
+### ⚠️ 这一批我犯的错（1.1.0.10，进世界崩溃）
+
+```java
+Minecraft.getInstance().getItemModelResolver()
+        .updateForNonLiving(state, inner, ItemDisplayContext.GUI, null);   // ★ 传了 null
+```
+
+`updateForNonLiving` 内部直接调 `entity.level()`，而 **GUI 物品渲染链上根本没有实体** →
+一进世界 `NullPointerException`。
+
+**教训**：**查 API 不能只核「签名对不对」，还要核「参数在这个调用时机能不能为 null」**。
+`runClient` 只到主菜单，**验证不了任何 In-Game 行为** —— 所以凡是只在游戏里才跑到的代码，
+改完必须靠**字节码核对 + 作者实测**双重确认。
+
+---
 ## 1.1.0.10 — 球堆改回「一个球种一个壳」（这条是根子）
 
 **作者原话**：「打出去收回来的（包括空气动力球和忠诚）**还是不堆叠**」。
