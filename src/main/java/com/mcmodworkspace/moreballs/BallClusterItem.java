@@ -195,8 +195,75 @@ public class BallClusterItem extends Item {
             return ItemStack.EMPTY;
         }
         ItemStack taken = current.lowest().copy();
-        setContents(shell, current.withoutLowest());   // 空了会自己摘掉组件
+        BallClusterContents rest = current.withoutLowest();
+
+        // ===== ⑤ 「仅剩 1 颗就自动脱离」（作者 2026-10-15）=====
+        //
+        // ⚠️ 这里**不能**把壳那一格原地改成球 —— `ItemStack` 的 item 本身是 final 的，
+        //    换不了。所以「脱离」这件事拆成两步：
+        //      · 本方法：把壳**清空**（摘掉球堆组件 + 数量归零），那一格变成空的
+        //      · 调用方：拿到 `taken`（取走的那颗）之后，再把壳里**剩下的那颗**
+        //        取回去 —— 见 `declusterInto`
+        //    最终玩家看到的是「取出一颗 + 那一格变成另一颗球」，**不会留空球堆**。
+        //
+        //    （原先我写的是 `shell.copyFrom(last)`，在 26.2 里对 copyFrom 的引用是**歧义的**，
+        //      而且就算消掉歧义也换不掉 item —— 这条编译错误就是这么来的。）
+        setContents(shell, rest);   // 空了会自己摘掉组件
         return taken;
+    }
+
+    /**
+     * <b>「只剩一颗就脱离」的收尾</b>（作者 2026-10-15）。
+     *
+     * <h2>它做什么</h2>
+     * <p>取完一颗之后，如果壳里<b>只剩 1 颗</b>，就把那一颗取出来返回、并把壳清空 ——
+     * 让调用方把那一格换成「那颗球」。</p>
+     *
+     * <h2>为什么必须由调用方来换</h2>
+     * <p>{@code ItemStack} 的 item 是 final 的，<b>不能就地从一个物品变成另一个物品</b>
+     * （这也是 {@code shell.copyFrom(last)} 那个写法编译不过的根本原因：26.2 里
+     * {@code copyFrom} 有两个重载、单参调用本身就歧义，而且就算消掉歧义也换不掉 item）。</p>
+     *
+     * <p>所以「壳变回球」只能由持有那一格的人做 —— {@code setItemInHand} /
+     * {@code slot.setByPlayer} / {@code segment.set(i, …)}。本方法只负责把内容掏干净并交出来。</p>
+     *
+     * @return 壳里仅剩的那颗球；壳里不是「恰好 1 颗」时返回 {@link ItemStack#EMPTY}
+     */
+    public static ItemStack declusterInto(ItemStack shell) {
+        if (!isCluster(shell)) {
+            return ItemStack.EMPTY;
+        }
+        BallClusterContents current = contents(shell);
+        if (current.size() != 1) {
+            return ItemStack.EMPTY;
+        }
+        ItemStack last = current.balls().get(0).copy();
+        setContents(shell, BallClusterContents.EMPTY);   // 摘掉球堆组件
+        shell.setCount(0);                                // 那一格变空
+        return last;
+    }
+
+    /**
+     * 取一颗的完整结果 —— 见 {@link #takeOneWithDecluster}。
+     *
+     * @param taken    取走的那颗球（要还给玩家 / 扔出去 / 装进弩）
+     * @param leftover 非空时表示「壳已经空了，这一格该换成它」；空表示壳还有球，照旧
+     */
+    public record TakeResult(ItemStack taken, ItemStack leftover) {
+        public boolean hasLeftover() {
+            return !this.leftover.isEmpty();
+        }
+    }
+
+    /**
+     * 取一颗，并在「壳里只剩一颗」时把那一颗也交出来 —— 调用方一次拿全，不用自己判两次。
+     *
+     * <p>返回的 {@code leftover} 非空时，调用方要把<b>那一格</b>换成它
+     * （{@code setItemInHand(hand, leftover)} 之类），这样就不会留下空球堆。</p>
+     */
+    public static TakeResult takeOneWithDecluster(ItemStack shell) {
+        ItemStack taken = takeOne(shell);
+        return new TakeResult(taken, declusterInto(shell));
     }
 
     /**
@@ -345,8 +412,18 @@ public class BallClusterItem extends Item {
      *
      * <p>作者指定「耐久从低到高依次取出」—— 因为球列始终升序，这里就是不断取下标 0。</p>
      *
-     * <p>取出<b>最后一颗</b>时，壳本身也变成那颗球（而不是留一个空壳）：
-     * 空壳对玩家没有意义，而「壳化作里面最后一颗球」是自然的收尾。</p>
+     * <h2>两套动作（作者 2026-10-15 指定）</h2>
+     * <ul>
+     *   <li><b>右键</b> —— 扔出<b>一颗</b>耐久最低的球</li>
+     *   <li><b>Shift + 右键</b> —— 把<b>一组</b>耐久最低的球<b>放进空着的物品栏</b>
+     *       （是放进背包，<b>不是</b>扔出去 —— 我 1.1.0.13 曾把这条也做成投掷，理解错了）</li>
+     * </ul>
+     *
+     * <p>「一组」的口径见 {@link BallClusterContents#lowestGroupSize()} ——
+     * 耐久值相同的那一批。</p>
+     *
+     * <p><b>不留空球堆</b>：取完若壳里只剩 1 颗，那一颗会直接顶上这一格
+     * （见 {@link #takeOneWithDecluster}）。</p>
      */
     @Override
     public InteractionResult use(Level level, Player player, InteractionHand hand) {
@@ -356,28 +433,55 @@ public class BallClusterItem extends Item {
             return InteractionResult.PASS;
         }
 
-        // ===== 作者 2026-10-15 指定的两套动作 =====
+        // ===== 两套动作的分工 =====
         //
-        //   右键        → 扔出**一颗**最低耐久的球
-        //   Shift+右键  → 扔出**一组**最低耐久的球（见 lowestGroupSize 的口径）
+        //   右键        → **扔出**一颗最低耐久的球
+        //   Shift+右键  → **放进空着的物品栏**一组最低耐久的球（不是扔）
         //
         // ⚠️ 一律**只在服务端**动手 —— use 两端都会调，客户端也扔一颗就是扔两份。
-        //    客户端只负责回一个 CONSUME，告诉原版这次右键用掉了（不消耗动作的话
-        //    原版可能继续往下传，行为不确定）。
+        //    客户端只返回一个 CONSUME，告诉原版这次右键用掉了。
         if (level.isClientSide()) {
             return InteractionResult.CONSUME;
         }
 
-        boolean wholeGroup = player.isShiftKeyDown();
-        int take = wholeGroup ? contents.lowestGroupSize() : 1;
-        for (int i = 0; i < take; i++) {
-            ItemStack one = takeOne(shell);
-            if (one.isEmpty()) {
-                break;   // 掏空了
+        ItemStack copy = shell.copy();
+
+        if (player.isShiftKeyDown()) {
+            // ===== Shift+右键：**释放一组到空着的物品栏**（作者 2026-10-15 明确）=====
+            //
+            // ⚠️ 我 1.1.0.13 把这一条也做成了「扔出去」—— 理解错了。
+            //    作者的原话是「释放一组到空着的物品栏」，也就是**放进背包空格**，不是投掷。
+            //
+            //    放进空格用 Inventory.add：它会先找可叠的同类，找不到才占空格；
+            //    实在没地方就掉在脚下（不能凭空消失）。
+            int group = contents.lowestGroupSize();
+            ItemStack leftover = ItemStack.EMPTY;
+            for (int i = 0; i < group; i++) {
+                TakeResult r = takeOneWithDecluster(copy);
+                if (r.taken().isEmpty()) {
+                    break;
+                }
+                if (!player.getInventory().add(r.taken())) {
+                    player.drop(r.taken(), false);
+                }
+                if (r.hasLeftover()) {
+                    // 壳里只剩一颗 → 那一颗直接顶上这一格，**不留空球堆**
+                    leftover = r.leftover();
+                    break;
+                }
             }
-            // 复用球自己那条投掷路径 —— 不另写一份
-            com.mcmodworkspace.moreballs.BallThrowHandler.throwBall(player, one, 0);
+            player.setItemInHand(hand, leftover.isEmpty() ? copy : leftover);
+            return InteractionResult.CONSUME;
         }
+
+        // ===== 普通右键：**扔出一颗**（作者最初的要求，保持）=====
+        TakeResult r = takeOneWithDecluster(copy);
+        if (r.taken().isEmpty()) {
+            return InteractionResult.PASS;
+        }
+        com.mcmodworkspace.moreballs.BallThrowHandler.throwBall(player, r.taken(), 0);
+        // 扔完壳只剩一颗 → 那一颗顶上这一格（不留空球堆）
+        player.setItemInHand(hand, r.hasLeftover() ? r.leftover() : copy);
         return InteractionResult.CONSUME;
     }
 }
