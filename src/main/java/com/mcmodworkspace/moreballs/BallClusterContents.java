@@ -12,7 +12,7 @@ import java.util.Comparator;
 import java.util.List;
 
 /**
- * 「球堆」里装着的东西 —— 一批<b>同种、同耐久档位</b>的球。
+ * 「球堆」里装着的东西 —— 一批<b>同种</b>的球。
  *
  * <h2>为什么需要它</h2>
  * <p>球的耐久记在 {@link ModComponents#TOUGHNESS_LEFT} 组件上，而 MC 的堆叠判定要求
@@ -104,8 +104,22 @@ public record BallClusterContents(ItemStack icon, List<ItemStack> balls) {
         if (ball.isEmpty() || this.balls.isEmpty()) {
             return false;
         }
-        return ItemStack.isSameItem(ball, this.balls.get(0))
-                && BallClusterTier.of(ball) == tier();
+        // ===== 兼容性修订（作者 2026-10-15）=====
+        //
+        // ⚠️ 这里**只比球种，不再比档位**。
+        //
+        //    原先还有一条 `&& BallClusterTier.of(ball) == tier()`，于是同一个球种会按
+        //    剩余耐久被拆成最多 5 个壳（PRISTINE / FLAWED / DAMAGED / BROKEN / CRUMBLING）。
+        //    打完一局回收回来，玩家看到的就是**好几个各装一两颗的壳** ——
+        //    作者原话「打出去收回来的还是不堆叠」说的就是这个。
+        //
+        //    而作者最初的需求写得很明确：「把一堆**耐久各异**的球收进一格」——
+        //    「耐久各异」正是要**放在一起**，档位不该成为分开的理由。
+        //
+        //    每颗球的精确耐久仍然各自独立保存（balls 里每颗都带自己的 TOUGHNESS_LEFT），
+        //    取出时一分不差地还回去 —— 这一点没有变。
+        //    档位仍然用于**显示**（壳的名字、「最低耐久」那行 tooltip），只是不再用于分组。
+        return ItemStack.isSameItem(ball, this.balls.get(0));
     }
 
     /** 这一堆还装得下吗 */
