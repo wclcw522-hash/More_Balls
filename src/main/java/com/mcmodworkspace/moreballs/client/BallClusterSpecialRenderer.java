@@ -105,7 +105,58 @@ public class BallClusterSpecialRenderer implements SpecialModelRenderer<ItemStac
         //
         //    ⇒ **GUI context + 原样提交**才是对的：外层已经是完整的 GUI 物品坐标系，
         //      state 自己带的 GUI 变换与之是配套的一层（不是叠加）。
+        //
+        // ===== ★ 蓄力表现（作者 2026-10-15：「按住右键还是不显示蓄力」）=====
+        //
+        // 先说清原版**为什么给不了**这个表现（都 javap 核过）：
+        //   · `Hud.extractSlot` 里**没有**使用进度 —— 只有拾取弹跳动画
+        //   · `Hud$ContextualInfo` 只有 EMPTY / EXPERIENCE / LOCATOR / JUMPABLE_VEHICLE
+        //   · 全 jar 只有 `UseDuration` / `UseCycle` 两个**物品模型属性**读进度 ——
+        //     弓/弩的"拉弓"是**模型 JSON 的 range_dispatch 按它换模型**做出来的，
+        //     不是 HUD 画的条
+        //   · 球堆是 `minecraft:special`（Java 渲染器），**没有那个属性**
+        //     ⇒ 蓄力时外观零变化，看起来就是「没反应」
+        //
+        // ⇒ 所以这里**自己按进度缩放**：球随蓄力越来越大，一眼能看出在蓄力。
+        //   思路和弓一致（按进度改变外观），只是换到 Java 侧做。
+        //   注意 pushPose / popPose 必须成对 —— 外层那个 pose 是共用的，不能污染。
+        float charge = chargeProgress();
+        pose.pushPose();
+        if (charge > 0.0F) {
+            float s = 1.0F + 0.35F * charge;
+            pose.scale(s, s, s);
+        }
         state.submit(pose, collector, light, overlay, outline);
+        pose.popPose();
+    }
+
+    /**
+     * 当前蓄力进度 0..1；没在蓄力就是 0。
+     *
+     * <p>只认「玩家正在使用手上这件物品」。时长由 {@code BallClusterItem.getUseDuration}
+     * 给出 —— 那里只有「壳里那颗球本身可蓄力」时才返回大于 0 的值，
+     * 所以不可蓄力的球不会走到蓄力分支。</p>
+     */
+    private static float chargeProgress() {
+        try {
+            net.minecraft.client.Minecraft minecraft = net.minecraft.client.Minecraft.getInstance();
+            net.minecraft.client.player.LocalPlayer player = minecraft.player;
+            if (player == null || !player.isUsingItem()) {
+                return 0.0F;
+            }
+            ItemStack using = player.getUseItem();
+            if (using.isEmpty()) {
+                return 0.0F;
+            }
+            int total = using.getUseDuration(player);
+            if (total <= 0) {
+                return 0.0F;
+            }
+            float p = 1.0F - (float) player.getUseItemRemainingTicks() / (float) total;
+            return Math.max(0.0F, Math.min(1.0F, p));
+        } catch (Throwable ignored) {
+            return 0.0F;
+        }
     }
 
     @Override
