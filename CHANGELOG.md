@@ -1,3 +1,105 @@
+## 1.1.0.21 ~ 1.1.0.22 — 修两条回归 + 丢球（作者 2026-10-15 实测 1.1.0.20）
+
+**这一批里我有两条是**自己改坏的**（①③），一条是**查了四轮才定位的渲染坐标系**（③的下半），
+还有一条**数据丢失**级（⑤）。教训都记在下面。
+
+### ① Shift+右键还是扔（1.1.0.21）—— **我 1.1.0.18 引入的回归**
+
+`use` 里我为了做蓄力，把**蓄力分支排在了 shift 分支之前，而且没排除 Shift**：
+
+```java
+if (!probe.isEmpty() && BallBehavior.profileFor(probe).chargeLevels() > 0) {
+    player.startUsingItem(hand);
+    return InteractionResult.CONSUME;      // ★ Shift 也走这里
+}
+...
+if (player.isShiftKeyDown()) { ...放进物品栏... }   // ← 永远到不了
+```
+
+⇒ Shift+右键 进了蓄力，松开时被 `onStopUsing` 当普通投掷扔出去。加 `!player.isShiftKeyDown()`。
+
+### ② 蓄力条不显示（1.1.0.21）
+
+原版 HUD 画蓄力条读的是**玩家正在使用的那件物品** —— 手持球堆蓄力时那是**壳**。
+壳没有 `getUseDuration` / `getUseAnimation` 覆写，原版拿到 duration 0 + 动画 NONE ⇒ **什么都不画**
+（**蓄力本身是生效的，只是看不见**）。补这两个覆写，长度取 `BallCharge.USE_DURATION`
+（与 `BallThrowHandler.onStartUsing` 给球设的**必须是同一个数**），动画用 `BOW`。
+
+### ③ 图标直接没了（1.1.0.21）—— **我 1.1.0.20 引入的回归**
+
+**这是这一批最值钱的一条教训。**
+
+上一版我在 `submit` 里加了 `pose.last().pose().identity()`，理由是「外层 pose 带了
+`translate(槽位中心) · scale(16, -16, 16)`，要抵消」。**查到的事实是对的，结论反了**：
+
+```
+外层 pose = T(槽位中心) · S(16, -16, 16)     ← GuiItemAtlas.drawToSlot，javap 实拍
+identity() 把它清掉 ⇒ state 画出来的东西只占 1/16 格 ⇒ 图标消失
+```
+
+**⇒ 那 16 倍不是要抵消的，是 `ItemStackRenderState` 需要的。** 正确写法就是
+**GUI context + 原样提交**，一层变换，不叠不抵消。
+
+（顺带纠正更早那次：1.1.0.12 把 context 改成 `NONE` 也不对 —— 那会丢掉
+`minecraft:item/generated` 那层「把 0..1 顶点挪到以原点居中」的 display translation，
+**它只在 GUI context 下生效**，丢了就向右下偏移。）
+
+### ④ 鼠标中键不生效（1.1.0.22）
+
+原先只挂了 `KeyMapping` + `consumeClick` —— 作者实测**没反应**。
+与其猜它为什么收不到鼠标键，改成在 **`InputEvent.MouseButton.Pre`** 上直接拦：
+
+```java
+if (event.getAction() != GLFW_PRESS) return;
+Key bound = TIDY_KEY.getKey();
+if (bound.getType() != InputConstants.Type.MOUSE || bound.getValue() != event.getButton()) return;
+if (player == null || gui.screen() != null) return;
+sendToServer(TidyBallsPayload.INSTANCE);
+event.setCanceled(true);
+```
+
+判断用的是 **`TIDY_KEY.getKey()`（玩家绑的那个键）**，不是写死的中键 ⇒ 改键也跟着变。
+`setCanceled(true)` 之后原版不再喂给 `KeyMapping` ⇒ **不会和 `onClientTick` 那条重复发包**。
+
+### ⑤ 整理球堆时丢球（1.1.0.21）—— **数据丢失级**
+
+**元凶在 `BallPouchItem.fillClustered`**：
+
+```java
+BallClusterItem.setContents(slot, existing.withAdded(probe));
+ball.setCount(0);          // ★ 无条件清零 —— 球就这么没了
+```
+
+`withAdded` 在**满 64 / 不匹配时会静默返回 `this`**（球根本没进壳），而这里不管加没加都把源栈清零。
+
+**同样的模式一共三处**，全部改成「先核对再加」：
+
+```java
+BallClusterContents after = existing.withAdded(ball);
+if (after == existing) {
+    continue;        // 没加进去 → 换下一个壳，**绝不清源栈**
+}
+BallClusterItem.setContents(slot, after);
+```
+
+```
+BallClusterTidy.putIntoSomeShell    核对后不再无条件 return true
+BallPouchItem.clusterizeSegment     核对后不再无条件 merged = true
+BallPouchItem.fillClustered         ★ 元凶
+```
+
+> `withAdded` 内部的判据（`hasRoom` / `matches`）和调用方那两行是**重复的** ——
+> 重复就意味着两处可能不一致，一旦不一致，球就消失在那条缝里。
+> **`BallClusterContents` 是 record，失败时返回同一引用，所以 `after == existing` 是可靠判据。**
+
+### 我这轮犯的流程错误（记下来）
+
+**核对判据连续写错两次**：`GLFW_PRESS` 是编译期常量，javac **内联成 `iconst_1`，字节码里没有这个名字**；
+`getButton` 的 grep 模式也没对上。于是**代码是对的、核对却报「不过」**。
+
+⇒ **正确做法：先 `javap` 打出实际反汇编，照着眼前的输出定判据**，而不是先写正则再赌它匹配。
+
+---
 ## 1.1.0.17 ~ 1.1.0.20 — 球堆第三批实测反馈（作者 2026-10-15）
 
 **六条要求，四个包。** ①是**我理解错了**（把「放进物品栏」做成了「扔出去」），
