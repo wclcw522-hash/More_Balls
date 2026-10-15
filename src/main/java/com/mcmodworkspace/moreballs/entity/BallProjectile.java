@@ -561,6 +561,27 @@ public class BallProjectile extends ThrowableItemProjectile {
     /** 【潮涌】激活前的重力状态 —— 出水时要还原成它，而不是硬写 false */
     private boolean tidalGravityBefore = true;
 
+    /**
+     * 本趟投掷是否已经拿过【潮涌】那次「速度 ×3」。
+     *
+     * <p>⚠️ 作者 2026-10-16 实测反馈：「【潮涌】在组合球上乱飞还是没修好……感觉像是被水反弹了一样」。
+     * 真因是<b>水面反复进出</b>：球贴着水面 / 泡在水流里时 {@code isInWater()} 会在
+     * true / false 之间抖动，而原来的写法是<b>每次「进入潮涌」都再乘一次 3</b> ——
+     * 速度指数级上涨，撞上什么都被弹得乱飞。
+     * 现在改成<b>每趟只乘一次</b>：重新入水只恢复「不受重力 + 不受阻力 + 特效」，不再叠倍率。</p>
+     */
+    private boolean tidalBoostUsed;
+
+    /**
+     * 潮涌期间的速度上限 —— 进入潮涌那一刻的速度。
+     *
+     * <p>用来兜住「不受阻力」那段预乘的副作用：预乘是为了抵消水里的 0.8 衰减，
+     * 但 {@code super.tick()} 里到底用哪个衰减系数取决于<b>那一刻</b>球在不在水里 ——
+     * 球正好卡在水面时会出现「预乘生效、衰减却按空气算」的情况，速度凭空涨 25%，
+     * 表现得就像「被水弹了一下」。涨过这个上限就压回去。</p>
+     */
+    private double tidalSpeedCap;
+
     /** 低速持续的刻数 —— 够了就当作「落定」（只给带空气动力球的球用） */
     private int stuckTicks;
 
@@ -1043,7 +1064,16 @@ public class BallProjectile extends ThrowableItemProjectile {
         if (inWater && !this.tidalSurgeActive) {
             this.tidalGravityBefore = this.isNoGravity();
             this.setNoGravity(true);
-            this.setDeltaMovement(this.getDeltaMovement().scale(TIDAL_SPEED_MULTIPLIER));
+            // ⚠️ ×3 **每趟投掷只给一次**（作者 2026-10-16 报的「组合球入水后还是乱飞」）。
+            //    原来每次「进入潮涌」都乘一次 —— 球贴着水面或泡在水流里时
+            //    isInWater() 会在 true/false 之间抖动，于是一路 ×3 叠上去，
+            //    速度指数上涨、撞到什么都像被弹开。重新入水只恢复状态，不再叠倍率。
+            if (!this.tidalBoostUsed) {
+                this.setDeltaMovement(this.getDeltaMovement().scale(TIDAL_SPEED_MULTIPLIER));
+                this.tidalBoostUsed = true;
+            }
+            // 潮涌期间的速度上限 = 这一刻的速度（防止预乘与真实衰减不同步时凭空加速，见字段注释）
+            this.tidalSpeedCap = this.getDeltaMovement().length();
             if (this.level() instanceof ServerLevel surgeLevel) {
                 surgeLevel.playSound(null, this.getX(), this.getY(), this.getZ(),
                         net.minecraft.sounds.SoundEvents.TRIDENT_RIPTIDE_1,
@@ -1069,6 +1099,15 @@ public class BallProjectile extends ThrowableItemProjectile {
         //    所以位置用的仍然是抵消后的正确速度。
         if (this.tidalSurgeActive) {
             this.setDeltaMovement(this.getDeltaMovement().scale(1.0F / WATER_INERTIA));
+
+            // 限速兜底（作者 2026-10-16 报的「像被水反弹了一样」）：
+            // 上面那次预乘抵消的是「水里 0.8 的衰减」，但 super.tick() 里究竟用哪个衰减系数，
+            // 取决于**跑物理那一刻**球在不在水里 —— 球卡在水面时会出现「预乘生效、衰减按空气算」，
+            // 速度凭空涨 25%。这里按进入潮涌时的速度封顶，涨出去的一律压回来。
+            double speed = this.getDeltaMovement().length();
+            if (this.tidalSpeedCap > 1.0E-4D && speed > this.tidalSpeedCap) {
+                this.setDeltaMovement(this.getDeltaMovement().scale(this.tidalSpeedCap / speed));
+            }
         }
 
         if (this.level() instanceof ServerLevel && this.getEntityData().get(TIDAL_SURGE) != this.tidalSurgeActive) {

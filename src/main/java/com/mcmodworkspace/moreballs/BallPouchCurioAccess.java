@@ -82,9 +82,19 @@ final class BallPouchCurioAccess {
             for (int i = 0; i < inv.getSlots(); i++) {
                 ItemStack stack = inv.getStackInSlot(i);
                 if (BallPouchItem.isPouch(stack)) {
-                    // 传一份 copy：Curios 的同步判据是「栈有没有被换过」，
-                    // 传同一个引用可能被短路掉。
-                    inv.setStackInSlot(i, stack.copy());
+                    // ⚠️⚠️ **必须传同一个引用，绝不能传 copy**（作者 2026-10-16 报的 bug）。
+                    //
+                    //    原写法 `inv.setStackInSlot(i, stack.copy())` 会把槽里的袋子换成一个**新对象**，
+                    //    而所有「在那一刻已经拿到旧引用」的地方从此就成了孤儿 ——
+                    //    最典型的就是**开着的收纳袋界面**（BallPouchMenu / BallPouchContainer
+                    //    持有的是打开界面那一刻的栈）：
+                    //      · 它之后写进去的球全写进了那份**已经被换掉的栈** ⇒ 玩家手里的袋子没变 ⇒ **球被吞掉**；
+                    //      · 同时 `stillValid` 拿新对象与旧对象比对，内容已经不一致 ⇒ **界面被服务端关掉**。
+                    //    这两条正是主人报的「界面突然关闭并吞掉关闭瞬间放进去的球」。
+                    //
+                    //    传同一引用同样会触发 Curios 的 markDirty 与槽位同步 ——
+                    //    它不需要「内容不同」才同步，槽位写入本身就是同步点。
+                    inv.setStackInSlot(i, stack);
                 }
             }
         }

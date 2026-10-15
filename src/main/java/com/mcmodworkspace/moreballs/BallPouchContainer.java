@@ -103,12 +103,13 @@ public class BallPouchContainer implements Container {
 
     @Override
     public boolean stillValid(Player player) {
-        // 袋子还在身上就有效 —— 口径统一走 allPouchStacks（背包 / 快捷栏 / 饰品栏都算），
+        // 袋子还在身上就有效 —— 口径统一走 allPouchStacks（背包 / 快捷栏 / 副手 / 饰品栏都算），
         // 与 BallPouchMenu.stillValid 保持一致。
-        // 原先这里只查背包与主副手，挂在饰品栏（背饰 / 腰带 / 护符）上的袋子会被判成
-        // 「袋子不在了」，虽然影响面比菜单那边小，但同样是漏了饰品栏。
+        //
+        // ⚠️ 判据用「**同一个物品**」而不是「同一份组件」—— 理由见 BallPouchMenu.stillValid：
+        //    袋子的内容存在组件里，玩家一放球组件就变，用组件比会让界面在放球那一刻被判失效。
         for (ItemStack stack : BallPouchHelper.allPouchStacks(player)) {
-            if (stack == this.pouch || ItemStack.isSameItemSameComponents(stack, this.pouch)) {
+            if (stack == this.pouch || ItemStack.isSameItem(stack, this.pouch)) {
                 return true;
             }
         }

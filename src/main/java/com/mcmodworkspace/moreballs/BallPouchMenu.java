@@ -254,11 +254,18 @@ public class BallPouchMenu extends AbstractContainerMenu {
 
     @Override
     public boolean stillValid(Player player) {
-        // 袋子还在身上就有效 —— 口径统一走 allPouchStacks（背包 / 快捷栏 / 饰品栏都算）。
+        // 袋子还在身上就有效 —— 口径统一走 allPouchStacks（背包 / 快捷栏 / 副手 / 饰品栏都算）。
         // 原先这里只查背包与主副手，从饰品栏（G 键）打开时每刻都被判「袋子不在了」，
         // 于是界面刚开就被服务端 closeContainer() 关掉。
+        //
+        // ⚠️ 判据用「**同一个物品**」而不是「同一份组件」（作者 2026-10-16 报的
+        //    「界面突然关闭、吞掉关闭瞬间放进去的球」）：
+        //    袋子的内容就存在组件里，玩家往里放一颗球组件必然变 ——
+        //    用 isSameItemSameComponents 比，会在**放下去的那一瞬间**把界面判成失效，
+        //    服务端随即关界面，客户端那一格刚放进的球就跟着没了。
+        //    「界面该不该关」看的是「袋子还在不在身上」，与它的内容无关。
         for (ItemStack stack : BallPouchHelper.allPouchStacks(player)) {
-            if (stack == this.pouch || ItemStack.isSameItemSameComponents(stack, this.pouch)) {
+            if (stack == this.pouch || ItemStack.isSameItem(stack, this.pouch)) {
                 return true;
             }
         }

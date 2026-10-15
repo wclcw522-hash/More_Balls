@@ -421,6 +421,15 @@ public final class BallPouchHelper {
             }
         }
 
+        // 副手 —— ⚠️ 它**不在** getItem(0..35) 里（副手槽是 40），以前这里漏了。
+        // 后果很具体：副手拎着袋子打开界面时，菜单与容器的 stillValid 找不到袋子，
+        // 每刻都判成「袋子不在了」→ 服务端立刻 closeContainer() → 界面刚开就关
+        // （作者 2026-10-16 报的「界面突然关闭、吞球」的其中一条路径）。
+        ItemStack offhand = player.getOffhandItem();
+        if (isPouch(offhand)) {
+            out.add(offhand);
+        }
+
         // 饰品栏（装了 Curios 才有；没装时返回空列表，自动跳过）
         // 背饰 / 腰带 / 护符可以各戴一个袋子，所以这里要把每个都算上
         for (ItemStack worn : BallPouchCurios.findAllWornPouches(player)) {
