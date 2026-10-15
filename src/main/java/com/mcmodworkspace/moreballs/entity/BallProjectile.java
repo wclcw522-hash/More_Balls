@@ -3616,16 +3616,21 @@ public class BallProjectile extends ThrowableItemProjectile {
         //   · **袋子收不了时改走球堆**，而不是直接掉在地上 ——
         //     那正是作者反馈的「打出去一组、收回来五六组耐久不同的球」的来源
         //   · 两者都放不下才掉成掉落物（BallClusterItem.store 内部自己会兜这一下）
-        boolean stored;
-        if (owner instanceof Player player) {
-            stored = BallPouchHelper.deliverReturned(player, stack) != BallPouchHelper.Delivery.NOWHERE;
-            if (!stored) {
-                com.mcmodworkspace.moreballs.BallClusterItem.store(player, stack);
-                stored = true;   // store 放不下时会自己掉在玩家脚下，这里不必再兜一次
-            }
-        } else {
-            stored = false;
-        }
+        // ⚠️⚠️ 2026-10-15 **临时停掉了「回收时自动套成球堆」**。
+        //
+        //    原来这里是「袋子优先，袋子收不下才走 BallClusterItem.store」，
+        //    但作者的实测结果是：**球堆一次都没生成过** —— 带着袋子时 ① 永远收得下，
+        //    那座兜底永远不执行，球堆等于死代码。
+        //
+        //    作者同时反馈「原本的堆叠也失效了、看不到剩余耐久」，
+        //    而我逐行核过 store / BallClusterTier / BallItem 的耐久条，**没找到成因**。
+        //    在定位清楚之前，先让回收流程**回到 1.0.1.11 的原样**，
+        //    至少保证原有的堆叠与耐久显示是好的。
+        //
+        //    球堆本身（物品、组件、右键取球、袋子内的按档合并）**全部保留**，
+        //    只是不再从回收流程里自动生成。
+        boolean stored = owner instanceof Player player
+                && BallPouchHelper.deliverReturned(player, stack) != BallPouchHelper.Delivery.NOWHERE;
         if (!stored) {
             this.spawnAtLocation(level, stack, 0.1F);
         }
