@@ -94,8 +94,29 @@ public class BallClusterItem extends Item {
         }
         ItemStack shell = new ItemStack(ModItems.BALL_CLUSTER.get());
         setContents(shell, BallClusterContents.EMPTY.withAdded(ball.copy()));
+
+        // ===== 自检日志（作者 2026-10-15 加）=====
+        //
+        // 只打**第一次** —— 目的是让作者不用靠眼睛找就能确认机制到底有没有生效：
+        //   · 日志里出现这一行 ⇒ 套壳真的发生了（机制生效）
+        //   · 打了一发却完全没有这一行 ⇒ 球根本没走到 clusterize（机制仍然没接上）
+        //
+        // 之所以要这个，是因为「球堆没生效」这件事上一轮查了太久、
+        // 每次都要靠肉眼在背包里翻。一行日志能省掉整轮排查。
+        if (!FIRST_CLUSTER_LOGGED) {
+            FIRST_CLUSTER_LOGGED = true;
+            Integer left = ball.get(ModComponents.TOUGHNESS_LEFT.get());
+            int max = Math.max(0, BallBehavior.profileFor(ball).toughness());
+            MoreBalls.LOGGER.info("[球堆] 首次生成球堆：{} 套成壳（剩余耐久 {}/{}，档位 {}）",
+                    ball.getHoverName().getString(),
+                    left == null ? max : left, max,
+                    BallClusterTier.of(ball).name());
+        }
         return shell;
     }
+
+    /** 自检日志只打一次 */
+    private static volatile boolean FIRST_CLUSTER_LOGGED = false;
 
     /** 这个物品堆是不是球堆 */
     public static boolean isCluster(ItemStack stack) {
