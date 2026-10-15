@@ -219,7 +219,6 @@ neoForge {
             //   物品栏渲染 / HUD / 事件链都只在世界内跑，主菜单阶段探不到
             //   （主菜单连 `new ItemStack(...)` 都会抛 `Components not bound yet`）。
             //
-            // 默认不传这个属性 ⇒ 行为与原来**完全一致**，不会影响正常开发。
             // 【调试用】传 `-PquickPlayWorld=<存档名>` 可让 runClient 直接进那个世界。
             //
             // 为什么需要它：`gradle runClient --args="--quickPlaySingleplayer test"` 行不通 ——
