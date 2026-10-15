@@ -1,3 +1,90 @@
+## 1.1.0.17 ~ 1.1.0.20 — 球堆第三批实测反馈（作者 2026-10-15）
+
+**六条要求，四个包。** ①是**我理解错了**（把「放进物品栏」做成了「扔出去」），
+③是**查了四轮才定位的渲染坐标系问题**。
+
+### ① Shift+右键 = **放进空着的物品栏**（1.1.0.17）
+
+我 1.1.0.13 把「Shift+右键释放一组」也做成了**扔出去** —— 作者要的是**放进背包空格**。
+现在：shift 分支走 `Inventory.add`（先找可叠的同类、找不到才占空格、实在没地方掉脚下）；
+普通右键仍是扔出一颗。
+
+### ⑤ 仅剩 1 颗自动脱离、不留空壳（1.1.0.17）
+
+原来「取完最后一颗」会留下**空球堆**停在那一格。现在壳里只剩 1 颗时，那一颗直接顶上这一格。
+
+**⚠️ 实现上有个硬约束**：`ItemStack` 的 **item 是 final 的，不能就地从一个物品变成另一个**
+（我第一版写的 `shell.copyFrom(last)` 既编译不过——26.2 里 `copyFrom` 两个重载单参调用有歧义，
+而且就算消掉歧义也换不掉 item）。所以拆成两步：
+
+```java
+declusterInto(shell)          // 壳里恰好 1 颗 → 取出那颗、把壳清空、返回它
+takeOneWithDecluster(shell)   // 取一颗 + 上一步，调用方一次拿全
+```
+
+**换成球这一步只能由持有那一格的人做** —— `setItemInHand` / `slot.setByPlayer` / `segment.set(i,…)`。
+
+### ② 蓄力跟着球走（1.1.0.18）
+
+蓄力完全依赖原版的「使用中」状态（`startUsingItem` → 按住 → 松开时 `onStopUsing`
+按 `BallCharge.levelAt` 算等级）。而我原先在 `use` 里**直接 `throwBall(..., 0)`** ——
+`chargeLevel` 硬编码 0，整条链一步都没走。
+
+**改法**：`use` 里探测壳里那颗球的 `chargeLevels`，可蓄力的就 `player.startUsingItem(hand)`；
+`onStartUsing` / `onStopUsing` **认壳** —— 在壳的分支里取一颗、用它算 profile 与等级再出手。
+
+**⚠️ `startUsingItem` 必须两端都走**（蓄力条与 `usedTicks` 都来自这个状态，客户端不进就看不到条）。
+
+### ④ 捡起时自动进球堆（1.1.0.19）
+
+「收回」（弩射完飞回来）本来就是对的 —— `deliverToOwner` 在交付前已 `clusterize`。
+缺口在「**捡起**」：`BallPickupHandler` 早就在拦拾取（优先塞袋子），**但「没袋子 / 袋满」时直接放行给原版**，
+于是散球进背包，一颗一格。
+
+**改法**：那一支里改成**用过的球就地封壳**再交给玩家（复用 `deliverReturned`，落点规则与回收一致）。
+满耐久的球照旧放行 —— 它们本来就能叠。
+
+### ⑥ 鼠标中键 = 整理球堆（1.1.0.19）
+
+用标准 `KeyMapping`（`InputConstants.Type.MOUSE` + `GLFW_MOUSE_BUTTON_MIDDLE`），
+而不是自己拦鼠标事件 —— 这样能进原版「按键设置」界面、玩家可改键、冲突检测也统一。
+作用与背包界面那个小按钮一样：发 `TidyBallsPayload`。
+
+### ③ 图标偏移（1.1.0.20）—— 查了四轮
+
+**外层 pose 的真面目**（`GuiItemAtlas.drawToSlot` 反汇编）：
+
+```java
+pushPose();
+translate(槽位中心X, 槽位中心Y, 0);
+scale(16, -16, 16);            // ★ 完整的 GUI 物品坐标系
+state.submit(poseStack, …);    // ← special 的 submit 就在这一行
+popPose();
+```
+
+「偏」是**两个错误叠出来的**：
+
+1. 1.1.0.12 把 context 改成 `NONE` ⇒ 丢了 `minecraft:item/generated` 那层
+   「顶点 0..1 → 以原点居中」的 translation（**那层只在 GUI context 下生效**）⇒ 向右下偏移
+2. 外层那 `scale(16, -16, 16)` 一直在，而 GUI context 的 render state **自己也带同样的变换**
+   ⇒ 叠两层：放大 16×、Y 翻两次
+
+**改法**：
+
+```java
+updateForTopItem(state, inner, ItemDisplayContext.GUI, null, null, 0);  // 拿回居中
+pose.pushPose();
+pose.last().pose().identity();     // 抹掉外层
+state.submit(pose, collector, light, overlay, outline);
+pose.popPose();
+```
+
+### 附带
+
+- tooltip 多一行「**里面是：<球名>**」（作者 2026-10-15：「球本身的信息也要显示」）——
+  壳里的球都是完整栈（耐久、词条都在），把显示名摆出来一眼就知道是什么球、哪一档
+
+---
 ## 1.1.0.12 ~ 1.1.0.16 — 球堆第二批实测反馈（作者 2026-10-15）
 
 **八条要求，两批出包。** 这一批里我犯过一次崩溃级错误，一并记在下面。
