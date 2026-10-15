@@ -212,7 +212,7 @@ public class BallPouchItem extends Item {
      *
      * @return 这一段有没有被改动
      */
-    private static boolean clusterizeSegment(List<ItemStack> segment) {
+    public static boolean clusterizeSegment(List<ItemStack> segment) {
         boolean changed = false;
         for (int i = 0; i < segment.size(); i++) {
             ItemStack slot = segment.get(i);

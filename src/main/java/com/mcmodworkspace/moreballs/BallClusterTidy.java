@@ -86,6 +86,29 @@ public final class BallClusterTidy {
             return 0;
         }
 
+        // ===== 顺带：收纳袋的转运段也就地整理一遍 =====
+        //
+        // ⚠️ 作者 2026-10-15 反馈「整理键仅对当前背包生效」。
+        //    袋子那两段原先完全没被碰过 —— 而转运段正是**装用过的球**的那一段，
+        //    它里面的散球同样会因为耐久不同而一颗一格。
+        //
+        //    这里不把袋子里的球搬到背包再搬回去（那会打乱两段的分工），
+        //    而是**就地收成壳** —— 复用 BallPouchItem 里回收流程用的同一段逻辑，
+        //    保证「进袋的球」和「整理后的球」有完全一样的形态。
+        for (ItemStack pouch : BallPouchHelper.allPouchStacks(player)) {
+            BallPouchContents pouchNow = BallPouchItem.contents(pouch);
+            // ⚠️ 两处必须做对，否则这段是**静默无效**的：
+            //   a. 先复制成可变 List —— clusterizeSegment 内部用 set() 改元素，
+            //      而 record 里那个 List 不保证可变，直接传进去会在运行时抛异常
+            //   b. 改完必须 setContents 写回 —— List 只是记录里的一个字段，
+            //      就地改元素不会让物品的组件跟着变
+            List<ItemStack> transitNow = new ArrayList<>(pouchNow.transit());
+            if (BallPouchItem.clusterizeSegment(transitNow)) {
+                BallPouchItem.setContents(pouch,
+                        new BallPouchContents(pouchNow.ammo(), transitNow));
+            }
+        }
+
         // ===== 第二趟：逐颗塞进壳 =====
         int moved = 0;
         for (ItemStack ball : loose) {
