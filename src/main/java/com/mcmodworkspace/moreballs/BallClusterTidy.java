@@ -121,18 +121,7 @@ public final class BallClusterTidy {
                 }
             }
         }
-        // 【临时诊断】整理链的关键数。
-        //
-        // 作者 2026-10-15 报「按整理会让一个球以球堆的方式进物品栏最靠前那格」，
-        // 而我读完整个 tidy 的结论是：**它只遍历 getInventory()（0..35，不含副手）**，
-        // 副手那颗球不可能被它直接搬走。所以要看清楚到底哪一步多出了东西：
-        //   · loose 有几颗（这是唯一会被重新装箱的来源）
-        //   · 副手在整理后是什么（本该原样不动）
-        MoreBalls.LOGGER.info("[球堆][诊断] 整理：loose={} 颗 / 副手={} / 收纳袋={} 个",
-                loose.size(),
-                player.getOffhandItem().isEmpty()
-                        ? "空" : player.getOffhandItem().getHoverName().getString(),
-                BallPouchHelper.allPouchStacks(player).size());
+
 
         // 整理动过袋子（转运段就地收壳）和背包 ⇒ 让客户端把最新内容拉过去。
         // 不同步的话 HUD 上那个弹药数会一直显示旧值（作者 2026-10-15 反馈）。

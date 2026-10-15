@@ -669,7 +669,7 @@ public class ComboChargeBallRenderer implements SpecialModelRenderer<int[]> {
     }
 
     /** 读一张贴图为可写像素缓冲；失败返回 null */
-    private static @Nullable NativeImage readTexture(Identifier id) {
+    public static @Nullable NativeImage readTexture(Identifier id) {
         try {
             Resource resource = Minecraft.getInstance().getResourceManager().getResourceOrThrow(id);
             try (InputStream in = resource.open()) {
@@ -687,7 +687,7 @@ public class ComboChargeBallRenderer implements SpecialModelRenderer<int[]> {
      * <p>两张图都是 16×16，直接逐像素处理。{@link NativeImage} 的坐标原点是左上角，
      * 与贴图一致，不需要翻转。</p>
      */
-    private static void overlay(NativeImage base, NativeImage top) {
+    public static void overlay(NativeImage base, NativeImage top) {
         int w = Math.min(base.getWidth(), top.getWidth());
         int h = Math.min(base.getHeight(), top.getHeight());
         for (int y = 0; y < h; y++) {

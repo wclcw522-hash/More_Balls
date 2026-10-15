@@ -305,13 +305,7 @@ public final class BallAmmo {
     public static boolean claimSideProjectile() {
         Integer index = SHOT_INDEX.get();
         if (index == null) {
-            // 【临时诊断】作者 2026-10-15 报「多重射击的附属球卡在墙上不碎」。
-            //
-            // 这一条能直接定位**mixin 到底有没有生效**：
-            //   · 打出来 ⇒ `performShooting` 的那两个注入没命中（都是 require = 0，
-            //     原版一改方法结构就静默跳过）⇒ SHOT_INDEX 恒 null
-            //     ⇒ **每一颗球都被当主弹** ⇒ 附属弹不碎、不回家（正是当前症状）
-            //   · 没打出来 ⇒ 夹住了，问题在别处
+
             if (DIAG_NULL_INDEX.compareAndSet(false, true)) {
                 MoreBalls.LOGGER.info("[ball][诊断] claimSideProjectile: SHOT_INDEX 未初始化"
                         + " ⇒ performShooting 的 mixin 可能没生效（所有球都会被当主弹）");
@@ -330,7 +324,7 @@ public final class BallAmmo {
         if (index > 0) {
             // 每次多重射击都走这里，别用 INFO 刷日志
             MoreBalls.LOGGER.debug("[ball] 同一次发射的第 {} 颗 -> 判定为多重射击附属弹", index + 1);
-            // 【临时诊断】确认 side 真的判成了 true（只报一次）
+
             if (DIAG_SIDE.compareAndSet(false, true)) {
                 MoreBalls.LOGGER.info("[ball][诊断] claimSideProjectile: 第 {} 颗判为附属弹 side=true",
                         index + 1);
@@ -428,13 +422,7 @@ public final class BallAmmo {
             ball.setReturnToOwner(aerodynamic);
         }
 
-        // 【临时诊断】发射时的耐久 —— 作者报「球飞回来之后没了」，
-        // 而「耐久耗光 ⇒ 碎裂、无掉落」正是最可能的解释。
-        // 把发射值打出来，跟回收/碎裂那两行一对，就能算出它在路上扣了多少。
-        MoreBalls.LOGGER.info("[球堆][诊断] 发射：{} 耐久={} side={} 空气动力={}",
-                ammo.getHoverName().getString(),
-                BallItem.remainingToughness(ammo, profile.toughness()),
-                side, aerodynamic);
+
 
         // ===== 穿透等级 = 「球自带的【穿透x】」与「弩的穿透附魔」取较大者 =====
         //

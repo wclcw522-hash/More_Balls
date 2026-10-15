@@ -3620,17 +3620,7 @@ public class BallProjectile extends ThrowableItemProjectile {
         BallItem.stripIntangible(stack);
         BallItem.applyToughness(stack, this.getToughness());
 
-        // ===== 【临时诊断】作者 2026-10-15：「球飞回来剩余弹药没有正确增加」=====
-        //
-        // 自检已经证明 insertToTransit / deliverReturned 在**代码层面**是通的
-        // （用过的球进转运段、同种并进同一个壳、满耐久进备用区，全对），
-        // 所以剩下的疑问只能在**真实运行**里回答：这条路径到底有没有被走到、
-        // 拿到的球带着多少耐久、最终交付成了什么。
-        // 把三个关键值一次打出来，下次一看日志就能定位。
-        MoreBalls.LOGGER.info("[球堆][诊断] 回收：{} 剩余耐久={} count={}",
-                stack.getHoverName().getString(),
-                stack.get(com.mcmodworkspace.moreballs.ModComponents.TOUGHNESS_LEFT.get()),
-                stack.getCount());
+
 
         // ===== 【球堆】交付前**默认套成球堆**（作者 2026-10-15 纠正的方向）=====
         //
@@ -3645,11 +3635,6 @@ public class BallProjectile extends ThrowableItemProjectile {
         stack = com.mcmodworkspace.moreballs.BallClusterItem.clusterize(stack);
 
         boolean diagIsShell = com.mcmodworkspace.moreballs.BallClusterItem.isCluster(stack);
-        MoreBalls.LOGGER.info("[球堆][诊断] 套壳后：是壳={} 壳内={} 颗 档位={}",
-                diagIsShell,
-                diagIsShell
-                        ? com.mcmodworkspace.moreballs.BallClusterItem.contents(stack).size() : -1,
-                com.mcmodworkspace.moreballs.BallClusterTier.of(stack));
 
         // 作者指定的回收顺序：袋子的中转槽 → 背包最前 → 快捷栏最前 → 掉成掉落物。
         // （用附魔回收时玩家多半没空手接，所以和主动拾取的顺序是反的）
@@ -3658,7 +3643,6 @@ public class BallProjectile extends ThrowableItemProjectile {
         if (owner instanceof Player player) {
             delivery = BallPouchHelper.deliverReturned(player, stack);
         }
-        MoreBalls.LOGGER.info("[球堆][诊断] 交付：delivery={}（NOWHERE = 收不下，掉在地上）", delivery);
 
         boolean stored = delivery != BallPouchHelper.Delivery.NOWHERE;
         if (!stored) {
@@ -3716,16 +3700,7 @@ public class BallProjectile extends ThrowableItemProjectile {
             return;
         }
 
-        // 【临时诊断】碎裂时打一行 —— 作者 2026-10-15 报「球飞回来之后直接没了」。
-        //
-        // 球「消失」只可能是三条路之一：
-        //   ① 走到 deliverToOwner 交付了（那里有 [球堆][诊断] 回收/套壳/交付 三行）
-        //   ② 走到这里 burst 碎掉（本行）
-        //   ③ 别的分支 discard —— 那两行都没出现就说明是它
-        // 把「剩余耐久」与「是不是附属弹」一起打出来，就能区分是耐久耗光还是别的。
-        MoreBalls.LOGGER.info("[球堆][诊断] 碎裂：剩余耐久={} 附属弹={} 变形={} 位置=({}, {}, {})",
-                this.getToughness(), this.multishotSide, this.traitFired(TRAIT_MORPH),
-                (int) this.getX(), (int) this.getY(), (int) this.getZ());
+
 
         BallBehavior.BallProfile profile = this.profile();
 

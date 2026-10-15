@@ -68,6 +68,20 @@ public class BallClusterSpecialRenderer implements SpecialModelRenderer<ItemStac
     private static final float PLANE_Z_FRONT = 8.5F;
     private static final float PLANE_Z_BACK = 7.5F;
 
+    /**
+     * 组合球合成结果的缓存 —— 象限组合 → 注册好的动态纹理 id。
+     *
+     * <p>封顶淘汰最久没用的那张：一张 16×16 的图只有 1 KB，真正要节制的是
+     * 注册进纹理管理器的 {@code DynamicTexture} 条目数（与弩那边同一个理由）。</p>
+     */
+    private static final java.util.Map<String, Identifier> COMBO_TEXTURES =
+            new java.util.LinkedHashMap<>(16, 0.75F, true) {
+                @Override
+                protected boolean removeEldestEntry(java.util.Map.Entry<String, Identifier> eldest) {
+                    return size() > 64;
+                }
+            };
+
     @Override
     public ItemStack extractArgument(ItemStack shell) {
         BallClusterContents contents = BallClusterItem.contents(shell);
@@ -79,9 +93,6 @@ public class BallClusterSpecialRenderer implements SpecialModelRenderer<ItemStac
         return icon.isEmpty() ? contents.lowest().copy() : icon.copy();
     }
 
-    /** 【临时诊断】只报一次 —— 确认渲染器确实被调到、且贴图找得到 */
-    private static boolean diagnoseSubmitLogged = false;
-
     @Override
     public void submit(ItemStack inner, PoseStack poseStack, SubmitNodeCollector collector,
                        int lightCoords, int overlayCoords, boolean hasFoil, int outlineColor) {
@@ -90,17 +101,7 @@ public class BallClusterSpecialRenderer implements SpecialModelRenderer<ItemStac
         }
         Identifier texture = textureFor(inner);
         if (texture == null) {
-            if (!diagnoseSubmitLogged) {
-                diagnoseSubmitLogged = true;
-                MoreBalls.LOGGER.info("[球堆][诊断] submit：{} 没有对应贴图（组合球？），不画", 
-                        inner.getHoverName().getString());
-            }
-            return;
-        }
-        if (!diagnoseSubmitLogged) {
-            diagnoseSubmitLogged = true;
-            MoreBalls.LOGGER.info("[球堆][诊断] submit 提交几何：inner={} texture={}", 
-                    inner.getHoverName().getString(), texture);
+            return;   // 既不是普通球、也合成不出组合球 → 不画
         }
 
         float charge = chargeProgress();
@@ -123,22 +124,101 @@ public class BallClusterSpecialRenderer implements SpecialModelRenderer<ItemStac
     /**
      * 把「壳里那颗球」的贴图 id 找出来。
      *
-     * @return 找不到（不是本模组的球 / 是组合球这种没单一贴图的）时返回 {@code null}
+     * <p>两条路：</p>
+     * <ul>
+     *   <li><b>普通球</b> —— 约定 {@code more_balls:textures/item/<物品路径>.png}
+     *       （查过 {@code models/item/*.json}，所有普通球都是
+     *       {@code item/generated} + {@code layer0: more_balls:item/<同名>}）</li>
+     *   <li><b>组合球</b> —— 没有单一贴图，见 {@link #composedComboTexture}</li>
+     * </ul>
+     *
+     * @return 找不到时返回 {@code null}（调用方不画）
      */
     private static Identifier textureFor(ItemStack ball) {
+        if (ball.is(com.mcmodworkspace.moreballs.ModItems.COMBO_BALL.get())) {
+            return composedComboTexture(ball);
+        }
         Identifier id = BuiltInRegistries.ITEM.getKey(ball.getItem());
         if (!MoreBalls.MOD_ID.equals(id.getNamespace())) {
             return null;
         }
         Identifier texture = Identifier.fromNamespaceAndPath(id.getNamespace(),
                 "textures/item/" + id.getPath() + ".png");
-        // 组合球没有这个文件 —— 直接把结果交给渲染管线的话会拿到 missingno，
-        // 所以这里用资源管理器确认一下，找不到就明说「不画」。
+        // 确认文件真的在 —— 否则渲染管线会拿到 missingno 那张紫黑格
         if (net.minecraft.client.Minecraft.getInstance().getResourceManager()
                 .getResource(texture).isEmpty()) {
             return null;
         }
         return texture;
+    }
+
+    /**
+     * <b>组合球的图标</b> —— 四个象限各取一张贴图叠起来。
+     *
+     * <h2>为什么不能按普通球那样找一张图</h2>
+     * <p>组合球没有单一贴图：它的物品模型是 {@code composite} + 四个 {@code select}
+     * （按 {@code combo_slot_1..4} 组件选 {@code combo_piece_<来源>_<象限>} 模型），
+     * 而那些 {@code combo_piece} 模型指向的是 <b>{@code <球名>_quarter_<1..4>.png}</b>
+     * —— 查过 {@code models/item/combo_piece_*.json} 确认的
+     * （例如 {@code combo_piece_0_1.json} 的 layer0 是 {@code more_balls:item/wooden_ball_quarter_1}）。</p>
+     *
+     * <p>{@code combo_slot_N} 里存的下标正好是 {@link BallFragments#sources()} 里的位置，
+     * 所以「象限 → 来源球 → 那张 quadrant 贴图」是一条直线。</p>
+     *
+     * <h2>缓存</h2>
+     * <p>按象限组合缓存（与弩那边同一个思路）：一张 16×16 只有 1 KB，
+     * 真正要节制的是注册进纹理管理器的 {@code DynamicTexture} 条目数，所以封顶。</p>
+     */
+    private static Identifier composedComboTexture(ItemStack ball) {
+        int[] slots = new int[4];
+        boolean any = false;
+        for (int q = 0; q < 4; q++) {
+            Integer value = ball.get(
+                    com.mcmodworkspace.moreballs.ModComponents.COMBO_SLOTS.get(q).get());
+            slots[q] = (value == null) ? -1 : value;
+            if (slots[q] >= 0) {
+                any = true;
+            }
+        }
+        if (!any) {
+            return null;
+        }
+
+        String cacheKey = java.util.Arrays.toString(slots);
+        Identifier cached = COMBO_TEXTURES.get(cacheKey);
+        if (cached != null) {
+            return cached;
+        }
+
+        java.util.List<net.minecraft.world.item.Item> sources =
+                com.mcmodworkspace.moreballs.BallFragments.sources();
+        com.mojang.blaze3d.platform.NativeImage canvas =
+                new com.mojang.blaze3d.platform.NativeImage(
+                        com.mojang.blaze3d.platform.NativeImage.Format.RGBA, 16, 16, false);
+        for (int q = 0; q < 4; q++) {
+            int index = slots[q];
+            if (index < 0 || index >= sources.size()) {
+                continue;
+            }
+            Identifier sourceId = BuiltInRegistries.ITEM.getKey(sources.get(index));
+            Identifier pieceId = Identifier.fromNamespaceAndPath(sourceId.getNamespace(),
+                    "textures/item/" + sourceId.getPath() + "_quarter_" + (q + 1) + ".png");
+            com.mojang.blaze3d.platform.NativeImage piece =
+                    ComboChargeBallRenderer.readTexture(pieceId);
+            if (piece != null) {
+                // 复用弩那边的 source-over：透明像素不盖掉下面已画好的象限
+                ComboChargeBallRenderer.overlay(canvas, piece);
+                piece.close();
+            }
+        }
+
+        Identifier id = Identifier.fromNamespaceAndPath(MoreBalls.MOD_ID,
+                "ball_cluster_combo/" + Integer.toHexString(java.util.Arrays.hashCode(slots)));
+        net.minecraft.client.Minecraft.getInstance().getTextureManager().register(id,
+                new net.minecraft.client.renderer.texture.DynamicTexture(
+                        () -> "more_balls ball cluster " + cacheKey, canvas));
+        COMBO_TEXTURES.put(cacheKey, id);
+        return id;
     }
 
     /**
