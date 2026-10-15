@@ -1,4 +1,55 @@
-## 1.1.0.1 — 修复：球堆在收纳袋里不生效 / 潮汐球撞墙残留
+## 1.1.0.4 — 球堆机制终于真正生效（修 1.1.0.0 的结构性错误）
+
+**作者反馈**：「球堆这个代码就没用」「1.1.0.0 都没做好，没有球堆机制，我根本没法测试」。
+**这个指控是对的** —— 我用 `git show` 和逐行遍历确认了根因。
+
+### 真因：套壳那一步永远不执行
+
+`deliverToOwner` 原本写的是「袋子优先，袋子收不下才走 `BallClusterItem.store`」，
+而 `BallPouchHelper.deliverReturned`（L206-235）是这样收尾的：
+
+```java
+for (int i = 0; i < 36; i++) {          // 背包 0..35
+    if (inventory.getItem(i).isEmpty()) {
+        inventory.setItem(i, ball.copy());
+        return pristine || pouches.isEmpty() ? INVENTORY : INVENTORY_TRANSIT_FULL;
+    }
+}
+return Delivery.NOWHERE;                 // 只有**背包也满了**才到这
+```
+
+**只要背包含一个空格，它就返回 `INVENTORY` 而不是 `NOWHERE`** ——
+于是 `stored` 恒为 true，那座「收不下才套壳」的兜底**一次都没执行过**。
+**球堆从 1.1.0.0 起就是死代码。**
+
+### 改法：套壳排到交付**之前**
+
+```java
+ItemStack stack = this.getItem().copy();
+BallItem.stripIntangible(stack);
+BallItem.applyToughness(stack, this.getToughness());
+
+stack = BallClusterItem.clusterize(stack);      // ← 先套壳，满耐久的原样返回
+
+boolean stored = owner instanceof Player player
+        && BallPouchHelper.deliverReturned(player, stack) != Delivery.NOWHERE;
+```
+
+**两条交付路径都补了**：回收（`deliverToOwner`）和玩家踩上去接球那条。
+
+### 顺带修掉的第二个坑
+
+`BallPouchItem.fillClustered` / `clusterizeSegment` 拿传进来的 `ball` 去 `matches()` ——
+**如果那本身已经是壳，`BallClusterTier.of(壳)` 会判成 `PRISTINE`**，
+`isClustered()` 为 false，**永远匹配不上，于是「一个壳只装一颗」**。
+改成先 `asBall` 摊开再比对（和 `sameKind` 同一招）。
+
+### 还清掉了 18 行自相矛盾的注释
+
+1.1.0.2 临时停用套壳时写的「临时停掉了自动套壳」在 1.1.0.3 接回来之后**忘了删** ——
+代码是对的、注释是错的。这种注释留着只会害下一个人。
+
+---## 1.1.0.1 — 修复：球堆在收纳袋里不生效 / 潮汐球撞墙残留
 
 **两条都是作者 2026-10-15 的实测反馈。第一条是我在 1.1.0.0 里把方向判反了。**
 
