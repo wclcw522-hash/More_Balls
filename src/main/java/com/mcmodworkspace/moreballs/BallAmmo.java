@@ -162,55 +162,21 @@ public final class BallAmmo {
             return;
         }
 
-        BallBehavior.BallProfile offhandProfile = BallBehavior.profileFor(offhand);
-        // 没有耐久概念的球（不坚固 / 无法破坏）没什么可挑的
-        if (offhandProfile.toughness() <= 0) {
-            return;
-        }
-        // 只在副手那颗「还是满耐久」时才动手 —— 已经用旧的球本来就该先打出去
-        if (BallItem.remainingToughness(offhand, offhandProfile.toughness())
-                < offhandProfile.toughness()) {
-            return;
-        }
-
-        Inventory inventory = player.getInventory();
-        int bestSlot = -1;
-        int bestLeft = Integer.MAX_VALUE;
-        for (int slot = 0; slot < inventory.getContainerSize(); slot++) {
-            ItemStack candidate = inventory.getItem(slot);
-            // 用 sameKind 而不是比 item：组合球全是同一个 item，只比 item 会把
-            // 「铁-金球」当成「木-圆石球」的同种（那边同类问题在 2.5.0 修过一轮）
-            if (candidate.isEmpty() || !BallPouchItem.sameKind(candidate, offhand)) {
-                continue;
-            }
-            if (candidate == offhand) {
-                continue; // 副手那颗自己（遍历会算上它，换自己没意义）
-            }
-            // ⚠️ 必须先摊开：候选现在**可能是壳**（sameKind 认得壳），而壳不带 TOUGHNESS_LEFT
-            //    组件 —— 直接读会拿到 fallback = profileFor(壳).toughness() = 0，
-            //    于是壳永远是「最低」的那个，副手会被换上整个壳。
-            //    作者 2026-10-15 反馈的「第二次上弹被换成未进入球堆的球」就出在这条链上。
-            ItemStack probe = BallClusterItem.asBall(candidate);
-            if (probe.isEmpty()) {
-                continue;
-            }
-            int left = BallItem.remainingToughness(probe,
-                    BallBehavior.profileFor(probe).toughness());
-            // bestSlot < 0 的兜底不能省：万一 left 恰好等于 bestLeft 的初始值，
-            // 只写 left < bestLeft 会导致一个都选不中（同类陷阱见 BallPouchItem 的说明）
-            if (bestSlot < 0 || left < bestLeft) {
-                bestLeft = left;
-                bestSlot = slot;
-            }
-        }
-
-        if (bestSlot < 0) {
-            return; // 背包里没有同种的，照旧用副手这颗
-        }
-
-        ItemStack lower = inventory.getItem(bestSlot);
-        inventory.setItem(bestSlot, offhand);
-        player.setItemInHand(InteractionHand.OFF_HAND, lower);
+        // ===== 【已撤除】「副手满耐久 → 和背包里最旧的同种球交换」=====
+        //
+        // ⚠️⚠️ 作者 2026-10-15 明确：「**背包内的球不应该被调动**」。
+        //
+        // 这里原先有整整一段（约 50 行）：副手那颗满耐久时，从**背包**里找同种、剩余耐久
+        // 最低的一颗，与副手**对调**。理由是「原版按槽位顺序抓弹药、不看耐久」——
+        // 但「优先打旧球」**是我自己认定的需求**，作者从来没要求过，而且现在明确反对。
+        //
+        // 它和「副手空 → 从背包挑一颗」是**同一类**的东西（都在动玩家的背包）。
+        // 上一批我只撤了后者、漏了这一段 —— 作者实测「根本没选过弹药，副手还是被塞」
+        // 就是它：本方法由 `CrossbowItemMixin` 在**弩装填时无条件调用**，不看有没有选弹药。
+        //
+        // ⇒ 模组只从两个地方提供弹药，**玩家的背包一律不碰**：
+        //     · 收纳袋 → `BallAmmoAutoLoader`（且要求轮盘选过种类）
+        //     · 副手的球堆 → `CrossbowItemMixin` 装填前扣一颗
     }
 
     /**
