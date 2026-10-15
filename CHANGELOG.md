@@ -1,3 +1,85 @@
+## 1.1.0.26 — 球堆第五批实测反馈（作者 2026-10-15）
+
+**四条。这一批的教训是「③ 我又没遍历就猜」。**
+
+### ① 图标「只有右上角那一块，偏得非常厉害」（1.1.0.26）
+
+**`getExtents` 要的是「模型本地盒」，不是「原点居中的盒子」。**
+
+证据链（javap 实拍）：
+
+```java
+// SpecialModelWrapper（item 模型 → special 的桥）
+20: SpecialModelRenderer.getExtents(Consumer)     // 本方法输出
+24: putfield extents
+58: LayerRenderState.setExtents(Supplier)         // 原样存进 LayerRenderState
+// applyTransform 发生在此后的 visitExtents —— 所以原版要的是**未变换**的本地坐标
+```
+
+而球堆画的是 `minecraft:item/generated` 那一类模型 —— **从 (0,0,0) 到 (1,1,1) 的立方体**
+（**左上原点，不是原点居中**）。
+
+**我先后给过三种答案，全错**：
+
+| 版本 | 给的盒子 | 为什么错 |
+|---|---|---|
+| 1.1.0.8 | `±0.5` | 「原点居中」口径 ⇒ GUI 缩放与偏移都算错 |
+| 1.1.0.20 | `±0.6` | 同上，只是更大了 |
+| 1.1.0.23 | `visitExtents` 采样雪球 | 它会 `applyTransform`，给的是**变换后**的盒子 |
+
+**正确**：
+
+```java
+out.accept(new Vector3f(0.0F, 0.0F, 0.0F));
+out.accept(new Vector3f(1.0F, 1.0F, 1.0F));
+```
+
+### ② 球堆放副手当弹药 → 全部发射出去（1.1.0.26）
+
+**根因**：`tryLoadProjectiles` → `getProjectile`（拿到的是**壳**）→ `draw(...)` 返回的 List 里
+**装的就是壳本身** ⇒ **整个壳进弹仓** ⇒ 一次发射全没了。
+
+**改法**（作者 2026-10-15 明确指定）：
+
+```
+HEAD:   副手是壳 → takeOne（扣一颗耐久最低的）→ 顶上副手，壳暂存
+RETURN: 装填完 → 把壳放回副手（副手被占就收背包，绝不凭空消失）
+```
+
+作者原话：「副手持球堆的时候，应当从球堆里扣除一颗耐久最低的球上膛，
+然后球堆减少对应的球，保持放在副手。**并且这一点要和魔丸收纳袋的补弹相适配，
+这两个不是独立的机制，要联动起来。**」
+
+### ③ 那行「蓄力 x/y」不显示（1.1.0.26）
+
+**真凶在 `MoreBallsClient.onRenderGui`，不在 tooltip**：
+
+```java
+ItemStack stack = player.getUseItem();      // 蓄力时手上是壳
+if (!BallBehavior.handles(stack)) return;    // 壳不在 #more_balls:balls 标签里 ⇒ false ⇒ 当场 return
+```
+
+⇒ 那行字**永远不显示**。修法：先 `asBall` 摊开成壳里那颗球再判。
+
+**⚠️ 这一条我错了两轮**：1.1.0.21 我给壳补 `getUseDuration`（跟这行字无关），
+1.1.0.25 又去改 tooltip 的显示条件 —— **两次都是没遍历就猜方向**。
+正确做法是 `grep 蓄力` 整个 mod —— 一搜就出来了（`MoreBallsClient` L101 的注释里
+明写着「蓄力等级显示」）。
+
+### ④ tooltip 完全照搬球本身（1.1.0.26）
+
+作者明确：
+
+> 原来的球直接显示那些信息，现在就显示那些信息；原来要 shift 展开那些，
+> 在球堆上就要 shift 展开哪些，**而不是现在只有【蓄力x】一条**，
+> 并且有时候蓄力也是在 shift 展开信息里的。
+
+而球本身的实现（`BallItem` L189）就是**直接遍历 `entries(stack, shift)`、不按 kind 过滤** ——
+所以球堆也改成逐行一致，**我 1.1.0.25 加的「`Kind.CHARGE` 恒显」特例已撤掉**。
+
+### ⑤ 回收 —— 作者确认「目前来看效果已经做好了」，本批未改动
+
+---
 ## 1.1.0.23 ~ 1.1.0.25 — 球堆第四批实测反馈（作者 2026-10-15）
 
 **这一批的关键动作是「先做整个 mod 的遍历」。** 作者原话：
