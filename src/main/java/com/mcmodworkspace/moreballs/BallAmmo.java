@@ -349,9 +349,18 @@ public final class BallAmmo {
 
         // 【空气动力球】：给球打上「静止后自己飞回来」的标记（附属弹不给）。
         // 真正的回归逻辑在 BallProjectile 里
+        boolean aerodynamic = ModEnchantments.hasAerodynamicBall(level, weapon);
         if (!side) {
-            ball.setReturnToOwner(ModEnchantments.hasAerodynamicBall(level, weapon));
+            ball.setReturnToOwner(aerodynamic);
         }
+
+        // 【临时诊断】发射时的耐久 —— 作者报「球飞回来之后没了」，
+        // 而「耐久耗光 ⇒ 碎裂、无掉落」正是最可能的解释。
+        // 把发射值打出来，跟回收/碎裂那两行一对，就能算出它在路上扣了多少。
+        MoreBalls.LOGGER.info("[球堆][诊断] 发射：{} 耐久={} side={} 空气动力={}",
+                ammo.getHoverName().getString(),
+                BallItem.remainingToughness(ammo, profile.toughness()),
+                side, aerodynamic);
 
         // ===== 穿透等级 = 「球自带的【穿透x】」与「弩的穿透附魔」取较大者 =====
         //
