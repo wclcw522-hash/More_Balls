@@ -1,3 +1,82 @@
+## 1.1.0.8 / 1.1.0.7 — 修「球堆」的实测反馈（作者 2026-10-15）
+
+**这一批全部来自作者实测**。四条里有三条是功能性 bug —— 而它们有一个共同根源：
+**「没装备收纳袋」时，背包这条路没人管。**
+
+### ② 第二次上弹取到的是散球，而不是耐久最低的那颗
+
+两个原因叠在一起：
+
+**a. `BallAmmoAutoLoader` 只从收纳袋取弹。** 它的循环是
+`for (ItemStack pouch : BallPouchHelper.allPouchStacks(player))` —— **没装袋子时列表为空，
+整段不干活**。于是「装填取哪颗」全交给了**原版**，而**原版按槽位顺序抓背包里第一个能当弹药的
+物品，完全不看耐久** —— 那正是「未进入球堆的球」。
+
+**b. `swapHeldAmmoForLowestDurability` 在副手空时直接 `return`。** 第一发打出去副手就空了，
+之后每一步都从这条缝里漏过去。
+
+修法（`1.1.0.7`）：
+
+- 副手空时**不再返回**，改为调用新的 `lowestInInventory(player)`：
+  遍历背包，把**散球**和**壳摊开后**的球放在一起比剩余耐久，挑最小的那颗放进副手
+- 读候选耐久**之前先 `asBall` 摊开**。原先直接读 `candidate` —— 而候选可能是壳，
+  壳不带 `TOUGHNESS_LEFT` 组件，`remainingToughness` 返回 fallback = `profileFor(壳).toughness()` = 0，
+  **0 是最小的，于是壳永远当选**，副手被换上整个壳
+
+### ③ 右键取出耐久最低的球 —— 未生效
+
+`BallClusterItem.use` 的写法和 `BallPouchItem.use`（能用的那个）不一致：
+
+```java
+// 改前
+if (level.isClientSide()) { return InteractionResult.SUCCESS; }   // 客户端提前返回
+...
+return InteractionResult.SUCCESS;                                  // 不消耗动作
+
+// 改后：两端走同一段，返回值改成 CONSUME
+return InteractionResult.CONSUME;
+```
+
+**`CONSUME` 的 `consumesAction()` 为 true** —— 这是个**改玩家背包状态**的操作，该用它。
+
+> 另：**空壳右键仍然什么都不做**（`contents.isEmpty()` → `PASS`）。那是刻意的：
+> 创造栏拿出来的 `ball_cluster` 就是空壳，右键它不该有反应。
+
+### ① 整理键：只扫背包、且跳过已有的壳
+
+`BallClusterTidy.tidy` 原先见到壳就 `continue`，于是：
+
+- 壳里的球永远参与不了重新分档
+- 同球种不同档位分成好几个壳，看着就是「没堆叠」
+
+**改后分两趟**：先取用过的散球，**再把已有的壳整个摊开**（掏空并清空那一格），
+然后所有球混在一起按档重新堆。这才是「一键整理」该有的语义。
+
+### ④ 图标：球堆显示**里面那种球**的贴图
+
+原先 `models/item/ball_cluster.json` 用的是 `minecraft:item/generated` +
+`minecraft:item/bundle` —— **收纳袋的贴图，一个占位**。
+
+**26.2 的物品模型是数据驱动的，但 `generated` 只能挂一张固定贴图。** 球堆的图标取决于
+运行期数据（`BALL_CLUSTER` 组件里的那颗球），静态 json 读不到。所以走原版给容器类物品
+准备的机制 —— **特殊模型**（潜影盒 / 箱子 / 旗帜都是这么做的）：
+
+```
+items/ball_cluster.json  →  minecraft:special
+                              base:  ball_cluster_base（1×1 全透明底图）
+                              model: more_balls:ball_cluster（BallClusterSpecialRenderer）
+                                        extractArgument → 读组件，取出里面那颗球
+                                        submit          → 用原版流程把它画出来
+```
+
+走原版流程画那颗球的好处：**组合球的象限贴图、附魔光效、损坏条全都自动跟着走**，
+不用手工拼贴图。
+
+⚠️ **`RegisterSpecialModelRendererEvent` 是 `IModBusEvent`** —— 必须由 `MoreBalls` 在
+**mod 总线**上调用 `registerSpecialModelRenderers`，靠 `@EventBusSubscriber`（GAME 总线）
+挂不上，**症状是没有报错的静默空白图标**。
+
+---
 ## 1.1.0.6 — 加「一键整理」按钮（球堆的手动入口）
 
 ### 为什么加它
