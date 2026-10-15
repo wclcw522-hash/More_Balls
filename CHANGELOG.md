@@ -1,3 +1,118 @@
+## 1.1.0.23 ~ 1.1.0.25 — 球堆第四批实测反馈（作者 2026-10-15）
+
+**这一批的关键动作是「先做整个 mod 的遍历」。** 作者原话：
+
+> **遍历是整个 mod，不是功能片段！**
+
+照做之后，第 ① 条的根因一次就现形了 —— 而且它不是「一个函数写错」，是
+**一个口径错了、六个功能一起错**。
+
+### ① 同耐久的一组球整理后只剩 1 个（1.1.0.23）—— 计数口径
+
+**根因**：`BallClusterContents.withAdded` 里写的是 `next.add(ball.copy())` ——
+把**整个栈**当成**一个元素**塞进 `balls`。而背包里 8 颗同耐久的球是**一个 `count=8` 的栈** ⇒
+`balls.size()` 返回 1 ⇒ 而它被当成「几颗」用。
+
+**同一个口径污染了六处**：
+
+| 位置 | 行号 | 表现 |
+|---|---|---|
+| `BallClusterContents.size()` | L66 | **根源**（返回元素数） |
+| `hasRoom()` | L164 | 容量判据 |
+| `lowestGroupSize()` | L136 | 「一组」的数量 |
+| `withoutLowest()` | L194 | 一次取走一个元素 |
+| `BallClusterItem.declusterInto()` | L238 | 一个 `count=8` 的栈被误判成「只剩一颗」⇒ 突然自动脱离 |
+| `BallClusterDecorator` | L51 | 图标角标 |
+| `BallClusterItem` tooltip | L341 | 「内含 N 颗」 |
+
+**修法不是逐处改口径，而是让口径本身成立** —— `withAdded` **按 `count` 拆成一颗一个元素**：
+
+```java
+int room = MAX_BALLS - next.size();
+int add = Math.min(ball.getCount(), room);
+for (int i = 0; i < add; i++) {
+    next.add(ball.copyWithCount(1));     // ★ 一个元素 = 一颗球
+}
+```
+
+⇒ 六处**一次性对齐**，每颗球的耐久仍然各自独立保存。
+
+### ② 悬停/展开显示球的详细信息（1.1.0.23 / 1.1.0.25）
+
+作者明确：**不要显示球名**（名字里已含球种），要显示**球本身的详细信息**
+（【坚固x】【基础伤害x】…），**格式和球本身一模一样**，悬停页与 Shift 展开页都要。
+
+⇒ **不自己拼格式**，直接复用 `BallTooltip.entries`（球的 tooltip 与径向菜单读的同一份）：
+
+```java
+for (BallTooltip.Entry entry : BallTooltip.entries(lowest, true)) {
+    boolean isCharge = entry.kind() == BallTooltip.Kind.CHARGE;
+    if (!shift && !isCharge) continue;
+    tooltip.accept(entry.text());
+    if (shift && entry.detail() != null) {
+        tooltip.accept(Component.literal("  ").append(entry.detail()));
+    }
+}
+```
+
+**⚠️ 1.1.0.25 的修正**：`BallTooltip` 里【蓄力x】的显示条件是
+`detailed || chargeLevels != DEFAULT_CHARGE_LEVELS` —— **默认档的球不按 Shift 就没有这一行**。
+那对「球」合理（球主要当弩弹药），但**球堆不同**：手持球堆右键就是蓄力投掷。
+所以球堆改成**取完整列表后自己过滤：CHARGE 恒显，其余跟随 Shift**。
+
+### ③ 球自己飞回来时不并入球堆（1.1.0.23）
+
+**根因在 `BallPouchHelper.deliverReturned`**：背包落点那段**只找空格**，
+从不看背包里有没有同类的壳 ⇒ 飞回来的球自己新建一个壳占一格。
+
+⇒ 在落点循环**之前**加一段：先用 `asBall(ball)` 摊开、找同类壳并进去
+（⚠️ 传进来的 `ball` 已经是**壳**，拿壳去 `matches` 会永远失配 —— 这个坑在袋子那边踩过）。
+并核对 `withAdded` 的返回值（满了就换下一个壳），绝不静默丢球。
+
+### ④ 蓄力那一行提示字（1.1.0.25）
+
+见上面 ② 的修正。**作者澄清：「我是说球堆没有蓄力的那一行提示字」** ——
+不是视觉进度条。我一开始理解偏了，跑到 HUD / 第一人称渲染链里查了一圈，
+在 1.1.0.24 加了个「按进度缩放」；那条**经作者同意保留**（后续还要给球和组合球一起加）。
+
+顺带查清的（都 `javap` 核过，免得以后再走弯路）：
+
+- `Hud.extractSlot` 里**没有**使用进度 —— 只有拾取弹跳动画
+- `Hud$ContextualInfo` 只有 `EMPTY / EXPERIENCE / LOCATOR / JUMPABLE_VEHICLE`
+- 全 jar 只有 `UseDuration` / `UseCycle` 两个**物品模型属性**读使用进度 ——
+  弓/弩的「拉弓」是**模型 JSON 的 range_dispatch 按它换模型**做出来的，不是 HUD 画的条
+- 第一人称姿势的完整判据在 `ItemInHandRenderer`：`isUsingItem()` +
+  `getUseItemRemainingTicks() > 0` + `getUsedItemHand() == hand` + `getUseAnimation()`
+
+### ⑤ 图标 `getExtents`（1.1.0.23）
+
+**我 1.1.0.20 写死了 ±0.6F —— 那是错的。**
+
+`getExtents` 的返回值是 **GUI 用来算缩放的包围盒**：给大了会被判成「超大物品」
+（`ItemStackRenderState.isOversizedInGui` / `OversizedItemRenderer` 那条独立渲染链），
+给小了会被裁掉。而**原版五个 special 渲染器（Trident / ShulkerBox / Book / Conduit /
+CopperGolemStatue）没有一个写死常量**，一律问模型要：
+
+```java
+ItemStackRenderState probe = new ItemStackRenderState();
+resolver.updateForTopItem(probe, new ItemStack(Items.SNOWBALL), ItemDisplayContext.GUI, null, null, 0);
+probe.visitExtents(out);      // ★ 和原版「问模型要」等价
+```
+
+### 这一批的方法论收获
+
+**遍历整个 mod（93 个 java 文件 / 25391 行）之后才看见的东西**：
+
+1. **一个口径错 ⇒ 六处一起错**（①）—— 只改「我这次要改的那个方法」永远看不见
+2. **「同一件事在两个地方各判一次」= 高危**（`writeAdded` 的内外判据重复，导致静默丢球）
+3. **原版 special 渲染器一律不动 pose** —— 五个实现（Trident / ShulkerBox / Book /
+   Banner / DecoratedPot）逐个读过，全部直接把传进来的 pose 用于 `submitModel`
+4. **`SpecialModelRenderer<T>` 的契约**：`submit(T, pose, …)` / `getExtents` /
+   `extractArgument(ItemStack)`；`Unbaked<T>` 是 `bake(BakingContext)` + `type()`
+5. **查 API 要核「参数在这个时机能不能为 null」**（`updateForNonLiving` 的教训）
+   **以及「这个值是不是编译期常量」**（`GLFW_PRESS` 会被内联，字节码里没有它的名字）
+
+---
 ## 1.1.0.21 ~ 1.1.0.22 — 修两条回归 + 丢球（作者 2026-10-15 实测 1.1.0.20）
 
 **这一批里我有两条是**自己改坏的**（①③），一条是**查了四轮才定位的渲染坐标系**（③的下半），
