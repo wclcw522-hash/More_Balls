@@ -155,6 +155,26 @@ public final class BallAmmo {
             return;
         }
 
+        // ===== 副手空着时：从**背包**挑一颗顶上（作者 2026-10-15）=====
+        //
+        // ⚠️ 原来副手一空这里就 return。于是「装填取哪颗」整个交给了原版 ——
+        //    而原版按**槽位顺序**抓背包里第一个能当弹药的物品，**完全不看耐久**。
+        //    作者反馈的「第二次上弹被换成未进入球堆的球而不是耐久最低的」就是这么来的：
+        //    第一发打出去之后副手空了 → 原版随手抓一颗散球 → 抓到哪颗全看格子位置。
+        //
+        //    （BallAmmoAutoLoader 那条路指望不上：它**只从收纳袋取弹**，
+        //      没装备袋子时整段不干活 —— 作者这次正是没带袋子。）
+        //
+        //    所以这里补上：副手空 → 从背包里按「摊开后的剩余耐久」挑最小的一颗放上去，
+        //    之后原版照旧自己装填，后续流程一个字不改。
+        if (offhand.isEmpty()) {
+            ItemStack best = lowestInInventory(player);
+            if (!best.isEmpty()) {
+                player.setItemInHand(InteractionHand.OFF_HAND, best);
+            }
+            return;
+        }
+
         if (!isBall(offhand)) {
             return;
         }
@@ -183,8 +203,16 @@ public final class BallAmmo {
             if (candidate == offhand) {
                 continue; // 副手那颗自己（遍历会算上它，换自己没意义）
             }
-            int left = BallItem.remainingToughness(candidate,
-                    BallBehavior.profileFor(candidate).toughness());
+            // ⚠️ 必须先摊开：候选现在**可能是壳**（sameKind 认得壳），而壳不带 TOUGHNESS_LEFT
+            //    组件 —— 直接读会拿到 fallback = profileFor(壳).toughness() = 0，
+            //    于是壳永远是「最低」的那个，副手会被换上整个壳。
+            //    作者 2026-10-15 反馈的「第二次上弹被换成未进入球堆的球」就出在这条链上。
+            ItemStack probe = BallClusterItem.asBall(candidate);
+            if (probe.isEmpty()) {
+                continue;
+            }
+            int left = BallItem.remainingToughness(probe,
+                    BallBehavior.profileFor(probe).toughness());
             // bestSlot < 0 的兜底不能省：万一 left 恰好等于 bestLeft 的初始值，
             // 只写 left < bestLeft 会导致一个都选不中（同类陷阱见 BallPouchItem 的说明）
             if (bestSlot < 0 || left < bestLeft) {
@@ -362,5 +390,63 @@ public final class BallAmmo {
         }
 
         return ball;
+    }    /**
+     * 从玩家背包里挑一颗「摊开后剩余耐久最低」的球，并<b>把它从原格取出</b>。
+     *
+     * <h2>为什么要摊开再比</h2>
+     * <p>背包里的候选可能是<b>散球</b>，也可能是<b>球堆（壳）</b>。壳不带
+     * {@code TOUGHNESS_LEFT} 组件，直接读会拿到 0 而永远当选。所以统一先走
+     * {@link BallClusterItem#asBall}：散球原样返回，壳则摊成里面那颗<b>最低</b>的球。</p>
+     *
+     * <h2>为什么从壳里掏一颗要写回</h2>
+     * <p>壳是 {@code stacksTo(1)} 的容器，掏出最低那颗之后壳本身少了一颗 ——
+     * 必须把剩余写回那一格（空了就把组件摘掉）。<b>取走最后一颗时不销毁壳</b>，
+     * 留给原版后续流程处理（玩家手里那颗已经是球了）。
+     *
+     * @return 挑中的那颗球；背包里没有可用的球时返回 {@link ItemStack#EMPTY}
+     */
+    private static ItemStack lowestInInventory(Player player) {
+        Inventory inventory = player.getInventory();
+        int bestSlot = -1;
+        int bestLeft = Integer.MAX_VALUE;
+        for (int slot = 0; slot < inventory.getContainerSize(); slot++) {
+            ItemStack candidate = inventory.getItem(slot);
+            if (candidate.isEmpty()) {
+                continue;
+            }
+            // 壳：掏出一颗（并把剩余的写回该格）；散球：直接用它
+            if (BallClusterItem.isCluster(candidate)) {
+                ItemStack probed = BallClusterItem.asBall(candidate);
+                if (probed.isEmpty()) {
+                    continue;
+                }
+                int left = BallItem.remainingToughness(probed,
+                        BallBehavior.profileFor(probed).toughness());
+                if (bestSlot < 0 || left < bestLeft) {
+                    bestLeft = left;
+                    bestSlot = slot;
+                }
+                continue;
+            }
+            if (!isBall(candidate)) {
+                continue;
+            }
+            int left = BallItem.remainingToughness(candidate,
+                    BallBehavior.profileFor(candidate).toughness());
+            if (bestSlot < 0 || left < bestLeft) {
+                bestLeft = left;
+                bestSlot = slot;
+            }
+        }
+        if (bestSlot < 0) {
+            return ItemStack.EMPTY;
+        }
+        ItemStack chosen = inventory.getItem(bestSlot);
+        if (BallClusterItem.isCluster(chosen)) {
+            // 从壳里掏一颗 —— takeOne 会把剩余写回同一个 ItemStack（壳是引用）
+            return BallClusterItem.takeOne(chosen);
+        }
+        inventory.setItem(bestSlot, ItemStack.EMPTY);
+        return chosen;
     }
 }

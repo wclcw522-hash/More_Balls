@@ -49,17 +49,37 @@ public final class BallClusterTidy {
     public static int tidy(Player player) {
         var inventory = player.getInventory();
 
-        // ===== 第一趟：把「用过的散球」统统取出来 =====
+        // ===== 第一趟：把「用过的球」统统取出来 =====
+        //
+        // ⚠️ 这里**不跳过已有的壳** —— 老的实现见到壳就 `continue`，于是：
+        //   · 壳里那些球永远参与不了重新分档
+        //   · 同球种但档位不同的球分成好几个壳，看着就是「没堆叠」
+        //   现在的做法是**把壳整个摊开**（掏空并清掉那一格），
+        //   里面的球和背包里的散球一起进 loose，第二趟统一按档重新堆。
+        //   这才是「一键整理」该有的语义：把所有球归位，而不是只扫散球。
         List<ItemStack> loose = new ArrayList<>();
         for (int i = 0; i < inventory.getContainerSize(); i++) {
             ItemStack slot = inventory.getItem(i);
-            if (slot.isEmpty()
-                    || BallClusterItem.isCluster(slot)              // 已经是壳
-                    || !BallAmmo.isBall(slot)                       // 不是球
-                    || !BallClusterTier.of(slot).isClustered()) {   // 满耐久 / 没耐久概念
-                continue;
+            if (slot.isEmpty() || !BallAmmo.isBall(slot)) {
+                continue;   // 空格 / 不是球（壳不是球，见下面单独处理）
+            }
+            if (!BallClusterTier.of(slot).isClustered()) {
+                continue;   // 满耐久 / 没耐久概念 —— 它们本来就能叠成一堆，不动
             }
             loose.add(slot.copy());
+            inventory.setItem(i, ItemStack.EMPTY);
+        }
+        // 再把已有的壳摊开：里面的球全部取出来，壳那一格腾空（下方会重新建）
+        for (int i = 0; i < inventory.getContainerSize(); i++) {
+            ItemStack slot = inventory.getItem(i);
+            if (slot.isEmpty() || !BallClusterItem.isCluster(slot)) {
+                continue;
+            }
+            for (ItemStack one = BallClusterItem.takeOne(slot);
+                 !one.isEmpty();
+                 one = BallClusterItem.takeOne(slot)) {
+                loose.add(one);
+            }
             inventory.setItem(i, ItemStack.EMPTY);
         }
         if (loose.isEmpty()) {

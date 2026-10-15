@@ -350,17 +350,26 @@ public class BallClusterItem extends Item {
         ItemStack shell = player.getItemInHand(hand);
         BallClusterContents contents = contents(shell);
         if (contents.isEmpty()) {
+            // 空壳：没球可取。返回 PASS 让它落到原版后续处理（不摆手臂、不消耗动作）
             return InteractionResult.PASS;
         }
-        if (level.isClientSide()) {
-            return InteractionResult.SUCCESS;   // 服务端说了算，客户端只做预判
+        if (player.isSpectator()) {
+            return InteractionResult.PASS;
         }
 
-        ItemStack ball = contents.lowest().copy();
+        // ⚠️ 这里**不区分客户端/服务端**地写完整流程 —— 和 BallPouchItem.use 的写法对齐。
+        //
+        //    原先的版本在客户端提前 `return SUCCESS`，服务端再走一遍真正的取球。
+        //    理论上两端都会调 use，但那样客户端会先报「成功」，而这是一个**改玩家背包状态**
+        //    的操作 —— 作者 2026-10-15 反馈的「右键取球未生效」就出在这里。
+        //    改成两端走同一段：客户端取出来的那份不会落地（它随即被服务端同步覆盖），
+        //    服务端那份才是真的 —— 代价只是客户端多算一次，换来行为确定。
+
+        ItemStack ball = contents.lowest().copy();     // 耐久最低的那颗
         BallClusterContents rest = contents.withoutLowest();
 
         if (rest.isEmpty()) {
-            // 最后一颗：壳化身成它
+            // 最后一颗：壳把自己交出去（stacksTo(1)，shrink(1) 即整格消失）
             shell.shrink(1);
         } else {
             setContents(shell, rest);
@@ -369,6 +378,8 @@ public class BallClusterItem extends Item {
         if (!player.getInventory().add(ball)) {
             player.drop(ball, false);
         }
-        return InteractionResult.SUCCESS;
+        // 这是个**改状态**的操作 —— 要用 CONSUME（consumesAction() 为 true）而不是 SUCCESS，
+        // 否则原版可能仍把它当成「没被消耗的一次交互」继续往下传
+        return InteractionResult.CONSUME;
     }
 }
