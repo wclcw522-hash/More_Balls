@@ -74,6 +74,22 @@ public final class BallPouchCurios {
         return BallPouchCurioAccess.findAllWorn(player);
     }
 
+    /**
+     * <b>把饰品栏里的收纳袋原样写回槽位</b>，用来触发 Curios 的同步。
+     *
+     * <p>袋子的内容存在 ItemStack 的组件里，我们改的是组件 —— Curios 只在
+     * 「栈被换过」时才认为需要同步，所以改完得写回一次，否则客户端那份一直是旧的
+     * （症状：HUD 上那个弹药数不实时更新，作者 2026-10-15 反馈）。</p>
+     *
+     * <p>没装 Curios 时直接返回（那些袋子的同步走原版背包菜单，与本方法无关）。</p>
+     */
+    public static void forceSync(Player player) {
+        if (!isLoaded()) {
+            return;
+        }
+        BallPouchCurioAccess.forceSync(player);
+    }
+
     /** 玩家身上（饰品栏 <b>或</b> 背包）有没有装着球的袋子 */
     public static boolean hasWornBall(Player player) {
         ItemStack worn = findWornPouch(player);

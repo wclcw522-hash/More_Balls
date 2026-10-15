@@ -55,4 +55,38 @@ final class BallPouchCurioAccess {
         }
         return out;
     }
+
+    /**
+     * <b>把饰品栏里的收纳袋原样写回槽位</b> —— 用来触发 Curios 的槽位同步。
+     *
+     * <h2>为什么需要它</h2>
+     * <p>袋子的内容存在 {@code ItemStack} 的<b>组件</b>里（{@code POUCH_CONTENTS}）。
+     * 我们改内容时是直接对那个 {@code ItemStack} 调 {@code set(component, …)} ——
+     * Curios 完全不知道「这一格变了」，它只在<b>栈被换过</b>（{@code setStackInSlot}）
+     * 时才认为需要同步。</p>
+     *
+     * <p>后果很具体：服务端改了组件、客户端那份还是旧的 ⇒ HUD 上那个弹药数
+     * <b>不实时更新</b>，要玩家手动动一下袋子里的球才会刷新（作者 2026-10-15 反馈）。</p>
+     *
+     * <p>所以改完之后调一次本方法：内容不变，只是把栈「换」一遍，
+     * 让 Curios 把这一格重新同步给客户端。</p>
+     */
+    static void forceSync(Player player) {
+        Optional<ICuriosItemHandler> handlerOpt = CuriosApi.getCuriosInventory(player);
+        if (handlerOpt.isEmpty()) {
+            return;
+        }
+        for (top.theillusivec4.curios.api.type.inventory.ICurioStacksHandler stacks
+                : handlerOpt.get().getCurios().values()) {
+            top.theillusivec4.curios.api.type.inventory.IDynamicStackHandler inv = stacks.getStacks();
+            for (int i = 0; i < inv.getSlots(); i++) {
+                ItemStack stack = inv.getStackInSlot(i);
+                if (BallPouchItem.isPouch(stack)) {
+                    // 传一份 copy：Curios 的同步判据是「栈有没有被换过」，
+                    // 传同一个引用可能被短路掉。
+                    inv.setStackInSlot(i, stack.copy());
+                }
+            }
+        }
+    }
 }

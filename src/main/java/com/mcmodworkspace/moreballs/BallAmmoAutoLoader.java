@@ -46,22 +46,45 @@ public final class BallAmmoAutoLoader {
     private BallAmmoAutoLoader() {
     }
 
+    /**
+     * 【状态】上一刻主手是不是弩 —— 只用来认「**刚刚**从弩切走」这个瞬间。
+     *
+     * <p>不记这个的话，「主手不是弩」每刻都成立，副手那颗球会被反复收回 ——
+     * 而那正是作者 2026-10-15 报的「按整理时副手那颗变成球堆掉进物品栏」。</p>
+     */
+    private static final java.util.Map<java.util.UUID, Boolean> WAS_HOLDING_CROSSBOW =
+            new java.util.concurrent.ConcurrentHashMap<>();
+
     @SubscribeEvent
     public static void onPlayerTick(PlayerTickEvent.Post event) {
         Player player = event.getEntity();
 
         ItemStack mainHand = player.getMainHandItem();
 
-        // ===== ⓪ 主手不是弩 → 把副手那颗球收回收纳袋（作者 2026-10-15 要求）=====
+        // ===== ⓪ 主手**从弩切走**的那一刻 → 把副手那颗球收回收纳袋（作者 2026-10-15 要求）=====
         //
         // ⚠️ 顺序很关键：这一条必须排在「主手得是弩」的 return **之前**。
         //    原来的写法是「主手不是弩就 return」，于是副手那颗自动补上去的球
         //    会一直挂在手上 —— 切到镐子、切到剑都还在，玩家得自己拿掉。
         //    作者要的是「主手从持弩状态切换到其它状态时，袋子主动收回副手的球」。
         //
+        // ⚠️⚠️ 但**只能在这一个瞬间收**，不能每刻收。原来的判据是单纯的
+        //      `!(mainHand.getItem() instanceof CrossbowItem)` —— 那个条件**每刻都成立**
+        //      （只要主手不是弩），于是：
+        //        副手的球被收走 → 自动补弹下一 tick 又补一颗 → 再被收走 …
+        //      玩家看到的是一次「整理 / 切物品」之后，副手那颗变成球堆掉进物品栏、
+        //      而副手上同时又多了一颗（作者 2026-10-15 反馈）。
+        //      改成「**上一刻是弩、这一刻不是**」才算「切走」。
+        //
         //    只收「是球」的副手 —— 副手拿着火把 / 盾牌之类的，一律不碰。
-        if (!(mainHand.getItem() instanceof CrossbowItem)) {
-            recallOffhandBall(player);
+        boolean holdingCrossbow = mainHand.getItem() instanceof CrossbowItem;
+        Boolean wasHolding = WAS_HOLDING_CROSSBOW.put(player.getUUID(), holdingCrossbow);
+        boolean justSwitchedAway = wasHolding != null && wasHolding && !holdingCrossbow;
+
+        if (!holdingCrossbow) {
+            if (justSwitchedAway) {
+                recallOffhandBall(player);
+            }
             return;
         }
 
@@ -142,6 +165,10 @@ public final class BallAmmoAutoLoader {
 
         // ⑥ 换上刚抽到的那颗，剩下的交给弩自己装填
         player.setItemInHand(InteractionHand.OFF_HAND, taken);
+
+        // 从袋子里抽走了一颗 ⇒ 袋子内容变了，让客户端跟上。
+        // （否则 HUD 上那个弹药数会一直显示旧值 —— 作者 2026-10-15 报的「不实时更新」）
+        BallPouchHelper.syncPouchToClient(player);
     }
 
     /**
@@ -199,5 +226,17 @@ public final class BallAmmoAutoLoader {
                 BallPouchItem.remainingToughness(offhand),
                 BallPouchItem.lowestToughnessInPouches(player, wanted),
                 BallPouchHelper.allPouchStacks(player).size());
+    }
+
+    /**
+     * 玩家登出时清掉「上一刻是不是持弩」的记录。
+     *
+     * <p>不清的话它会一直挂在表里（每条只有一个 UUID + boolean，量很小，
+     * 但长期开放的服务器上没必要留着）。</p>
+     */
+    @SubscribeEvent
+    public static void onPlayerLoggedOut(
+            net.neoforged.neoforge.event.entity.player.PlayerEvent.PlayerLoggedOutEvent event) {
+        WAS_HOLDING_CROSSBOW.remove(event.getEntity().getUUID());
     }
 }

@@ -121,6 +121,10 @@ public final class BallClusterTidy {
                 }
             }
         }
+        // 整理动过袋子（转运段就地收壳）和背包 ⇒ 让客户端把最新内容拉过去。
+        // 不同步的话 HUD 上那个弹药数会一直显示旧值（作者 2026-10-15 反馈）。
+        BallPouchHelper.syncPouchToClient(player);
+
         return moved;
     }
 

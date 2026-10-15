@@ -154,6 +154,11 @@ public class BallClusterSpecialRenderer implements SpecialModelRenderer<ItemStac
         //   注意 pushPose / popPose 必须成对 —— 外层那个 pose 是共用的，不能污染。
         float charge = chargeProgress();
         pose.pushPose();
+
+        // 【临时诊断】打印 pose 矩阵 —— 外层到底给了什么变换，看它最准。
+        // 「外层」是 pushPose 复制下来的那份（物品栏那条链给的），
+        // 下面还会打一次「加完 1/16」的。两份一比就知道该缩多少倍，不用再猜。
+        diagPose("外层", pose.last().pose());
         // ===== ★★ 1.1.0.43：照「上膛的弩的球」那个渲染器对齐 =====
         //
         // 作者的提示：「参考上膛的弩的球当时的贴图代码，我记得当时也是经常偏，
@@ -178,7 +183,18 @@ public class BallClusterSpecialRenderer implements SpecialModelRenderer<ItemStac
         //    （原来这里写的是 translate(-0.5, -0.5, 0)：那假设几何是 0..16 模型单位、
         //      只挪半格；实际外层还会再 ×16 ⇒ 几何占 16 格 ⇒ 槽位里只剩放大的透明边缘
         //      ⇒ 作者看到的「整个消失」。）
-        pose.scale(1.0F / 16.0F, 1.0F / 16.0F, 1.0F / 16.0F);
+        // ★★ 1.1.0.45：**不加任何缩放**（作者实测 + 诊断日志共同确定）
+        //
+        // 日志打出来的事实：
+        //   · submit 被调用，inner=潮汐球      ⇒ 渲染器在跑、球也对
+        //   · 包围盒 = AABB[-0.5,-0.5,-0.5] → [0.5,0.5,0.5]
+        //     ⇒ state 内部已经把几何摆到了「以原点居中、±0.5」，
+        //       而外层那条链给的 pose 再把它放大 16 倍 ⇒ ±8 单位 = 半格，正好。
+        //
+        // 我 1.1.0.43 照着 ComboChargeBallRenderer 加了 scale(1/16)：那个渲染器
+        // 自己提交 0..16 的顶点，所以需要缩；而 state 提交的已经是 ±0.5，
+        // 再缩 1/16 就只剩 0.5 像素 ⇒ 作者看到的「整个空的」。
+        diagPose("提交前", pose.last().pose());
         if (charge > 0.0F) {
             float s = 1.0F + 0.35F * charge;
             pose.scale(s, s, s);
@@ -213,6 +229,23 @@ public class BallClusterSpecialRenderer implements SpecialModelRenderer<ItemStac
             return Math.max(0.0F, Math.min(1.0F, p));
         } catch (Throwable ignored) {
             return 0.0F;
+        }
+    }
+
+    /** 【临时诊断】pose 矩阵只打前几次，免得每帧刷屏 */
+    private static final java.util.concurrent.atomic.AtomicInteger POSE_DIAG =
+            new java.util.concurrent.atomic.AtomicInteger();
+
+    /**
+     * 打印 pose 矩阵的对角线（缩放）与最后一列（位移）。
+     *
+     * <p>物品栏那条链给的变换全在这个矩阵里 —— 有了它就能反推出「几何会被放大多少倍」
+     * 以及「原点被挪到了哪」，不用再靠试。</p>
+     */
+    private static void diagPose(String tag, org.joml.Matrix4f m) {
+        if (POSE_DIAG.getAndIncrement() < 6) {
+            MoreBalls.LOGGER.info("[球堆][诊断] pose[{}] 缩放=({}, {}, {}) 位移=({}, {}, {})",
+                    tag, m.m00(), m.m11(), m.m22(), m.m30(), m.m31(), m.m32());
         }
     }
 

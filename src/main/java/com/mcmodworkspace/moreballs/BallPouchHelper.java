@@ -211,7 +211,20 @@ public final class BallPouchHelper {
         NOWHERE
     }
 
+    /**
+     * 回收交付 —— 外面包一层，只为了在**所有 return 路径**上都补一次客户端同步。
+     *
+     * <p>袋子的内容是 ItemStack 组件，服务端改了客户端不会自动知道；
+     * 不同步的话 HUD 上那个弹药数就一直显示旧值（作者 2026-10-15 反馈
+     * 「剩余弹药显示槽有延迟」）。</p>
+     */
     public static Delivery deliverReturned(Player player, ItemStack ball) {
+        Delivery delivery = deliverReturned0(player, ball);
+        syncPouchToClient(player);
+        return delivery;
+    }
+
+    private static Delivery deliverReturned0(Player player, ItemStack ball) {
         List<ItemStack> pouches = allPouchStacks(player);
         // 满耐久 → 备用区；用过的 → 中转区
         boolean pristine = BallPouchItem.isPristine(ball);
@@ -278,6 +291,32 @@ public final class BallPouchHelper {
         }
         // ③ 实在没地方 → 交给调用方掉成掉落物
         return Delivery.NOWHERE;
+    }
+
+    /**
+     * <b>让客户端拿到最新的袋子内容</b> —— 改完袋子后必须调一次。
+     *
+     * <h2>为什么</h2>
+     * <p>袋子的内容存在 {@code ItemStack} 的组件里，服务端改了组件<b>不会自动</b>同步给客户端。
+     * 于是 {@code BallPouchHud}（副手栏上方那个弹药格）读到的还是旧值 ——
+     * 作者 2026-10-15 反馈的「剩余弹药显示槽有延迟，要手动改一下袋子里的球才刷新」
+     * 就是这个。</p>
+     *
+     * <h2>两条路</h2>
+     * <ul>
+     *   <li>背包 / 快捷栏里的袋子 —— 走原版菜单广播（它只把真正变了的槽发出去）</li>
+     *   <li>饰品栏（Curios）里的袋子 —— Curios 只在「栈被换过」时才同步，
+     *       所以显式写回一次，见 {@link BallPouchCurios#forceSync}</li>
+     * </ul>
+     */
+    public static void syncPouchToClient(Player player) {
+        if (player == null || player.level().isClientSide()) {
+            return;
+        }
+        if (player instanceof net.minecraft.server.level.ServerPlayer serverPlayer) {
+            serverPlayer.inventoryMenu.broadcastChanges();
+        }
+        BallPouchCurios.forceSync(player);
     }
 
     // ===== 三、消耗 =====
