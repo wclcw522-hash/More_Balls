@@ -97,6 +97,47 @@ public final class MoreBallsClient {
         event.register(ModMenus.BALL_POUCH.get(), BallPouchScreen::new);
     }
 
+    /** 【临时诊断】球堆模型只在第一帧探一次 */
+    private static boolean clusterModelDiagnosed = false;
+
+    /**
+     * 【临时诊断】球堆的 `minecraft:special` 模型**到底有没有接上**。
+     *
+     * <p>作者 2026-10-15：「球堆贴图一点变化没有」—— 而我先后改过 4 次 `getExtents` 都毫无变化。
+     * 这一探能一次性判定（**主菜单阶段就能跑，不需要进世界**）：</p>
+     *
+     * <pre>
+     * state 非空 + extents 打出 (0,0,0)/(16,16,16)  ⇒ 我的渲染器在跑 ⇒ 问题只在 pose ⇒ Plan B 就是答案
+     * extents 打出别的值 / 一个顶点都没有          ⇒ 走的是原版兜底 ⇒ special 没接上，要回头查 JSON
+     * 抛异常                                      ⇒ 模型压根没解析出来
+     * </pre>
+     *
+     * <p>用**空栈**就够 —— `getExtents` 的输出由模型本身决定，与物品内容无关；
+     * `extractArgument` 对空壳会返回空栈，那只会让 `submit` early return，不影响这里的判断。</p>
+     */
+    @SubscribeEvent
+    public static void diagnoseClusterModelOnFirstFrame(RenderGuiEvent.Post event) {
+        if (clusterModelDiagnosed) {
+            return;
+        }
+        clusterModelDiagnosed = true;
+        try {
+            Minecraft mc = Minecraft.getInstance();
+            net.minecraft.client.renderer.item.ItemStackRenderState state =
+                    new net.minecraft.client.renderer.item.ItemStackRenderState();
+            mc.getItemModelResolver().updateForTopItem(
+                    state,
+                    new ItemStack(com.mcmodworkspace.moreballs.ModItems.BALL_CLUSTER.get()),
+                    net.minecraft.world.item.ItemDisplayContext.NONE, null, null, 0);
+            MoreBalls.LOGGER.info("[球堆][诊断] 模型解析: isEmpty={} oversized={}",
+                    state.isEmpty(), state.isOversizedInGui());
+            state.visitExtents(v -> MoreBalls.LOGGER.info(
+                    "[球堆][诊断] extents 顶点 ({}, {}, {})", v.x(), v.y(), v.z()));
+        } catch (Throwable t) {
+            MoreBalls.LOGGER.warn("[球堆][诊断] 探测失败", t);
+        }
+    }
+
     /**
      * 蓄力等级显示 —— 位置在物品栏上方、物品名称上方（作者指定）。
      *
