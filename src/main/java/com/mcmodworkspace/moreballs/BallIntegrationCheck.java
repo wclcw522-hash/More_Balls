@@ -74,6 +74,10 @@ public final class BallIntegrationCheck {
             "snowball_iron_nugget",
             "snowball_gold_nugget",
             "snowball_copper_nugget",
+            // ⚠️ 红石雪球（2026-10-15 补）：**同样是雪球系** —— 一摔就碎，
+            //    没有九宫格碎片，不参与切割、也不参与组合球。
+            //    之前漏了这一条，每次启动都会刷一条自检 WARN（日志里能查到）。
+            "redstone_snowball",
             // 原版的雪球与末影珍珠：本模组只让它们「顺便能被弩装填」，
             // 不参与切割、也不参与组合球 —— 它们没有九宫格碎片，切不出东西来。
             // （作者 2026-10-09：这两条之前漏了，导致每次启动都刷一条自检 WARN。）
