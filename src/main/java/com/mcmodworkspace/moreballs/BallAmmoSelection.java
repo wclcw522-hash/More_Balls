@@ -47,9 +47,20 @@ public final class BallAmmoSelection {
      * 加这一行之后，轮盘画图标前就会把缺失的分块组件补上。</p>
      */
     public static ItemStack kindOf(ItemStack ball) {
+        // ★ 球堆：种类按**壳里那颗球**算（作者 2026-10-15 反馈「同种球堆不合并数量」）。
+        //
+        //   壳的内容组件各不相同（里面装的球不一样），直接拿壳当键 ⇒
+        //   `isSameItemSameComponents` 永远判不相等 ⇒ 每种球堆各占一格、合并不了。
+        //   摊开成里面那颗球之后，同一档的球堆才会归成同一种。
+        ItemStack source = BallClusterItem.isCluster(ball)
+                ? BallClusterItem.asBall(ball)
+                : ball;
+        if (source.isEmpty()) {
+            return ItemStack.EMPTY;
+        }
         // 迁移是幂等的、且自带「已齐就返回」的快路径，放在这里没有额外负担
-        BallFragments.ensureComboSlots(ball);
-        ItemStack key = ball.copyWithCount(1);
+        BallFragments.ensureComboSlots(source);
+        ItemStack key = source.copyWithCount(1);
         key.remove(ModComponents.TOUGHNESS_LEFT.get());
         return key;
     }
@@ -100,13 +111,26 @@ public final class BallAmmoSelection {
             if (ball.isEmpty()) {
                 continue;
             }
+            // ★ 数量口径（作者 2026-10-15 反馈「数量一直是 1」）：
+            //   球堆是 `stacksTo(1)` 的**容器**，`getCount()` 恒为 1 ——
+            //   里面可能装着几十颗。所以壳要用 `contents(ball).size()`（壳里的颗数），
+            //   散球才用 `getCount()`。
+            int amount = BallClusterItem.isCluster(ball)
+                    ? BallClusterItem.contents(ball).size()
+                    : ball.getCount();
+            if (amount <= 0) {
+                continue;
+            }
             ItemStack key = kindOf(ball);
+            if (key.isEmpty()) {
+                continue;
+            }
             int index = indexOfKind(kinds, key);
             if (index >= 0) {
                 AmmoKind old = kinds.get(index);
-                kinds.set(index, new AmmoKind(old.sample(), old.count() + ball.getCount()));
+                kinds.set(index, new AmmoKind(old.sample(), old.count() + amount));
             } else {
-                kinds.add(new AmmoKind(key, ball.getCount()));
+                kinds.add(new AmmoKind(key, amount));
             }
         }
     }

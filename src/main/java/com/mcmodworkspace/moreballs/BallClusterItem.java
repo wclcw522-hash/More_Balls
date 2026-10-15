@@ -571,7 +571,7 @@ public class BallClusterItem extends Item {
                     break;
                 }
             }
-            player.setItemInHand(hand, leftover.isEmpty() ? copy : leftover);
+            player.setItemInHand(hand, tidyResult(leftover.isEmpty() ? copy : leftover));
             return InteractionResult.CONSUME;
         }
 
@@ -582,7 +582,27 @@ public class BallClusterItem extends Item {
         }
         com.mcmodworkspace.moreballs.BallThrowHandler.throwBall(player, r.taken(), 0);
         // 扔完壳只剩一颗 → 那一颗顶上这一格（不留空球堆）
-        player.setItemInHand(hand, r.hasLeftover() ? r.leftover() : copy);
+        player.setItemInHand(hand, tidyResult(r.hasLeftover() ? r.leftover() : copy));
         return InteractionResult.CONSUME;
+    }
+
+    /**
+     * <b>掏空的壳不许留在物品栏里</b>（作者 2026-10-15：「在用手扔完一个球堆的时候手里还会留着
+     * 空球堆不消失」）。
+     *
+     * <h2>为什么会出现空壳</h2>
+     * <p>{@code copy} 是从手上那格复制出来的，接着被 {@code takeOne} <b>就地</b>掏空 ——
+     * 于是它的 <b>count 变成 0</b>、球堆组件也被摘掉，但它**仍然是「球堆」这个物品**。
+     * 直接把这种栈交给 {@code setItemInHand}，那一格就留下一个**看得见、拿不动**的空壳。</p>
+     *
+     * <p>（{@link #declusterInto} 只处理「恰好剩 1 颗」的情况 —— 取完**最后一颗**时是剩 0 颗，
+     * 它按设计返回空，所以收尾必须由这里做。）</p>
+     */
+    private static ItemStack tidyResult(ItemStack result) {
+        // 「是球堆物品、但内容为空」= 空壳 ⇒ 换成真正的 EMPTY
+        if (result.getItem() == ModItems.BALL_CLUSTER.get() && contents(result).isEmpty()) {
+            return ItemStack.EMPTY;
+        }
+        return result;
     }
 }

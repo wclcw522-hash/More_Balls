@@ -179,9 +179,32 @@ public class BallClusterSpecialRenderer implements SpecialModelRenderer<ItemStac
         //   · `ItemStackRenderState.visitExtents` 采样 —— 它会 applyTransform，
         //     给的是**变换后**的盒子，比本地盒多一层
         //   ⇒ 正确的就是**本地的 0..1 立方体**。
+        //
+        // ===== 【临时诊断】把 GUI 真正消费的那个盒子打出来，用一次 runClient 定死单位 =====
+        //   作者反馈「0..1 还是只有一个角」—— 说明单位判断仍不对。
+        //   `visitExtents` 的输出是「应用 display 变换之后」的盒子，数量和值能直接反映 GUI 看到的尺度：
+        //     若是 ±0.5 上下 ⇒ 原版口径是「归一化 + 变换」
+        //     若是 0..16 / 0..256 量级 ⇒ 单位是别的，我给 0..1 就小了好几个数量级
+        if (DIAGNOSED.compareAndSet(false, true)) {
+            try {
+                ItemStackRenderState probe = new ItemStackRenderState();
+                Minecraft.getInstance().getItemModelResolver().updateForTopItem(
+                        probe, new ItemStack(net.minecraft.world.item.Items.SNOWBALL),
+                        ItemDisplayContext.GUI, null, null, 0);
+                java.util.List<String> pts = new java.util.ArrayList<>();
+                probe.visitExtents(v -> pts.add(String.format("(%.3f,%.3f,%.3f)", v.x(), v.y(), v.z())));
+                MoreBalls.LOGGER.info("[球堆][诊断] 雪球 visitExtents 点数={} 值={}", pts.size(), pts);
+            } catch (Throwable t) {
+                MoreBalls.LOGGER.warn("[球堆][诊断] 采样失败", t);
+            }
+        }
         out.accept(new org.joml.Vector3f(0.0F, 0.0F, 0.0F));
         out.accept(new org.joml.Vector3f(1.0F, 1.0F, 1.0F));
     }
+
+    /** 诊断只打印一次 */
+    private static final java.util.concurrent.atomic.AtomicBoolean DIAGNOSED =
+            new java.util.concurrent.atomic.AtomicBoolean(false);
 
     /**
      * 模型 json 的反序列化入口。
