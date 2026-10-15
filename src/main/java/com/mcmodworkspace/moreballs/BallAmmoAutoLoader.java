@@ -56,7 +56,20 @@ public final class BallAmmoAutoLoader {
             return;
         }
 
-        // ② 得在轮盘里选过弹药（存的是带组件的样本球，不是物品 id —— 组合球只能这样区分）
+        // ② ===== 必须装备了收纳袋（作者 2026-10-15 要求）=====
+        //
+        // ⚠️ 原来这里没有这一条，于是「主手拿着弩 + 轮盘选过弹药」就会往副手塞球 ——
+        //    哪怕身上一个袋子都没有。作者反馈的「无论是否装备魔丸收纳袋都会被自动填充」
+        //    就是这个。
+        //
+        //    本机制的定位是「袋子里的弹药自动补到副手」（见类注释第 18-19 行：
+        //    「弹药直接从收纳袋里取」）—— 没有袋子，就没有「自动补弹」这件事可言，
+        //    副手该由玩家自己管。
+        if (BallPouchHelper.allPouchStacks(player).isEmpty()) {
+            return;
+        }
+
+        // ③ 得在轮盘里选过弹药（存的是带组件的样本球，不是物品 id —— 组合球只能这样区分）
         ItemStack wanted = BallAmmoSelection.selected(player);
         if (wanted.isEmpty()) {
             return;

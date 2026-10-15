@@ -74,18 +74,34 @@ public class BallClusterSpecialRenderer implements SpecialModelRenderer<ItemStac
         //
         //     updateForTopItem 收的是 Level + ItemOwner，两者都允许为 null ——
         //     它正是原版 GUI 渲染物品时用的那个入口。
+        // ⚠️⚠️ 用 NONE，**不能用 GUI** ——
+        //
+        //     ItemStackRenderState.submit 会**原样**把 pose 传给每一层
+        //     （javap: `layers[i].submit(pose, ...)`，中间不做任何变换），
+        //     所以走到这里时 pose 已经是 GUI 摆好的坐标系了。
+        //     再套一次 GUI 变换 = 双重变换 ⇒ 那颗球被推到画布外，
+        //     **只看得见一个小角**（作者 2026-10-15 反馈的正是这个）。
+        //
+        //     NONE 意味着「不做额外变换」，直接按当前 pose 画 —— 和原版 special 一致。
         ItemStackRenderState state = new ItemStackRenderState();
         Minecraft.getInstance().getItemModelResolver().updateForTopItem(
-                state, inner, ItemDisplayContext.GUI, null, null, 0);
+                state, inner, ItemDisplayContext.NONE, null, null, 0);
         state.submit(pose, collector, light, overlay, outline);
     }
 
     @Override
     public void getExtents(Consumer<Vector3fc> out) {
-        // 物品图标的标准包围盒 —— 半格见方。原版物品模型也在这个范围内，
-        // 给大了会让物品栏里的图标被判定成"过大"而缩放异常
-        out.accept(new org.joml.Vector3f(-0.5F, -0.5F, -0.5F));
-        out.accept(new org.joml.Vector3f(0.5F, 0.5F, 0.5F));
+        // 原版的 getExtents 一律**问模型要真实包围盒**（javap 核过 Trident / ShulkerBox /
+        // Book / Conduit / CopperGolemStatue —— 没有一个写固定常量）：
+        //
+        //     PoseStack pose = new PoseStack();
+        //     model.root().getExtentsForGui(pose, out);
+        //
+        // 我这边拿不到「那一刻那个球」的模型（getExtents 是无参的），所以给一个**略大**的范围：
+        // GUI 是按这个盒子算缩放的 —— 给大了顶多缩一点，**给小了会被裁掉**。
+        // 宁可略大。
+        out.accept(new org.joml.Vector3f(-0.6F, -0.6F, -0.6F));
+        out.accept(new org.joml.Vector3f(0.6F, 0.6F, 0.6F));
     }
 
     /**
