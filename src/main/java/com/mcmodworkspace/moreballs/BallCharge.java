@@ -11,7 +11,9 @@ import net.minecraft.world.entity.LivingEntity;
  *   <li>之后每一级的所需时间在上一级基础上 <b>+20%</b>：
  *       1s → 1.2s → 1.44s → 1.728s …</li>
  * </ul>
- * <p>累计到各级的时刻为 20 / 44 / 73 / 107 … 刻。</p>
+ * <p>累计到各级的时刻为 20 / 44 / 73 / 107 … 刻，<b>再整体除以 {@link #TIME_DIVISOR}</b>
+ * —— 作者 2026-10-14 指定「所有级别的蓄力时间变为现在的三分之一」，
+ * 于是实际是 7 / 15 / 24 / 36 … 刻那一档。</p>
  *
  * <h2>速度收益</h2>
  * <p>每蓄力一级，出手初速度 <b>+10%</b>。由于伤害按速度等比缩放
@@ -24,6 +26,14 @@ public final class BallCharge {
 
     /** 第一级蓄力所需刻数：1 秒 */
     public static final int BASE_TICKS = 20;
+
+    /**
+     * 蓄力时间的整体缩放分母 —— 作者 2026-10-14 指定：「所有级别的蓄力时间变为现在的三分之一」。
+     *
+     * <p>只改这一个数，整条曲线等比缩短；{@link #BASE_TICKS} 与 {@link #TIME_GROWTH}
+     * 保持原值不动，所以曲线<b>形状</b>（每一级所需时间是上一级的 +20%）不变。</p>
+     */
+    public static final double TIME_DIVISOR = 3.0D;
 
     /** 每一级所需时间相对上一级的增长比例（+20%） */
     public static final double TIME_GROWTH = 1.2D;
@@ -42,7 +52,7 @@ public final class BallCharge {
             total += need;
             need *= TIME_GROWTH;
         }
-        return (int) Math.round(total);
+        return (int) Math.round(total / TIME_DIVISOR);
     }
 
     /**

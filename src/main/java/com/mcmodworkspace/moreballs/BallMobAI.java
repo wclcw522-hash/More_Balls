@@ -258,6 +258,38 @@ public final class BallMobAI {
     private static final java.util.Map<java.util.UUID, Integer> PHANTOM_PHASE =
             new java.util.concurrent.ConcurrentHashMap<>();
 
+    /**
+     * 幻翼捡球的<b>内置冷却</b>（刻）—— 作者 2026-10-14 指定 30 秒。
+     *
+     * <p>捡到一颗球之后，这只幻翼在这么多刻内不再去找球。理由：幻翼那条拾取判定是
+     * <b>「贴上就 100% 捡起」</b>（不像普通怪走 4% 的随机检定），没有节流的话
+     * 它会贴着地面一路把球全收走。</p>
+     */
+    public static final int PHANTOM_PICKUP_COOLDOWN_TICKS = 600;   // 30 秒 × 20 刻
+
+    /** 幻翼 UUID → **上次捡到球的 tickCount**（配合 {@link #PHANTOM_PICKUP_COOLDOWN_TICKS}） */
+    private static final java.util.Map<java.util.UUID, Integer> PHANTOM_LAST_PICKUP =
+            new java.util.concurrent.ConcurrentHashMap<>();
+
+    /**
+     * 这只幻翼此刻是不是还在捡球冷却里。
+     *
+     * <p>{@code elapsed < 0} 说明 {@code tickCount} 被重置过（实体卸载后重载），
+     * 此时当作冷却已过，并顺手把那条陈旧记录清掉 —— 不然它会永远冷却下去。</p>
+     */
+    private static boolean phantomPickupOnCooldown(Phantom phantom) {
+        Integer last = PHANTOM_LAST_PICKUP.get(phantom.getUUID());
+        if (last == null) {
+            return false;
+        }
+        int elapsed = phantom.tickCount - last;
+        if (elapsed < 0) {
+            PHANTOM_LAST_PICKUP.remove(phantom.getUUID());
+            return false;
+        }
+        return elapsed < PHANTOM_PICKUP_COOLDOWN_TICKS;
+    }
+
     /** 读幻翼当前阶段 */
     public static int phantomPhase(Phantom phantom) {
         return PHANTOM_PHASE.getOrDefault(phantom.getUUID(), PHANTOM_PHASE_NORMAL);
@@ -1660,6 +1692,12 @@ public final class BallMobAI {
             if (!diving) {
                 return;
             }
+            // 【捡球 30 秒内置 CD】（作者 2026-10-14 指定）
+            // 刚捡到过球的幻翼在冷却期内不再找球，连转向都不做。
+            // 放在这一步而不是放「拾取」那一步：冷却期间没必要每 2 刻遍历一次世界实体列表。
+            if (phantomPickupOnCooldown(phantom)) {
+                return;
+            }
             // ⚠️ 节流到每 2 刻 —— `getEntitiesOfClass` 会**遍历世界的实体列表**，
             //    而俯冲中的幻翼每刻都会走到这里。与「拾取」那条同一套理由
             //    （作者 2026-10-09 反馈过：4 个球就开始卡）。俯冲只持续几秒，2 刻的粒度够用。
@@ -1696,6 +1734,8 @@ public final class BallMobAI {
                 //    以前这里没有状态机 —— 捡完这颗球的下一 tick 就直接走
                 //    「够近就扔」那条，于是表现为「捡了球就扔」。
                 if (BallAmmo.isBall(phantom.getMainHandItem())) {
+                    // 记下这次捡球的时刻 —— 接下来 30 秒进入冷却（见 phantomPickupOnCooldown）
+                    PHANTOM_LAST_PICKUP.put(phantom.getUUID(), phantom.tickCount);
                     setPhantomPhase(phantom, PHANTOM_PHASE_CLIMB);
                 }
             }

@@ -65,7 +65,10 @@ import java.util.concurrent.ConcurrentHashMap;
  *   <li><b>运动方向</b>在服务端就能改（{@code setDeltaMovement}），改完置
  *       {@code hurtMarked} 让客户端同步速度</li>
  *   <li><b>视角方向</b>属于客户端状态，服务端必须发包才能改 —— 玩家用
- *       {@code connection.teleport} 带朝向发一次位置包（坐标不变，只改 yaw/pitch）；
+ *       {@code ServerPlayer#forceSetRotation} 发一次**纯朝向包**（{@code ClientboundPlayerRotationPacket}）。
+ *       ⚠️ **别用 {@code connection.teleport}** —— 它会设上 {@code awaitingPositionFromClient}，
+ *       而那期间右键方块会被 {@code handleUseItemOn} 的 else 分支误报「建筑高度上限」
+ *       （作者 2026-10-14 报的串台 bug）；
  *       非玩家生物直接用 {@code setYRot}</li>
  * </ul>
  */
@@ -239,8 +242,7 @@ public class ShockEffect extends MobEffect {
         if (mob instanceof ServerPlayer player) {
             player.setYRot(lock.yaw());
             player.setXRot(lock.pitch());
-            player.connection.teleport(player.getX(), player.getY(), player.getZ(),
-                    lock.yaw(), lock.pitch());
+            player.forceSetRotation(lock.yaw(), false, lock.pitch(), false);
             return;
         }
         mob.setYRot(lock.yaw());
@@ -365,8 +367,10 @@ public class ShockEffect extends MobEffect {
         player.setYRot(yaw);
         player.setXRot(pitch);
         // 服务端改朝向必须发包，客户端才会真的扭头。
-        // 坐标原样传回去，所以只会转视角、不会把人挪走。
-        player.connection.teleport(player.getX(), player.getY(), player.getZ(), yaw, pitch);
+        // ⚠️ 用 forceSetRotation（纯朝向包）而不是 connection.teleport ——
+        //    后者会把 awaitingPositionFromClient 设上，那期间右键方块会被
+        //    handleUseItemOn 的 else 分支误报「建筑高度上限」（作者 2026-10-14 报的串台 bug）。
+        player.forceSetRotation(yaw, false, pitch, false);
     }
 
     /**

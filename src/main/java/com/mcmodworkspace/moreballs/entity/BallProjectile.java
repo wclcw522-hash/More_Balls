@@ -183,6 +183,23 @@ public class BallProjectile extends ThrowableItemProjectile {
     /** 【移形换位】珍珠（含带它的组合球）击中其它生物时与它换位 */
     public static final int TRAIT_TRANSPOSE = 1 << 14;
 
+    /**
+     * 这一颗球允不允许触发「<b>主球专属</b>」的效果。
+     *
+     * <p>多重射击（原版弩附魔）会一次复制出好几颗球，而<b>有些效果是对掷出者本人生效的</b> ——
+     * 目前唯一一个是 {@link #TRAIT_TRANSPOSE 【移形换位】}：它把**掷出者和被击中的目标对调位置**。
+     * 那种效果连发三次就是灾难（人被连着丢到三个不同的地方），所以它们<b>只认主球</b>。</p>
+     *
+     * <p><b>其余一切效果照常在附属弹上生效</b> —— 伤害、穿透、潮涌、忠诚、熔融、引雷……
+     * 附属弹只是「落定即碎、不回家、不触发主球专属效果」，它不是半成品。</p>
+     *
+     * <p>将来若再有「对掷出者产生较大变化」的效果，把它的判据挂到这一处即可，
+     * 不用再去 BallAmmo 那边逐个清 profile。</p>
+     */
+    private boolean primaryOnlyEffectAllowed() {
+        return !this.multishotSide;
+    }
+
 
 
     /** 是否已经为本趟投掷掷过 —— 保证「一次投掷只判一次」。 */
@@ -1240,10 +1257,24 @@ public class BallProjectile extends ThrowableItemProjectile {
         // 潮汐球**永远带忠诚附魔**，且这个附魔不能因为球被改变状态而消失。
         //
         // 实现上不逐个改 returnToOwner 的 5 个读取点（homingToOwner + 4 个分支），
-        // 而是**每刻把它压成 true** —— 这样连 setMultishotSide(true) 那句
-        // 「附属弹不回家」的清除也会被自动盖回来，正合「永远」二字。
+        // 而是**每刻把它压成 true**。
+        //
+        // ⚠️⚠️ **但多重射击的附属弹必须排除在外**（作者 2026-10-14 报的 bug）。
+        //
+        //   附属弹按设计是「一落定就碎、不留在地上、也不回家」——
+        //   `BallAmmo.createProjectile()` 那边专门写成 `if (!side) setReturnToOwner(...)`，
+        //   而 `setMultishotSide(true)` 内部也会把 returnToOwner 清掉（见 L3200）。
+        //
+        //   原先这里是**无条件**压 true，把那两处清除全盖回来了：附属弹于是也变成「要回家」的球，
+        //   落定之后先撞上「已落定分支」里那句 `if (returnToOwner && homingToOwner()) return;`，
+        //   **永远走不到下面的 burst()**。表现就是作者说的「有时碎有时不碎」——
+        //   取决于那一 tick 是被「第一次静止判定」接住（那里 burst 在前，会碎），
+        //   还是被「已落定分支」接住（那里 homingToOwner 的 return 在前，不碎）。
+        //
+        //   主球（非附属弹）的行为一个字不变。
+        //
         // 判据走 profile，所以带潮汐球的组合球同样享有忠诚。
-        if (this.profile().loyalty()) {
+        if (this.profile().loyalty() && !this.multishotSide) {
             this.returnToOwner = true;
         }
 
@@ -2041,7 +2072,11 @@ public class BallProjectile extends ThrowableItemProjectile {
         //
         // 做法就是直接对调两者坐标：先把双方位置都读出来，再各写一次。
         // ⚠️ 必须**先读全、再写**，边读边写的话第二次写入会读到已经被改过的坐标。
-        if (this.profile().transpose() && this.traitFired(TRAIT_TRANSPOSE)
+        // ⚠️ **只有主球才换位**（作者 2026-10-14 指定）：
+        //    多重射击一次射出 2~3 颗，若每颗都换一次，掷出者会被连丢三次。
+        //    见 primaryOnlyEffectAllowed() —— 其余效果在附属弹上照常生效。
+        if (this.primaryOnlyEffectAllowed()
+                && this.profile().transpose() && this.traitFired(TRAIT_TRANSPOSE)
                 && this.level() instanceof ServerLevel swapLevel) {
             Entity ballOwner = this.getOwner();
             Entity hitEntity = hitResult.getEntity();
@@ -2127,6 +2162,24 @@ public class BallProjectile extends ThrowableItemProjectile {
             // 所以被爆炸打飞的球会比手扔的疼（作者指定）
             float dealt = this.impactDamage();
             boolean hurt = entity.hurtServer(serverLevel, this.damageFromOwner(), dealt);
+
+            // 【烈焰人之间不结仇】（作者 2026-10-14 指定）
+            //
+            // 烈焰人有独立的「球袋」机制（见 BallMobAI 的 BLAZE_BALLS / blazeAddBall），
+            // 会主动互相投球；而原版 hurtServer 会把这次伤害的来源记进 lastHurtByMob，
+            // 于是被砸中的那只烈焰人**掉头就去打掷出它的那只烈焰人** —— 作者要求这条不生效。
+            //
+            // 只清「同族互砸」这一种情形：掷出者是烈焰人、挨打的也是另一只烈焰人。
+            // 掷出者是玩家或别的怪时照旧结仇，那是本来就该有的行为。
+            if (hurt
+                    && entity instanceof net.minecraft.world.entity.monster.Blaze hitBlaze
+                    && this.getOwner() instanceof net.minecraft.world.entity.monster.Blaze ownerBlaze
+                    && hitBlaze != ownerBlaze) {
+                hitBlaze.setLastHurtByMob(null);
+                if (hitBlaze.getTarget() == ownerBlaze) {
+                    hitBlaze.setTarget(null);
+                }
+            }
 
             // ===== 两个「被打」成就（都在确认真的掉了血之后才发）=====
             if (hurt && entity instanceof Player victim) {
@@ -2904,15 +2957,21 @@ public class BallProjectile extends ThrowableItemProjectile {
      * <ul>
      *   <li>玩家扔的球 —— 自己会被 {@code candidate == getOwner()} 排除，不会自锁</li>
      *   <li>怪物扔的球 —— 锁定最近的玩家，正是想要的行为</li>
-     *   <li>玩家之间互扔 —— 会互相锁定（相当于 PVP 里多了个追踪，合理）</li>
+     *   <li>玩家之间互扔 —— <b>不再互相锁定</b>，见下面那条改动</li>
      * </ul>
+     *
+     * <p>⚠️ <b>作者 2026-10-14 改动</b>：玩家掷出的球原先会锁定别的玩家，
+     * 但追上去也<b>造不成伤害</b>（PvP 默认关、又没有阵营判定），表现就是
+     * 「球追着人犯傻」。现在改成：<b>玩家掷出/射出时不把玩家当目标</b>；
+     * <b>怪物持有球时照旧锁玩家</b> —— 那正是它存在的意义。</p>
      */
-    private static boolean isWisdomTarget(LivingEntity entity) {
+    private boolean isWisdomTarget(LivingEntity entity) {
         if (entity instanceof Enemy) {
             return true;
         }
         if (entity instanceof Player) {
-            return true;
+            // 玩家掷出的球不锁玩家；怪物掷出的球照常锁
+            return !(this.getOwner() instanceof Player);
         }
         return entity instanceof Mob mob && mob.getTarget() != null;
     }

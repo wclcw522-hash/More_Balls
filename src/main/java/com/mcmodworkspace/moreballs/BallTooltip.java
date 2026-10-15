@@ -200,7 +200,8 @@ public final class BallTooltip {
         // 【智慧N】—— N 是可追踪的次数（没写就是 1）
         if (profile.wisdom() > 0) {
             out.add(Entry.of(Component.translatable("tooltip.more_balls.entry.wisdom", profile.wisdom()),
-                    Kind.TRAIT, line("tooltip.more_balls.desc.wisdom")));
+                    Kind.TRAIT, line("tooltip.more_balls.desc.wisdom",
+                            String.valueOf(profile.wisdom()))));
         }
 
         // 【善良】—— 不伤害友好与中立生物，碰到就反弹

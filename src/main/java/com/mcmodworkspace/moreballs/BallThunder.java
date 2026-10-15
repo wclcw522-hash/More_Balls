@@ -70,6 +70,22 @@ public final class BallThunder {
      */
     public static final float MIN_PER_BRANCH = 5.0F;
 
+    /**
+     * <b>每道闪电的伤害上限（作者 2026-10-14 指定：20）。</b>
+     *
+     * <p>分摊的分母是「这次放出去的闪电总数」（4–9），正常算下来
+     * {@code 60 / 4 = 15} 已经低于它 —— 它是一条<b>上限约束</b>：
+     * 万一以后 {@link #MIN_BOLTS} 被调小、或总伤被调大，每道也不会失控。</p>
+     */
+    public static final float MAX_PER_BRANCH = 20.0F;
+
+    /**
+     * <b>对玩家攻击力的折算系数（作者 2026-10-14 指定：减伤 80%）。</b>
+     *
+     * <p>只有玩家吃这个折扣 —— 怪物与其它生物照原样挨满。</p>
+     */
+    public static final float PLAYER_DAMAGE_FACTOR = 0.2F;
+
     /** 从球出发找目标的半径（格） */
     public static final double RADIUS = 16.0;
 
@@ -171,15 +187,26 @@ public final class BallThunder {
             }
         }
         if (!victims.isEmpty()) {
-            // ⚠️ 这个下限**永远不会生效**：victims 至多 MAX_BOLTS(9) 个，60 / 9 ≈ 6.67 恒大于 5，
-            //    于是 Math.max 永远取右边那一支。留着它只是**防御性兜底**
-            //    （万一 MAX_BOLTS / TOTAL_DAMAGE 以后被调小），不改变任何当前行为。
-            //    为什么不删：作者明确指定的数值 5，且它不影响实测伤害 —— 详见 MIN_PER_BRANCH 的 javadoc。
-            float per = Math.max(MIN_PER_BRANCH, TOTAL_DAMAGE / victims.size());
+            // ===== 总伤 60 的分摊（作者 2026-10-14 重做）=====
+            //
+            // ⚠️ **分母是「这次放出去的闪电总数」，不是「命中数」。**
+            //
+            //    以前分母用 victims.size() —— 只打中 1 个时那个人吃满 60 点，
+            //    落空的闪电等于白放。作者要的是「总伤固定 60，按道数摊」：
+            //    放 6 道、中 2 个 ⇒ 每道 10 点，那两个各吃 10，剩下 4 道的份额浪费掉。
+            //
+            //    这样一改，「每道不超过 20」也天然成立（60/4 = 15、60/9 ≈ 6.67），
+            //    MAX_PER_BRANCH 只是把它写成一条显式约束。
+            float per = Math.min(MAX_PER_BRANCH, TOTAL_DAMAGE / boltCount);
+            if (per < MIN_PER_BRANCH) {
+                per = MIN_PER_BRANCH;   // 防御性兜底：别掉进原版「小于 1 直接忽略」的区间
+            }
             Entity owner = source.getOwner();
             for (LivingEntity victim : victims) {
+                // 玩家减伤 80%（作者 2026-10-14 指定）；怪物照常挨满
+                float dealt = victim instanceof Player ? per * PLAYER_DAMAGE_FACTOR : per;
                 victim.hurtServer(level, level.damageSources().source(
-                        net.minecraft.world.damagesource.DamageTypes.LIGHTNING_BOLT, owner), per);
+                        net.minecraft.world.damagesource.DamageTypes.LIGHTNING_BOLT, owner), dealt);
             }
         }
     }

@@ -311,7 +311,8 @@ public final class BallBehavior {
                 .withRarity(0)
                 .withSense(DEFAULT_SENSE_LEVEL)
                 .withMagnet(BallProspecting.MAGNET_RADIUS)
-                .withMolten(MOLTEN_THRESHOLD)
+                // 【熔融80】（作者 2026-10-14 指定，原为共享常量 MOLTEN_THRESHOLD = 120）
+                .withMolten(80)
                 .withSound(BallSound.of(SoundEvents.ANVIL_HIT, SoundEvents.ANVIL_HIT, 0.3F)));
 
         // ===== 「雪球？（碎石）」：不坚固（碰上就碎、无弹性）、重量 5、伤害 2、带【融化200】 =====
@@ -419,7 +420,8 @@ public final class BallBehavior {
                 .withBounce(3)
                 .withRarity(20)
                 .withSense(COPPER_SENSE_LEVEL)
-                .withThunder(THUNDER_THRESHOLD)
+                // 【引雷100】（作者 2026-10-14 指定，原为共享常量 THUNDER_THRESHOLD = 120）
+                .withThunder(100)
                 // 声音与空心铁球相同（作者指定）：铁砧单次敲击、音量 30%
                 .withSound(BallSound.of(SoundEvents.ANVIL_HIT, SoundEvents.ANVIL_HIT, 0.3F))
                 .withDrops(List.of(new BallDrop(Items.COPPER_NUGGET, 1, 2, 0.50F))));
