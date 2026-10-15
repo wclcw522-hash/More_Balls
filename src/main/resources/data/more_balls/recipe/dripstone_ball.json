@@ -1,0 +1,8 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "category": "misc",
+  "key": { "#": "minecraft:pointed_dripstone", "X": "minecraft:dripstone_block" },
+  "pattern": [ "###", "#X#", "###" ],
+  "result": { "count": 1, "id": "more_balls:dripstone_ball" },
+  "show_notification": false
+}

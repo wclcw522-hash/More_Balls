@@ -33,6 +33,7 @@ import com.mcmodworkspace.moreballs.ModEntities;
 import com.mcmodworkspace.moreballs.ModItems;
 import com.mcmodworkspace.moreballs.ProspectingHeatData;
 import com.mcmodworkspace.moreballs.MoreBalls;
+import com.mcmodworkspace.moreballs.BallExtraTraits;
 import it.unimi.dsi.fastutil.ints.IntOpenHashSet;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
@@ -2432,6 +2433,38 @@ public class BallProjectile extends ThrowableItemProjectile {
             }
         }
 
+        // ===== 第十三批词条（作者 2026-10-15）—— 命中即触发，实体与方块都算 =====
+        //
+        // 挂在这里而不是 onHitEntity：作者对【尖刺】的规格是「击中、碰撞和破碎时」，
+        // 没区分撞的是生物还是方块 —— 只挂实体分支会漏掉砸地面 / 砸墙
+        // （与【脉冲】当初踩过的是同一个坑，见上面那段注释）。
+        if (this.level() instanceof ServerLevel extraLevel) {
+            // 【尖刺】—— 以「垂直于速度的面」为基准面，朝 8 个方向、与来向成 60°、
+            //           最高点 2 格，射出 8 枚滴水石锥（基础伤害 3）
+            if (this.profile().hasFlag(BallBehavior.BallProfile.FLAG_SPIKES)) {
+                BallExtraTraits.shootSpikes(extraLevel, hitResult.getLocation(),
+                        this.getDeltaMovement(), this.getOwner());
+            }
+            if (hitResult instanceof EntityHitResult extraEntityHit
+                    && extraEntityHit.getEntity() instanceof LivingEntity extraVictim
+                    && extraVictim != this.getOwner()
+                    && extraVictim.isAlive()) {
+                // 【敛财】—— 给被击中者挂【腰缠万贯】(10 秒)
+                if (this.profile().hasFlag(BallBehavior.BallProfile.FLAG_MONEY)) {
+                    BallExtraTraits.applyMoney(extraVictim);
+                }
+                // 【招蜂引蝶 N】—— 召唤 N 只仇恨目标的蜜蜂（血量 5）
+                int extraBees = this.profile().bees();
+                if (extraBees > 0) {
+                    BallExtraTraits.summonBees(extraLevel, extraVictim, extraBees);
+                }
+                // 【封印】—— 封玩家快捷栏 / 封怪物攻击并打掉它手里的球
+                if (this.profile().hasFlag(BallBehavior.BallProfile.FLAG_SEAL)) {
+                    BallExtraTraits.seal(extraLevel, extraVictim, this.getOwner());
+                }
+            }
+        }
+
         if (hitResult.getType() == HitResult.Type.ENTITY) {
             EntityHitResult entityHit = (EntityHitResult) hitResult;
 
@@ -3593,6 +3626,16 @@ public class BallProjectile extends ThrowableItemProjectile {
             }
         }
 
+        // 【滋养】（**组合类**特性词条，作者 2026-10-15）——
+        // 回收成功时给主人挂 3 秒生命恢复。
+        //
+        // ⚠️ 「组合类」的语义完全落在 profile 上：FLAG_NURTURE 只在**组合球**的 profile 里
+        //    被点亮，完整球的 profile 在出口处会被抹掉（见 BallBehavior.profileFor）。
+        //    所以这里不需要再判一次「是不是组合球」—— 完整球根本走不到这一行。
+        if (this.profile().hasFlag(BallBehavior.BallProfile.FLAG_NURTURE)) {
+            BallExtraTraits.nurture(owner);
+        }
+
         // 作者指定：回归时对主人造成 1 滴血的物理伤害；
         // 本来就没伤害的球（伤害为 0）不造成
         if (this.getDamage() > 0.0F) {
@@ -3696,6 +3739,13 @@ public class BallProjectile extends ThrowableItemProjectile {
      * 例如圆石球 60% 掉 1–2 个碎石、「雪球？」10% 掉 1 个碎石。</p>
      */
     private void burst() {
+
+        // 【尖刺】—— 破碎时也射一圈锥（作者：「击中、碰撞和破碎时」三个时机都要）
+        if (this.level() instanceof ServerLevel spikeLevel
+                && this.profile().hasFlag(BallBehavior.BallProfile.FLAG_SPIKES)) {
+            BallExtraTraits.shootSpikes(spikeLevel, this.position(),
+                    this.getDeltaMovement(), this.getOwner());
+        }
         if (this.level().isClientSide()) {
             return;
         }

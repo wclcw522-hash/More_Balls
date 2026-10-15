@@ -249,6 +249,65 @@ public final class ModItems {
             "snowball_copper_nugget",
             props -> new BallItem(props.stacksTo(BALL_STACK_SIZE)));
 
+    // ===== 第十三批（作者 2026-10-15 指定）=====
+
+    /**
+     * 绿宝石球 —— 实心球。<b>伤害 2</b>、坚固 20、重量 6、弹射 3。
+     *
+     * <p><b>【敛财】</b>（其它特殊类）：击中生物时给它挂上【腰缠万贯】（10 秒）——
+     * 那段时间里它每次受击都有 15% 概率掉一个矿物产物。见 {@code MoneyEffect}。</p>
+     *
+     * <p>音效是经验球那声「叮」。配方：4/5/6/8/2 位绿宝石块（十字），一次 4 个。</p>
+     */
+    public static final DeferredItem<Item> EMERALD_BALL = ITEMS.registerItem(
+            "emerald_ball",
+            props -> new BallItem(props.stacksTo(BALL_STACK_SIZE)));
+
+    /**
+     * 滴水石球 —— 实心球。<b>伤害 5</b>、坚固 2、重量 7、<b>弹射 0</b>、蓄力 4。
+     *
+     * <p><b>【尖刺】</b>（其它特殊类）：<b>击中 / 碰撞 / 破碎</b>时，以「垂直于速度的面」为基准面，
+     * 朝该面 8 个方向、与「基准面与最终速度的反方向」成 <b>60°</b> 角、最高点 2 格，
+     * 射出 8 枚最小的滴水石锥（基础伤害 3，其余按原版结算）。见 {@code BallSpikes}。</p>
+     *
+     * <p>音效是石头碎裂。配方：5 滴水石块 + 1/2/3/6/9/8/7/4 滴水石锥，一次 1 个。</p>
+     */
+    public static final DeferredItem<Item> DRIPSTONE_BALL = ITEMS.registerItem(
+            "dripstone_ball",
+            props -> new BallItem(props.stacksTo(BALL_STACK_SIZE)));
+
+    /**
+     * 蜜饯球 —— 实心球。<b>伤害 2</b>、重量 4、蓄力 4。
+     *
+     * <p><b>【招蜂引蝶4】</b>（数值类）：击中时召唤 <b>4 只</b>对被击中者有仇恨、
+     * 血量 <b>5</b> 的蜜蜂，并强制把目标的仇恨转到这些蜜蜂身上。</p>
+     *
+     * <p><b>【滋养】</b>（<b>组合类</b>特性词条 —— 完整球内<b>不生效</b>，
+     * 只有作为组件合成进组合球才生效）：回收成功时给主人挂 <b>3 秒</b>生命恢复。</p>
+     *
+     * <p>音效是史莱姆。配方：4/6/8/2 甜浆果 + 9/3/1/7 蜂蜜瓶 + 5 蜜脾。</p>
+     */
+    public static final DeferredItem<Item> PRESERVE_BALL = ITEMS.registerItem(
+            "preserve_ball",
+            props -> new BallItem(props.stacksTo(BALL_STACK_SIZE)));
+
+    /**
+     * 符箓球 —— <b>空心球</b>。<b>伤害 1</b>、重量 2、蓄力 2。
+     *
+     * <p>⚠️ 作者给的三项数值里<b>没有坚固</b>，本实现按 {@code BallBehavior.NOT_TOUGH}（不坚固）
+     * 处理 —— 如果本意是「有几下弹性」，回头改一行参数即可。</p>
+     *
+     * <p><b>【封印】</b>（其它特殊类）：击中<b>非盟友且非自身玩家</b>时，随机让该玩家快捷栏里
+     * 一件物品进 <b>3 秒</b>冷却；击中<b>怪物</b>时，强制它手里的球全部掉落
+     * （小白弓、猪灵弩/剑这类本来持有的不掉），并封它 <b>10 秒</b>攻击
+     * （期间不能攻击、也不能捡球）。见 {@code BallSeal}。</p>
+     *
+     * <p>音效是附魔书翻开。配方：4/6/8/2 纸 + 5 墨囊，一次 4 个。</p>
+     */
+    public static final DeferredItem<Item> TALISMAN_BALL = ITEMS.registerItem(
+            "talisman_ball",
+            props -> new BallItem(props.stacksTo(BALL_STACK_SIZE)));
+
     // ===== 魔丸收纳袋：七个等级是七件独立物品 =====
     //
     // 作者指定（参考「精妙背包」的做法）：每个等级一件独立物品、各自一套贴图，

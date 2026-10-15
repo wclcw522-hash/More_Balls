@@ -46,6 +46,19 @@ public final class ModEffects {
     public static final DeferredHolder<MobEffect, ImmortalEffect> IMMORTAL =
             EFFECTS.register(ImmortalEffect.EFFECT_ID, ImmortalEffect::new);
 
+    /**
+     * 【腰缠万贯】—— 负面效果（作者 2026-10-15 指定）。
+     *
+     * <p>持续期间持有者<b>每次受击</b>有 15% 概率掉一个矿物产物；<b>最大 1 级</b>。
+     * 矿物用通用标签 {@code c:ingots} / {@code c:gems} / {@code c:nuggets} /
+     * {@code c:raw_materials} 界定，所以后续任何模组加的矿物都会自动包含。
+     * 详见 {@link MoneyEffect}。</p>
+     *
+     * <p>来源：绿宝石球的【敛财】词条命中时给目标挂 10 秒。</p>
+     */
+    public static final DeferredHolder<MobEffect, MoneyEffect> MONEY =
+            EFFECTS.register(MoneyEffect.EFFECT_ID, MoneyEffect::new);
+
     public static void register(IEventBus bus) {
         EFFECTS.register(bus);
     }
