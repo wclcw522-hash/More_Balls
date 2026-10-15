@@ -186,7 +186,20 @@ public final class BallAmmoAutoLoader {
      */
     private static void recallOffhandBall(Player player) {
         ItemStack offhand = player.getOffhandItem();
-        if (offhand.isEmpty() || !BallAmmo.isBall(offhand)) {
+        if (offhand.isEmpty()) {
+            return;
+        }
+        // ⚠️⚠️ **必须同时认「球堆（壳）」** —— 作者 2026-10-15 第二次反馈
+        //     「副手的球在弩切出去之后为啥没有收回收纳袋」就是这里。
+        //
+        //     原来只判 `BallAmmo.isBall(offhand)`，而那是
+        //     `stack.is(ModTags.Items.BALLS)` —— **球堆不在 BALLS 标签里**
+        //     （它是容器，不是弹药），所以副手拿着球堆时这一行直接 return、什么都不做。
+        //
+        //     而作者的用法恰恰是「副手挂着球堆」⇒ 切走弩之后那颗球堆纹丝不动。
+        //     现在「是球」或「是壳」都收；`deliverReturned` 本来就认壳，
+        //     壳会被整颗收进袋子的转运段。
+        if (!BallAmmo.isBall(offhand) && !BallClusterItem.isCluster(offhand)) {
             return;
         }
         if (BallPouchHelper.allPouchStacks(player).isEmpty()) {
