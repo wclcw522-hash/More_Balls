@@ -1,0 +1,19 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "category": "misc",
+  "key": {
+    "#": "minecraft:sweet_berries",
+    "H": "minecraft:honey_bottle",
+    "S": "minecraft:honeycomb"
+  },
+  "pattern": [
+    "H#H",
+    "#S#",
+    "H#H"
+  ],
+  "result": {
+    "count": 4,
+    "id": "more_balls:preserve_ball"
+  },
+  "show_notification": false
+}

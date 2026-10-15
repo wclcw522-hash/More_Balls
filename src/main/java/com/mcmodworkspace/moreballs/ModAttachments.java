@@ -104,6 +104,26 @@ public final class ModAttachments {
                     .build());
 
     /**
+     * <b>【封印】的截止刻</b> —— 符箓球打中怪物时，把它封到「世界游戏刻的哪一刻」为止。
+     *
+     * <p>作者 2026-10-15 指定的效果：命中怪物时强制它手里的<b>球</b>全部掉落，
+     * 并进入一次时长为 10 秒的攻击 cd ——<b>cd 期间无法发起任何攻击，也无法捡球</b>。</p>
+     *
+     * <p>为什么用 attachment 而不是原版药水效果：原版没有「不能攻击」这种通用状态
+     * （虚弱只是减少伤害），而「不能捡球」更是本模组自己的判定（见 {@code BallMobAI}）。
+     * 存一个截止刻最直接，判断也只有一行。</p>
+     *
+     * <p>⚠️ 存的是<b>世界游戏刻</b>（{@code level.getGameTime()}），不是实体自己的
+     * tickCount —— 怪物被卸载再加载时 tickCount 会重置，截止刻跟着错。
+     * 不需要同步到客户端（服务端行为）。</p>
+     */
+    public static final Supplier<AttachmentType<Long>> SEALED_UNTIL = ATTACHMENTS.register(
+            "sealed_until",
+            () -> AttachmentType.builder(() -> 0L)
+                    .serialize(Codec.LONG.fieldOf("sealed_until"))
+                    .build());
+
+    /**
      * 玩家在径向菜单里<b>选中的弹药</b>（存一颗<b>样本球快照</b>，空栈表示没选）。
      *
      * <p>作者指定的机制：选中之后不必副手持弹，弩会自动从收纳袋里取这种球装填，

@@ -327,6 +327,57 @@ public final class BallTooltip {
             out.add(Entry.of(text, Kind.TRAIT, line("tooltip.more_balls.desc.sense")));
         }
 
+        // ===== 第十三批重做（作者 2026-10-15）=====
+
+        // 【敛财】—— 绿宝石球（「其它特殊」类）：击中时给被击中者挂【腰缠万贯】。
+        // 常显是那句调侃，说明收在 Shift 里；说明里的效果名与时长走**原版药水格式**
+        // （名字带效果颜色、时长是「00:10」那种写法）。
+        if (profile.hasFlag(BallBehavior.BallProfile.FLAG_MONEY)) {
+            out.add(Entry.of(line("tooltip.more_balls.entry.money"), Kind.TRAIT,
+                    line("tooltip.more_balls.desc.money",
+                            effectWithDuration(ModEffects.MONEY, BallExtraTraits.MONEY_TICKS,
+                                    MoneyEffect.MAX_AMPLIFIER))));
+        }
+
+        // 【尖刺】—— 滴水石球（「其它特殊」类）：击中 / 碰撞 / 破碎时射出 8 枚滴水石锥
+        if (profile.hasFlag(BallBehavior.BallProfile.FLAG_SPIKE)) {
+            out.add(Entry.of(line("tooltip.more_balls.entry.spike"), Kind.TRAIT,
+                    line("tooltip.more_balls.desc.spike")));
+        }
+
+        // 【封印】—— 符箓球（「其它特殊」类）：封玩家快捷栏 / 封怪物攻击并打掉它手里的球
+        if (profile.hasFlag(BallBehavior.BallProfile.FLAG_SEAL)) {
+            out.add(Entry.of(line("tooltip.more_balls.entry.seal"), Kind.TRAIT,
+                    line("tooltip.more_balls.desc.seal")));
+        }
+
+        // 【招蜂引蝶N】—— 蜜饯球（**数值类特性**）：击中时召唤 N 只血量 5 的蜜蜂
+        if (profile.hasBees()) {
+            out.add(Entry.of(
+                    line("tooltip.more_balls.entry.bees", String.valueOf(profile.beeCount())),
+                    Kind.TRAIT,
+                    line("tooltip.more_balls.desc.bees", String.valueOf(profile.beeCount()))));
+        }
+
+        // 【滋养】—— 蜜饯球的**组合类**特性词条（作者 2026-10-15 定稿的新类别）：
+        //
+        //   · <b>完整球</b>：携带但**不生效** —— 只在 Shift 折叠信息里露一行「（当前未生效）…」
+        //   · <b>组合球</b>：它才是生效的那一份 —— 常显出现
+        //
+        // 注意这里的显示门槛与「生效门槛」用的是同一个判据（是不是组合球），
+        // 所以不会出现「显示了却不生效」或反过来的情况。
+        if (profile.hasNurture()) {
+            boolean combo = BallExtraTraits.isComboBall(stack);
+            if (combo || detailed) {
+                out.add(Entry.of(
+                        line(combo ? "tooltip.more_balls.entry.nurture"
+                                        : "tooltip.more_balls.entry.nurture_inactive",
+                                effectWithDuration(net.minecraft.world.effect.MobEffects.REGENERATION,
+                                        BallExtraTraits.NURTURE_TICKS, 0)),
+                        Kind.TRAIT));
+            }
+        }
+
         return out;
     }
 

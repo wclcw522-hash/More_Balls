@@ -145,7 +145,16 @@ public final class BallFragments {
                     //    常量去动 import 区。
                     net.minecraft.world.item.Items.ENDER_PEARL,
                     // ⚠️ 0.3.6.0 追加的**潮汐球**，同样**只在末尾追加** —— 下标 12。
-                    ModItems.TIDAL_BALL.get());
+                    ModItems.TIDAL_BALL.get(),
+                    // ⚠️ 第十三批重做（作者 2026-10-15）：**只在末尾追加** —— 下标 13..17。
+                    //    史莱姆球是**原版物品**（Items.SLIME_BALL）：作者指定把它纳入适配范围，
+                    //    所以它也要进这张表（能切、能进组合球）。它自带原版贴图，
+                    //    但弩装填图、碎片贴图、charge_piece 六张照样一处不能少。
+                    net.minecraft.world.item.Items.SLIME_BALL,   // 13 史莱姆
+                    ModItems.EMERALD_BALL.get(),                 // 14 绿宝石
+                    ModItems.DRIPSTONE_BALL.get(),               // 15 滴水石
+                    ModItems.PRESERVE_BALL.get(),                // 16 蜜饯
+                    ModItems.TALISMAN_BALL.get());               // 17 符箓
         }
         return sourcesCache;
     }
@@ -190,7 +199,9 @@ public final class BallFragments {
      */
     public static final List<String> SHORT_NAME =
             List.of("木", "圆石", "铁", "金", "空心铁", "紫水晶", "铜", "空心铜",
-                    "红石", "钻石", "青金石", "末影", "潮汐");
+                    "红石", "钻石", "青金石", "末影", "潮汐",
+                    // 第十三批重做（下标 13..17）—— 一律追加在末尾
+                    "史莱姆", "绿宝石", "滴水石", "蜜饯", "符箓");
 
     /**
      * 组合球<b>内部 id</b> 里用的短名，与 {@link #sources()} <b>同序、同长度</b>。
@@ -200,7 +211,9 @@ public final class BallFragments {
     public static final List<String> SHORT_ID =
             List.of("wooden", "cobblestone", "iron", "gold", "hollow_iron",
                     "amethyst", "copper", "hollow_copper",
-                    "redstone", "diamond", "lapis", "ender_pearl", "tidal");
+                    "redstone", "diamond", "lapis", "ender_pearl", "tidal",
+                    // 第十三批重做（下标 13..17）—— 与 SHORT_NAME 严格同序
+                    "slime", "emerald", "dripstone", "preserve", "talisman");
 
     /** 这颗球在 {@link #sources()} 里的下标；不属于其中就返回 -1（雪球会走到这里） */
     public static int indexOf(Item ball) {
@@ -271,10 +284,26 @@ public final class BallFragments {
                            /** 【潮涌】（「其它特殊」类）—— 入水后不受重力、速度 ×3，并环绕激流纹理 */
                            boolean tidalSurge,
                            /** 【忠诚】（「其它特殊」类）—— 永远带忠诚附魔，且不会被任何生物捡走 */
-                           boolean loyalty) {
+                           boolean loyalty,
+                           /**
+                            * 【招蜂引蝶N】（蜜饯球）—— **数值类特性**类（作者 2026-10-15 的分类）：
+                            * 切开均分（中间层保住小数）、合成 ≥1 份激活后相加取整。
+                            */
+                           double bee,
+                           /**
+                            * 【滋养】（蜜饯球）—— <b>组合类特性词条</b>（作者 2026-10-15 定稿的新类别）。
+                            *
+                            * <p>与「唯一特殊」正好相反：完整球里携带但<b>不生效</b>；
+                            * 切开时按份数<b>均分触发概率</b>（每份 1/份数），
+                            * 合进组合球后各份相加、≥1 份即生效。</p>
+                            *
+                            * <p>它是概率，所以**不参与 floor** —— 四份各 0.25 相加正好回到 1.0。</p>
+                            */
+                           double nurture) {
 
         public static final Fragment EMPTY =
-                new Fragment(0, 0, 0, 0, 0, 0, false, false, false, 0, false, false, false, false, 0, 0, 0, false, false, false);
+                new Fragment(0, 0, 0, 0, 0, 0, false, false, false, 0, false, false, false, false, 0, 0, 0, false,
+                        false, false, 0, 0);
 
         /**
          * 按分数缩放一份词条（半球 0.5、四分之一球 0.25）。
@@ -309,7 +338,11 @@ public final class BallFragments {
                     // 【破坏王N】数值类**特性**：切开均分（够不够份数由 combine* 判），同样不取整
                     breaker * factor,
                     // 【移形换位】布尔类：原样透传
-                    transpose, tidalSurge, loyalty);
+                    transpose, tidalSurge, loyalty,
+                    // 【招蜂引蝶N】数值类**特性**：切开均分（中间层保住小数，够不够份数由 combine* 判）
+                    bee * factor,
+                    // 【滋养】组合类：切开时**均分触发概率**（完整球 1.0 → 四分之一球 0.25）
+                    nurture * factor);
         }
 
         /** 叠加 —— 数值相加，特质取「出现过」 */
@@ -330,7 +363,11 @@ public final class BallFragments {
                     // 【移形换位】布尔类：取或
                     transpose || other.transpose,
                     tidalSurge || other.tidalSurge,
-                    loyalty || other.loyalty);
+                    loyalty || other.loyalty,
+                    // 【招蜂引蝶N】数值类特性：相加（够不够份数由 combine* 判）
+                    bee + other.bee,
+                    // 【滋养】组合类：**概率相加** —— 每份带着自己那一份概率
+                    nurture + other.nurture);
         }
     }
 
@@ -386,7 +423,11 @@ public final class BallFragments {
                 // 新增：穿透数值 + 位掩码型词条
                 p.penetration(),
                 p.flags(),
-                p.breaker(), p.transpose(), p.tidalSurge(), false /* 【忠诚】唯一特殊：不继承 */);
+                p.breaker(), p.transpose(), p.tidalSurge(), false /* 【忠诚】唯一特殊：不继承 */,
+                // 第十三批：招蜂引蝶（数值类特性）/ 滋养（组合类）。
+                // ⚠️ 组合类的【滋养】在**完整球上携带但不生效** —— 照样读进 Fragment，
+                //    「不生效」是在使用侧判的（见 BallProjectile.deliverToOwner）。
+                p.beeCount(), p.nurture());
     }
 
     // ===== 合成球 =====
@@ -433,7 +474,7 @@ public final class BallFragments {
                 out.morph(), out.magnetic(), out.glint(),
                 out.wisdom(), out.kindness(), out.conduction(), out.thunder(), out.shock(),
                 out.penetration(), out.flags(), out.breaker(), out.transpose(),
-                out.tidalSurge(), out.loyalty());
+                out.tidalSurge(), out.loyalty(), out.bee(), out.nurture());
     }
 
     /**
@@ -465,6 +506,9 @@ public final class BallFragments {
                 + (c.tidalSurge() ? 1 : 0) + (d.tidalSurge() ? 1 : 0);
         int loyalties = (a.loyalty() ? 1 : 0) + (b.loyalty() ? 1 : 0)
                 + (c.loyalty() ? 1 : 0) + (d.loyalty() ? 1 : 0);
+        // 【招蜂引蝶N】是**数值类特性** —— 份数判定与智慧 / 穿透 / 破坏王同一套
+        int bees = (a.bee() > 0 ? 1 : 0) + (b.bee() > 0 ? 1 : 0)
+                + (c.bee() > 0 ? 1 : 0) + (d.bee() > 0 ? 1 : 0);
         // 位掩码型词条：【脉冲】【照明】【破坏王】【透镜】
         // 特性类词条**不再需要激活**（作者 2026-10-13）：只要有一份带着，四合一就保留它 ——
         // 逐位统计份数，各自判一次
@@ -501,7 +545,13 @@ public final class BallFragments {
                 flagMask,
                 // 【破坏王N】数值类特性：够份数才激活，激活时四份之和取整
                 (breakers >= 1)
-                        ? (int) Math.floor(sum.breaker()) : 0, transposes >= 1, tidals >= 1, loyalties >= 1);
+                        ? (int) Math.floor(sum.breaker()) : 0, transposes >= 1, tidals >= 1, loyalties >= 1,
+                // 【招蜂引蝶N】数值类特性：≥1 份才激活，激活时四份之和取整
+                (bees >= 1) ? (int) Math.floor(sum.bee()) : 0,
+                // 【滋养】组合类：**概率直接相加、不取整**（四份各 0.25 → 1.0）。
+                // 份数为 0 时 sum 自然是 0，所以不需要额外的份数门槛 —— 这就是作者定的
+                // 「≥1 份即生效」：一份 25% 概率生效，四份 100%。
+                sum.nurture());
     }
 
     /**
@@ -701,7 +751,16 @@ public final class BallFragments {
                 // ⚠️ 【忠诚】是「唯一特殊」类 —— **不参与合成**，和上面【金光闪闪】同样的处理：
                 //    显式写回 false，而不是沿用 merged.loyalty()。组合球永远拿不到忠诚，
                 //    哪怕四份全是潮汐球。
-                .withLoyalty(false);
+                .withLoyalty(false)
+                // ===== 第十三批新增的两条（作者 2026-10-15）=====
+                //
+                // ⚠️ 就是上面警告过的那个坑：这处写回编译器抓不到，少一行 = 词条凭空消失。
+                //   【招蜂引蝶N】数值类特性：份数判定在 combineQuad 里做完了，这里写回数值
+                .withBeeCount((int) merged.bee())
+                //   【滋养】组合类：均分后的概率相加结果直接落回。
+                //   完整球上**也**带着这个值（1.0），那是「携带但不生效」；
+                //   真正生效只在组合球上，判据在使用侧（见 BallProjectile.deliverToOwner）。
+                .withNurture(merged.nurture());
         return out;
     }
 
@@ -748,7 +807,11 @@ public final class BallFragments {
                 // 数值类特性（【智慧N】【穿透N】【破坏王N】）现在都是 double，二合一同样要向下取整
                 Math.floor(f.wisdom()), f.kindness(), f.conduction(), f.thunder(), f.shock(),
                 Math.floor(f.penetration()), f.flags(), Math.floor(f.breaker()), f.transpose(),
-                f.tidalSurge(), f.loyalty());
+                f.tidalSurge(), f.loyalty(),
+                // 【招蜂引蝶N】数值类特性：二合一同样向下取整
+                Math.floor(f.bee()),
+                // 【滋养】是**概率**，不能 floor（0.25 → 0 会把整条词条抹掉）
+                f.nurture());
     }
 
     // ===== 组件 ↔ 下标列表 =====

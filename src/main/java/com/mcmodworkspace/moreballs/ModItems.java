@@ -249,6 +249,63 @@ public final class ModItems {
             "snowball_copper_nugget",
             props -> new BallItem(props.stacksTo(BALL_STACK_SIZE)));
 
+    // ===== 第十三批重做：四颗新球（作者 2026-10-15 指定）=====
+
+    /**
+     * 「绿宝石球」 —— 实心球，伤害 2、重量 6、坚固 20、弹射 3。
+     *
+     * <p><b>【敛财】</b>（「其它特殊」类）：击中时给被击中者挂【腰缠万贯】（10 秒）。</p>
+     *
+     * <p>贴图是<b>绿宝石块做成球</b>，音效是经验球的「叮」；
+     * 配方 45682 摆绿宝石块（正十字五格），一次出 4 个。</p>
+     */
+    public static final DeferredItem<Item> EMERALD_BALL = ITEMS.registerItem(
+            "emerald_ball",
+            props -> new BallItem(props.stacksTo(BALL_STACK_SIZE)));
+
+    /**
+     * 「滴水石球」 —— 实心球，伤害 5、重量 7、坚固 2、弹射 0、蓄力 4。
+     *
+     * <p><b>【尖刺】</b>（「其它特殊」类）：击中、碰撞与破碎时，以垂直于速度的面为基准面，
+     * 朝 8 个方向、与最终速度反方向夹角 60 度、最高点 2 格，射出 8 枚最小的滴水石锥，
+     * 锥子基础伤害 3（其余按原版结算）。</p>
+     *
+     * <p>贴图是滴水石块做成球，音效是石头破碎；
+     * 配方 5 格滴水石块 + 环形八格滴水石锥，一次出 1 个。</p>
+     */
+    public static final DeferredItem<Item> DRIPSTONE_BALL = ITEMS.registerItem(
+            "dripstone_ball",
+            props -> new BallItem(props.stacksTo(BALL_STACK_SIZE)));
+
+    /**
+     * 「蜜饯球」 —— 实心球，伤害 2、重量 4、蓄力 4（作者没说坚固 ⇒ 不坚固）。
+     *
+     * <p><b>【招蜂引蝶4】</b>（数值类特性）：击中时召唤 4 只对目标有仇恨、血量 5 的蜜蜂，
+     * 并把目标的仇恨强制转移到它们身上。<br>
+     * <b>【滋养】</b>（<b>组合类</b>特性词条）：完整球里携带但不生效，
+     * 切开时按份数均分概率，合进组合球后 ≥1 份即生效 —— 回收成功时给主人 3 秒生命恢复。</p>
+     *
+     * <p>贴图主体是甜浆果截出的球体、空白处用蜂蜜的色块填上；音效是史莱姆；
+     * 配方 4682甜浆果 + 9317蜂蜜瓶 + 5蜜脾，一次出 4 个。</p>
+     */
+    public static final DeferredItem<Item> PRESERVE_BALL = ITEMS.registerItem(
+            "preserve_ball",
+            props -> new BallItem(props.stacksTo(BALL_STACK_SIZE)));
+
+    /**
+     * 「符箓球」 —— 空心球，伤害 1、重量 2、蓄力 2（作者没说坚固 ⇒ 不坚固）。
+     *
+     * <p><b>【封印】</b>（「其它特殊」类）：击中非盟友且非自身的玩家时，随机让该玩家
+     * 快捷栏里的一件物品进入一次 3 秒冷却；击中怪物时强制它手里的<b>球</b>全部掉落
+     * （原本就持有的弓 / 弩 / 剑这类不动），并封它 10 秒攻击 —— 期间不能攻击、也不能捡球。</p>
+     *
+     * <p>纹理是书与笔做成球（保留羽毛笔的轮廓），音效是附魔书翻开；
+     * 配方 4682纸 + 5墨囊，一次出 4 个。</p>
+     */
+    public static final DeferredItem<Item> TALISMAN_BALL = ITEMS.registerItem(
+            "talisman_ball",
+            props -> new BallItem(props.stacksTo(BALL_STACK_SIZE)));
+
     // ===== 魔丸收纳袋：七个等级是七件独立物品 =====
     //
     // 作者指定（参考「精妙背包」的做法）：每个等级一件独立物品、各自一套贴图，

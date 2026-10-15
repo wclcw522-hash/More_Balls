@@ -627,6 +627,11 @@ public final class BallMobAI {
         if (isLoyal(ball)) {
             return false;
         }
+        // 【封印】（符箓球，作者 2026-10-15）：封印期间「无法捡球」——
+        // 顺手捡球那条被 onMobTick 挡住了，这里是**主动接球**那条路。
+        if (BallExtraTraits.isSealed(mob)) {
+            return false;
+        }
         // 手上已经拿着东西就腾不出手接
         if (!mob.getMainHandItem().isEmpty()) {
             return false;
@@ -1283,6 +1288,16 @@ public final class BallMobAI {
         // ===== 手里的球「显示在哪儿」（作者 2026-10-11）=====
         // 每刻调一次：手里有球就保证图标存在、位置跟得上；没球就收掉。
         updateBallDisplay(mob, hand);
+
+        // ===== 【封印】（符箓球，作者 2026-10-15）=====
+        //
+        // 作者规格：被打中的怪物进入一次 10 秒攻击 cd —— 期间<b>无法发起任何攻击、无法捡球</b>。
+        // 「无法攻击」在 BallExtraTraits 里每刻清掉它的攻击目标（那条对不持球的怪也生效），
+        // 这里补的是球这一侧：封印期间整段跳过「捡球 / 蓄力 / 投掷」。
+        // 放在 updateBallDisplay 之后 —— 图标该收还得收，不然会留一个残影。
+        if (BallExtraTraits.isSealed(mob)) {
+            return;
+        }
 
         // 手里没球的时候，每 2 刻掷一次「要不要把脚边的球捡起来」（作者指定：1.5 格 / 每 2 刻 / 每次 4%）。
         //

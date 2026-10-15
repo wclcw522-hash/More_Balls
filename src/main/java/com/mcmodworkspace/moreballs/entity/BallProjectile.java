@@ -6,6 +6,7 @@ import net.minecraft.world.entity.EntityDimensions;
 import net.minecraft.world.phys.AABB;
 import net.minecraft.world.entity.monster.Enemy;
 import com.mcmodworkspace.moreballs.BallBehavior;
+import com.mcmodworkspace.moreballs.BallExtraTraits;
 import com.mcmodworkspace.moreballs.BallIlluminate;
 import com.mcmodworkspace.moreballs.BallMagic;
 import com.mcmodworkspace.moreballs.DiamondBallDrops;
@@ -2289,6 +2290,35 @@ public class BallProjectile extends ThrowableItemProjectile {
             // 蜘蛛扔出的球击中任意生物 → 缓慢 IV（5 秒）；洞穴蜘蛛再加中毒 II（5 秒）。
             // 判据只看「投掷者是不是蜘蛛系」，所以玩家自己扔的球不受影响。
             MobBallSpecials.onBallHitCreature(this, serverLevel, entity);
+
+            // ===== 第十三批重做（作者 2026-10-15）：击中类词条 =====
+            //
+            // 全都放在这个 if (serverLevel) 块里 —— 这里才有**目标实体**，
+            // 而且它在穿透 / 反弹那些早退分支之后，不会漏掉一部分命中。
+
+            // 【敛财】绿宝石球：给被击中者挂【腰缠万贯】（10 秒）
+            if (this.profile().hasFlag(BallBehavior.BallProfile.FLAG_MONEY)
+                    && entity instanceof LivingEntity moneyTarget) {
+                BallExtraTraits.applyMoney(moneyTarget,
+                        this.getOwner() instanceof LivingEntity moneyOwner ? moneyOwner : null);
+            }
+
+            // 【招蜂引蝶N】蜜饯球（数值类特性）：召唤 N 只仇恨目标、血量 5 的蜜蜂
+            if (this.profile().hasBees() && entity instanceof LivingEntity beeTarget) {
+                BallExtraTraits.summonBees(serverLevel, beeTarget, this.profile().beeCount());
+            }
+
+            // 【封印】符箓球：封玩家快捷栏 / 封怪物攻击并打掉它手里的球
+            if (this.profile().hasFlag(BallBehavior.BallProfile.FLAG_SEAL)
+                    && entity instanceof LivingEntity sealTarget) {
+                BallExtraTraits.seal(serverLevel, sealTarget, this.getOwner());
+            }
+
+            // 【尖刺】滴水石球：规格里的「击中」那一档 —— 击中生物时同样射一圈锥子
+            if (this.profile().hasFlag(BallBehavior.BallProfile.FLAG_SPIKE)) {
+                BallExtraTraits.shootSpikes(serverLevel, this.position(),
+                        this.getDeltaMovement(), this.getOwner());
+            }
         }
     }
 
@@ -2482,6 +2512,14 @@ public class BallProjectile extends ThrowableItemProjectile {
             // ⚠️ 作者 2026-10-10 更正：**砸掉了就不要反弹** ——
             //    原来是砸完照样走下面的 bounceOff()，球被弹开后又被重力带着往下坠，
             //    表现就是「因为反弹老是往下掉」。路已经砸开了，直接放它继续往前飞。
+            // 【尖刺】滴水石球：规格里的「碰撞」那一档 —— 撞到方块这一下也射一圈锥子。
+            // 放在破坏王 / 点金之前：「碰撞」这个时机与「有没有砸掉方块」无关。
+            if (this.profile().hasFlag(BallBehavior.BallProfile.FLAG_SPIKE)
+                    && this.level() instanceof ServerLevel spikeLevel) {
+                BallExtraTraits.shootSpikes(spikeLevel, this.position(),
+                        this.getDeltaMovement(), this.getOwner());
+            }
+
             // 【破坏王】触发概率（当前 100% 必触发；以后调这个常量即可）
             if (this.profile().hasBreaker()
                     && this.breakerUsed < this.profile().breaker()
@@ -3593,6 +3631,16 @@ public class BallProjectile extends ThrowableItemProjectile {
             }
         }
 
+        // ===== 【滋养】（组合类特性词条，作者 2026-10-15）=====
+        //
+        // 作者规格：「在回收成功受到伤害判定的瞬间，对主人施加一个 3 秒的生命恢复效果」。
+        // 这里就是那一刻。
+        //
+        // ⚠️ 它是**组合类**：完整球上携带但**不生效** —— 生效判据是「这球是不是组合球」，
+        //    由 BallExtraTraits.nurture 内部判；概率取 profile 的 nurture
+        //    （完整球 1.0 = 携带但不生效、四分之一球 0.25、四份合起来 1.0）。
+        BallExtraTraits.nurture(owner, this.getItem(), this.profile().nurture());
+
         // 作者指定：回归时对主人造成 1 滴血的物理伤害；
         // 本来就没伤害的球（伤害为 0）不造成
         if (this.getDamage() > 0.0F) {
@@ -3700,7 +3748,13 @@ public class BallProjectile extends ThrowableItemProjectile {
             return;
         }
 
-
+        // 【尖刺】滴水石球：规格里的「破碎」那一档 —— 碎掉之前最后射一圈锥子。
+        // 用球当时的最终速度当基准（速度接近 0 时 shootSpikes 内部会退化成竖直方向）。
+        if (this.profile().hasFlag(BallBehavior.BallProfile.FLAG_SPIKE)
+                && this.level() instanceof ServerLevel spikeLevel) {
+            BallExtraTraits.shootSpikes(spikeLevel, this.position(),
+                    this.getDeltaMovement(), this.getOwner());
+        }
 
         BallBehavior.BallProfile profile = this.profile();
 

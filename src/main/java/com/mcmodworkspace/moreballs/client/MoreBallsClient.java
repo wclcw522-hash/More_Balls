@@ -89,6 +89,11 @@ public final class MoreBallsClient {
     public static void onRegisterRenderers(EntityRenderersEvent.RegisterRenderers event) {
         event.registerEntityRenderer(ModEntities.BALL.get(), BallRenderer::new);
         event.registerEntityRenderer(ModEntities.BALL_ENDER_PEARL.get(), ThrownItemRenderer::new);
+        // 滴水石锥（【尖刺】射出去的锥子）—— 外观就是 minecraft:pointed_dripstone 那件物品，
+        // 缩小到 0.6 倍，因为作者要的是「**最小的**滴水石锥」。
+        event.registerEntityRenderer(ModEntities.DRIPSTONE_SHARD.get(),
+                context -> new ThrownItemRenderer<com.mcmodworkspace.moreballs.entity.DripstoneShard>(
+                        context, 0.6F, true));
     }
 
     /** 把收纳袋的菜单绑到界面上 */

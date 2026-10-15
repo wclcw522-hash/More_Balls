@@ -46,6 +46,16 @@ public final class ModEffects {
     public static final DeferredHolder<MobEffect, ImmortalEffect> IMMORTAL =
             EFFECTS.register(ImmortalEffect.EFFECT_ID, ImmortalEffect::new);
 
+    /**
+     * 【腰缠万贯】—— debuff：持续时间内效果持有者<b>每次受击</b>都有 15% 概率
+     * 掉落 1 个矿物产物（矿锭 / 宝石 / 合金锭……），最大 1 级。
+     *
+     * <p>英文 id 定为 {@code money}（与作者给的图标文件 money.png 同名）。
+     * 绿宝石球的【敛财】命中时挂它，详见 {@link MoneyEffect}。</p>
+     */
+    public static final DeferredHolder<MobEffect, MoneyEffect> MONEY =
+            EFFECTS.register(MoneyEffect.EFFECT_ID, MoneyEffect::new);
+
     public static void register(IEventBus bus) {
         EFFECTS.register(bus);
     }

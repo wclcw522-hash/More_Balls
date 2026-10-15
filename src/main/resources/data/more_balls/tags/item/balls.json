@@ -19,6 +19,11 @@
     "more_balls:redstone_snowball",
     "more_balls:diamond_ball",
     "more_balls:lapis_ball",
-    "more_balls:tidal_ball"
+    "more_balls:tidal_ball",
+    "minecraft:slime_ball",
+    "more_balls:emerald_ball",
+    "more_balls:dripstone_ball",
+    "more_balls:preserve_ball",
+    "more_balls:talisman_ball"
   ]
 }

@@ -136,6 +136,41 @@
                 }
             },
             {
+                "when": "minecraft:slime_ball",
+                "model": {
+                    "type": "minecraft:model",
+                    "model": "more_balls:item/crossbow_ball_slime_ball"
+                }
+            },
+            {
+                "when": "more_balls:emerald_ball",
+                "model": {
+                    "type": "minecraft:model",
+                    "model": "more_balls:item/crossbow_ball_emerald_ball"
+                }
+            },
+            {
+                "when": "more_balls:dripstone_ball",
+                "model": {
+                    "type": "minecraft:model",
+                    "model": "more_balls:item/crossbow_ball_dripstone_ball"
+                }
+            },
+            {
+                "when": "more_balls:preserve_ball",
+                "model": {
+                    "type": "minecraft:model",
+                    "model": "more_balls:item/crossbow_ball_preserve_ball"
+                }
+            },
+            {
+                "when": "more_balls:talisman_ball",
+                "model": {
+                    "type": "minecraft:model",
+                    "model": "more_balls:item/crossbow_ball_talisman_ball"
+                }
+            },
+            {
                 "when": "more_balls:combo_ball",
                 "model": {
                     "type": "minecraft:special",
