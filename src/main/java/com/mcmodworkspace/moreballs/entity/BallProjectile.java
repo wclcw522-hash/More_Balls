@@ -1099,9 +1099,27 @@ public class BallProjectile extends ThrowableItemProjectile {
      *
      * <p>阈值 0.1 格/刻比严格静止宽三倍多，只给带【空气动力球】的球用（调用点有
      * {@code returnToOwner} 守卫），所以不会影响普通球的落定手感。</p>
+     *
+     * <h2>⚠️ 只算<b>水平</b>速度（作者 2026-10-15 报的「打在墙上残留」）</h2>
+     * <p>原来判的是 {@code getDeltaMovement().lengthSqr()} —— <b>总速度，含垂直分量</b>。
+     * 而球贴着墙的时候会一直在<b>往下滑</b>：垂直速度稳定在 0.1 格/刻 以上，
+     * 于是 {@code stuckTicks} <b>每刻都被清零</b>，那 20 刻永远攒不满。</p>
+     *
+     * <p>结果是球既不落定也不碎，**球实体和【潮涌】的环绕水纹一起留在墙边** ——
+     * 而严格条件那条也救不了它：{@code hasSupportBelow()} 只看正下方那一格，
+     * 贴墙时脚下是空气，那条同样不成立。两条路都堵死。</p>
+     *
+     * <p>改成只看水平分量之后：球贴着墙往下掉时水平速度≈0，
+     * 它就能攒满 {@link #STUCK_SETTLE_TICKS} → 落定 → 5 刻坐实 → {@code burst()}，
+     * 球与特效一并消失。</p>
+     *
+     * <p>这个改动<b>不影响正常飞行的球</b>：飞行时水平速度远大于 0.1，照样清零重算。</p>
      */
     private boolean tickSlowStuck() {
-        if (this.getDeltaMovement().lengthSqr() > STUCK_SPEED_SQR) {
+        Vec3 velocity = this.getDeltaMovement();
+        // 只取水平分量 —— 垂直那一份是重力在拖它，不该算进「有没有在动」
+        double horizontalSqr = velocity.x * velocity.x + velocity.z * velocity.z;
+        if (horizontalSqr > STUCK_SPEED_SQR) {
             this.stuckTicks = 0;
             return false;
         }

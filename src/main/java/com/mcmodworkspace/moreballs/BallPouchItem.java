@@ -178,13 +178,113 @@ public class BallPouchItem extends Item {
         // 写入路径一次都没碰过。于是满袋时球会被塞进超出该等级容量的格子（最远到第 54 格）：
         // 界面把那些格子涂成不可见的灰格，实体又被 discard，看起来就是「球消失了」。
         List<ItemStack> segment = cappedSegment(current.transit(), tier(pouch).transitSlots());
-        boolean changed = fillInto(segment, ball);
+
+        // ===== 【球堆】转运段按档合并（作者 2026-10-15 反馈）=====
+        //
+        // 反馈原话：「球堆在收纳袋里也应该生效。球堆现在完全不生效，反而一个球一堆完全不收纳。」
+        //
+        // 根因就在下面那句 fillInto：它用 ItemStack.isSameItemSameComponents 判「能不能并进同一格」，
+        // 而这和 MC 的堆叠判定是**同一条** —— 用过的球耐久各不相同、组件必然不一致，
+        // 于是**每颗必然独占一格**。袋子看着装满了，其实一点没省。
+        //
+        // 所以转运段改存**球堆**：同球种 + 同档位合并成一格。
+        // 弹药段不动 —— 满耐久的球不带耐久组件，组件完全一致，本来就叠得起来。
+        boolean changed = clusterizeSegment(segment) ;
+        changed = fillClustered(segment, ball) || changed;
+
         if (changed) {
             // 另一段也裁一遍 —— 顺带清掉旧存档里已经存在的越界幽灵球
             setContents(pouch, new BallPouchContents(
                     cappedSegment(current.ammo(), tier(pouch).ammoSlots()), segment));
         }
         return ball.isEmpty();
+    }
+
+    /**
+     * 把这一段里的**散球就地收拾成球堆**。
+     *
+     * <p>两个作用：</p>
+     * <ol>
+     *   <li><b>旧存档迁移</b> —— 1.1.0.0 之前进袋的散球还在那儿占着格子，
+     *       每次写入时顺手把它们转成壳，不用玩家手动整理</li>
+     *   <li><b>合并同类</b> —— 转成壳之后，被打散在不同格子上的同档球会并到一起</li>
+     * </ol>
+     *
+     * @return 这一段有没有被改动
+     */
+    private static boolean clusterizeSegment(List<ItemStack> segment) {
+        boolean changed = false;
+        for (int i = 0; i < segment.size(); i++) {
+            ItemStack slot = segment.get(i);
+            if (slot.isEmpty() || BallClusterItem.isCluster(slot)) {
+                continue;   // 空的、或者本来就是壳 → 不用管
+            }
+
+            // 这是个旧的散球 → 挪出来，套成壳，再找位置合并
+            ItemStack ball = slot.copy();
+            segment.set(i, ItemStack.EMPTY);
+
+            boolean merged = false;
+            for (int k = 0; k < segment.size(); k++) {
+                ItemStack other = segment.get(k);
+                if (!BallClusterItem.isCluster(other)) {
+                    continue;
+                }
+                BallClusterContents existing = BallClusterItem.contents(other);
+                if (!existing.hasRoom() || !existing.matches(ball)) {
+                    continue;
+                }
+                BallClusterItem.setContents(other, existing.withAdded(ball));
+                merged = true;
+                break;
+            }
+            if (!merged) {
+                // 没得并 → 在这一格放一个新壳（壳里就这一颗）
+                ItemStack shell = new ItemStack(ModItems.BALL_CLUSTER.get());
+                BallClusterItem.setContents(shell, BallClusterContents.EMPTY.withAdded(ball));
+                segment.set(i, shell);
+            }
+            changed = true;
+        }
+        return changed;
+    }
+
+    /**
+     * 把一颗球并进这一段 —— <b>并进已有的同档壳，没有再新建一个壳占空格</b>。
+     *
+     * <p>这就是 {@code fillInto} 的「球堆版」：那边按组件全等判合并（散球必失败），
+     * 这边按「同球种 + 同档位」判合并（球堆能成功）。</p>
+     */
+    private static boolean fillClustered(List<ItemStack> segment, ItemStack ball) {
+        boolean changed = false;
+
+        // ① 先并进已有的同档壳
+        for (int i = 0; i < segment.size() && !ball.isEmpty(); i++) {
+            ItemStack slot = segment.get(i);
+            if (!BallClusterItem.isCluster(slot)) {
+                continue;
+            }
+            BallClusterContents existing = BallClusterItem.contents(slot);
+            if (!existing.hasRoom() || !existing.matches(ball)) {
+                continue;
+            }
+            BallClusterItem.setContents(slot, existing.withAdded(ball.copy()));
+            ball.setCount(0);
+            changed = true;
+        }
+
+        // ② 还有剩就新建一个壳，占一个空格
+        for (int i = 0; i < segment.size() && !ball.isEmpty(); i++) {
+            if (!segment.get(i).isEmpty()) {
+                continue;
+            }
+            ItemStack shell = new ItemStack(ModItems.BALL_CLUSTER.get());
+            BallClusterItem.setContents(shell, BallClusterContents.EMPTY.withAdded(ball.copy()));
+            segment.set(i, shell);
+            ball.setCount(0);
+            changed = true;
+        }
+        return changed;
     }
 
     /** 只往<b>弹药段</b>塞 */
@@ -285,14 +385,37 @@ public class BallPouchItem extends Item {
         return fromAmmo;
     }
 
-    /** 从某一段里取出<b>第一格非空</b>物品（取空该格） */
+    /**
+     * 从某一段里取出<b>第一格非空</b>物品。
+     *
+     * <h2>【球堆】那一格是壳时怎么办（作者 2026-10-15）</h2>
+     * <p>原来的实现是「整格端走」—— 这对散球没问题（一格就是一颗），
+     * 但转运段现在存的是球堆，整格端走会把<b>一整个壳</b>当成「一颗球」交出去，
+     * 于是越取越多。</p>
+     *
+     * <p>所以这里改成：<b>是壳就掏一颗出来，壳留剩</b>；掏空之后把那一格清掉
+     * （壳变成空壳等于没内容，留着只会占格）。</p>
+     */
     private static ItemStack takeFirst(List<ItemStack> segment) {
         for (int i = 0; i < segment.size(); i++) {
             ItemStack slot = segment.get(i);
-            if (!slot.isEmpty()) {
-                segment.set(i, ItemStack.EMPTY);
-                return slot;
+            if (slot.isEmpty()) {
+                continue;
             }
+            if (BallClusterItem.isCluster(slot)) {
+                ItemStack one = BallClusterItem.takeOne(slot);
+                if (!one.isEmpty()) {
+                    if (BallClusterItem.contents(slot).isEmpty()) {
+                        segment.set(i, ItemStack.EMPTY);   // 掏空了 → 那一格清掉
+                    }
+                    return one;
+                }
+                // 空壳（理论上不该出现）：当空格处理，继续找下一格
+                segment.set(i, ItemStack.EMPTY);
+                continue;
+            }
+            segment.set(i, ItemStack.EMPTY);
+            return slot;
         }
         return ItemStack.EMPTY;
     }
@@ -444,10 +567,21 @@ public class BallPouchItem extends Item {
      * 不同组合自然就区分开了。</p>
      */
     public static boolean sameKind(ItemStack a, ItemStack b) {
-        if (a.isEmpty() || b.isEmpty() || a.getItem() != b.getItem()) {
+        // 【球堆】先把壳摊开成里面那颗球（作者 2026-10-15）。
+        //
+        // 不摊的话，下面那句 `a.getItem() != b.getItem()` 会直接判「不同种」——
+        // 因为壳的 item 是 ball_cluster、球的 item 是别的，两者永远不相等。
+        // 后果是「袋里有没有这种球」「从袋里取一颗同类球」全都**查不到壳里的球**，
+        // 弩装填时就装不上袋里的球。
+        //
+        // 摊在这一处，下面 takeSameKindFrom / segmentHasKind / hasSameKindInTransit /
+        // hasSameKindInAmmo 四个调用点一并受益。
+        ItemStack x = BallClusterItem.asBall(a);
+        ItemStack y = BallClusterItem.asBall(b);
+        if (x.isEmpty() || y.isEmpty() || x.getItem() != y.getItem()) {
             return false;
         }
-        return ItemStack.isSameItemSameComponents(withoutToughness(a), withoutToughness(b));
+        return ItemStack.isSameItemSameComponents(withoutToughness(x), withoutToughness(y));
     }
 
     /** 复制一份并抹掉耐久组件 —— 只用于「同种」比较 */
@@ -457,12 +591,27 @@ public class BallPouchItem extends Item {
         return copy;
     }
 
-    /** 从某一段里取出第一颗同类的球（整stack取走） */
+    /**
+     * 从某一段里取出第一颗同类的球。
+     *
+     * <p>⚠️ 那一格是<b>球堆</b>时要掏一颗出来、壳留剩（作者 2026-10-15）——
+     * 原来的实现是「整 stack 取走」，会把一整个壳当成一颗球交出去。</p>
+     */
     private static ItemStack takeSameKindFrom(List<ItemStack> segment, ItemStack wanted) {
         for (int i = 0; i < segment.size(); i++) {
             ItemStack slot = segment.get(i);
             if (slot.isEmpty() || !sameKind(slot, wanted)) {
                 continue;
+            }
+            if (BallClusterItem.isCluster(slot)) {
+                ItemStack one = BallClusterItem.takeOne(slot);
+                if (one.isEmpty()) {
+                    continue;   // 空壳，当空格处理
+                }
+                if (BallClusterItem.contents(slot).isEmpty()) {
+                    segment.set(i, ItemStack.EMPTY);
+                }
+                return one;
             }
             segment.set(i, ItemStack.EMPTY);
             return slot;
@@ -535,10 +684,15 @@ public class BallPouchItem extends Item {
                 .withStyle(ChatFormatting.GOLD));
 
         consumer.accept(Component.translatable("tooltip.more_balls.pouch.ammo",
+                        BallPouchContents.countBalls(contents.ammo()),
                         BallPouchContents.countFilled(contents.ammo()), tier.ammoSlots())
                 .withStyle(ChatFormatting.AQUA));
 
+        // 【球堆】（作者 2026-10-15）：转运段一格可能装着一整堆，
+        // 所以这里同时报「多少颗」和「用了几格」——
+        // 只报格数的话，装了一堆球却显示「1 / 18」，看起来像球丢了。
         consumer.accept(Component.translatable("tooltip.more_balls.pouch.transit",
+                        BallPouchContents.countBalls(contents.transit()),
                         BallPouchContents.countFilled(contents.transit()), tier.transitSlots())
                 .withStyle(ChatFormatting.YELLOW));
 

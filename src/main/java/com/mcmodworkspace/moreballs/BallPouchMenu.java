@@ -100,6 +100,8 @@ public class BallPouchMenu extends AbstractContainerMenu {
 
                 @Override
                 public boolean mayPlace(ItemStack stack) {
+                    // 弹药段只收**满耐久的散球**。
+                    // 【球堆】不认 —— 壳里装的全是「用过」的球，本来就该待转运段。
                     return unlocked && BallAmmo.isBall(stack) && BallPouchItem.isPristine(stack);
                 }
             });
@@ -120,6 +122,14 @@ public class BallPouchMenu extends AbstractContainerMenu {
 
                 @Override
                 public boolean mayPlace(ItemStack stack) {
+                    // 【球堆】转运段**要收壳**（作者 2026-10-15）。
+                    //
+                    // 转运段现在存的就是球堆 —— 用过的球按档合并成一格。
+                    // 不认壳的话，玩家手动从背包把壳拖进来会被拒，
+                    // 而壳正是「用过的球」在袋子里的形态。
+                    if (com.mcmodworkspace.moreballs.BallClusterItem.isCluster(stack)) {
+                        return unlocked;
+                    }
                     return unlocked && BallAmmo.isBall(stack) && !BallPouchItem.isPristine(stack);
                 }
             });
@@ -213,14 +223,24 @@ public class BallPouchMenu extends AbstractContainerMenu {
             }
         } else {
             // 从玩家背包往袋子里搬 —— 按「满耐久 / 用过」分流到对应的那一段
-            if (!BallAmmo.isBall(stack)) {
-                return ItemStack.EMPTY;
-            }
-            boolean toAmmo = BallPouchItem.isPristine(stack);
-            int from = toAmmo ? 0 : this.ammoRows * COLUMNS;
-            int to = toAmmo ? this.ammoRows * COLUMNS : pouchSlots;
-            if (!this.moveItemStackTo(stack, from, to, false)) {
-                return ItemStack.EMPTY;
+            //
+            // 【球堆】壳（作者 2026-10-15）：壳里装的全是**用过的**球 → 直接进**转运段**。
+            // 不认壳的话 shift 搬运搬不动它，玩家只能手动一格一格拖。
+            if (com.mcmodworkspace.moreballs.BallClusterItem.isCluster(stack)) {
+                int transitFrom = this.ammoRows * COLUMNS;
+                if (!this.moveItemStackTo(stack, transitFrom, pouchSlots, false)) {
+                    return ItemStack.EMPTY;
+                }
+            } else {
+                if (!BallAmmo.isBall(stack)) {
+                    return ItemStack.EMPTY;
+                }
+                boolean toAmmo = BallPouchItem.isPristine(stack);
+                int from = toAmmo ? 0 : this.ammoRows * COLUMNS;
+                int to = toAmmo ? this.ammoRows * COLUMNS : pouchSlots;
+                if (!this.moveItemStackTo(stack, from, to, false)) {
+                    return ItemStack.EMPTY;
+                }
             }
         }
 

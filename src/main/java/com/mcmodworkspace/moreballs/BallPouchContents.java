@@ -110,13 +110,42 @@ public record BallPouchContents(List<ItemStack> ammo, List<ItemStack> transit) {
                 resize(this.transit, FIXED_SEGMENT_SIZE));
     }
 
-    /** 统计某一段里非空格的占用数 */
+    /** 统计某一段里非空格的占用数（= 用掉了几格，仍然给容量对照用） */
     public static int countFilled(List<ItemStack> segment) {
         int n = 0;
         for (ItemStack stack : segment) {
             if (!stack.isEmpty()) {
                 n++;
             }
+        }
+        return n;
+    }
+
+    /**
+     * 统计某一段里<b>实际装了多少颗球</b>。
+     *
+     * <h2>为什么需要它（作者 2026-10-15 反馈）</h2>
+     * <p>转运段现在存的是<b>球堆</b> —— 一格可能装着几十颗。而 {@link #countFilled}
+     * 数的是「占了几格」，于是袋子里明明装了一堆球，tooltip 上却写着「1 / 18」，
+     * 看起来像球丢了。</p>
+     *
+     * <p>所以那个数是给容量对照用的，这个数才是「我有多少颗」。</p>
+     *
+     * <h2>怎么算</h2>
+     * <ul>
+     *   <li><b>球堆</b> → 取它内部球列的长度（{@link BallClusterContents#size()}）</li>
+     *   <li><b>散球</b> → 取物品堆的数量（满耐久的球能叠，一格可能好几颗）</li>
+     * </ul>
+     */
+    public static int countBalls(List<ItemStack> segment) {
+        int n = 0;
+        for (ItemStack stack : segment) {
+            if (stack.isEmpty()) {
+                continue;
+            }
+            n += BallClusterItem.isCluster(stack)
+                    ? BallClusterItem.contents(stack).size()
+                    : stack.getCount();
         }
         return n;
     }
