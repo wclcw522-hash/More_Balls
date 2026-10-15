@@ -106,9 +106,24 @@ public class BallClusterSpecialRenderer implements SpecialModelRenderer<ItemStac
         //
         //  （1.1.0.12 把 GUI 改成 NONE 只解决了一半：外层那 16 倍缩放还在，
         //    又丢了居中位移 ⇒ 从「只看见一个小角」变成「整体偏移」。）
+        // ===== ★★ 1.1.0.35：context 必须是 **NONE**（我之前的 GUI 结论是**反的**）=====
+        //
+        // 我之前写的是「必须用 GUI，因为 generated 的居中位移只在 GUI 下生效」——
+        // 那句话对**普通物品**成立，但我们这条路是**自己画的特例**，结论正好相反：
+        //
+        //   · 外层 pose 已经是完整的 GUI 物品坐标系（translate 槽位中心 + scale(16,-16,16)）
+        //   · 若 state 再用 GUI context ⇒ 它**再做一次** GUI 摆法 ⇒ 叠两层 ⇒ 放大 16 倍
+        //     ⇒ 只看得见一个角
+        //   · 用 `NONE` ⇒ state **不做任何 display 变换** ⇒ 模型就是 0..1 的立方体
+        //     ⇒ 我们在 submit 里补一次 `translate(-0.5, -0.5, 0)` 把它居中
+        //
+        // 两处配合 = 原版普通物品的最终摆法（外层 16 倍 + 居中），**不叠、不丢**。
+        //
+        // 佐证：`assets/minecraft/models/item/generated.json` 的 `display` 里**没有 `gui`** ——
+        // GUI 那套居中来自代码生成的 `builtin/generated`，而 `NONE` 不走它。
         ItemStackRenderState state = new ItemStackRenderState();
         Minecraft.getInstance().getItemModelResolver().updateForTopItem(
-                state, inner, ItemDisplayContext.GUI, null, null, 0);
+                state, inner, ItemDisplayContext.NONE, null, null, 0);
 
         // ⚠️ 直接提交，**不要**动 pose —— 外层那个 scale(16, -16, 16) 正是 state 需要的。
         //
@@ -139,6 +154,24 @@ public class BallClusterSpecialRenderer implements SpecialModelRenderer<ItemStac
         //   注意 pushPose / popPose 必须成对 —— 外层那个 pose 是共用的，不能污染。
         float charge = chargeProgress();
         pose.pushPose();
+        // ===== ★★ 自己把「居中位移」补上（作者反复报「只有一个角」的真正原因）=====
+        //
+        // 根因（1.1.0.35 查到，有据可查）：
+        //   `assets/minecraft/models/item/generated.json` 的 `display` 里
+        //   **没有 `gui` 这一项**（只有 ground / head / thirdperson / firstperson / fixed）。
+        //   GUI 下的「居中 + 归一化」来自**代码生成**的 `builtin/generated` 模型，
+        //   而 `ItemDisplayContext.NONE` **不走那套 display 变换**。
+        //
+        //   ⇒ 用 NONE 时，模型是从 (0,0,0) 画到 (1,1,1) 的立方体，
+        //     在 GUI 坐标系（原点 = 槽位中心）里就是「往右下方画 16 像素」
+        //     ⇒ **只看得见右上角一块** —— 正是作者看到的。
+        //
+        // 所以：NONE context 的 state（它自己不做任何 display 变换）+ 我们补一次居中：
+        //   模型是 0..1 的立方体 ⇒ `translate(-0.5, -0.5, 0)` 就把它挪成「以原点居中」。
+        //
+        // （这一步之后，球堆图标的坐标系与普通 `generated` 物品**完全等价**：
+        //   外层给了 scale(16,-16,16)，我们给了居中 —— 两者相乘就是原版 GUI 摆法。）
+        pose.translate(-0.5F, -0.5F, 0.0F);
         if (charge > 0.0F) {
             float s = 1.0F + 0.35F * charge;
             pose.scale(s, s, s);
