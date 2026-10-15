@@ -1,3 +1,100 @@
+## 1.1.0.33 ~ 1.1.0.36 — 球堆第七批实测反馈（作者 2026-10-15）
+
+**三条。这一批的重点是「图标」—— 我改了四次 `getExtents` 都没用，最后发现改错了地方。**
+
+### ① 图标「只有一个角」—— 根因是**坐标缺了居中**，不是 extents（1.1.0.35）
+
+**我先走过的四条错路**（都改 `getExtents`，作者反馈「一点变化没有」）：
+
+| 版本 | 给的盒子 | 为什么错 |
+|---|---|---|
+| 1.1.0.8 | `±0.5` | 「原点居中」口径，错 |
+| 1.1.0.20 | `±0.6` | 同上 |
+| 1.1.0.23 | `visitExtents` 采样雪球 | 会 `applyTransform`，给的是变换后的盒子 |
+| 1.1.0.28 | `0..16` | **单位猜对了**，但仍不解决「偏移」 |
+
+**真正的根因（从原版资源里翻出来的）**：
+
+```
+assets/minecraft/models/item/generated.json
+  parent: builtin/generated
+  display:
+    ground / head / thirdperson_righthand / firstperson_righthand / fixed
+    ★★★ 没有 gui
+```
+
+**⇒ GUI 下的「居中 + 归一化」不来自 json，而来自代码生成的 `builtin/generated`** ——
+用 `ItemDisplayContext.NONE` 就**不走那套** ⇒ 模型从 `(0,0,0)` 画到 `(1,1,1)`，
+在 GUI 坐标系（原点 = 槽位中心）里就是**往右下画 16 像素** ⇒ **只看得见右上角一块** ——
+与作者看到的现象**完全对上**。
+
+**修法（Plan B）**：
+
+```java
+// 1) context 用 NONE：state 不做任何 display 变换
+resolver.updateForTopItem(state, inner, ItemDisplayContext.NONE, null, null, 0);
+
+// 2) 自己补居中：模型是 0..1 的立方体，挪一半就居中
+pose.pushPose();
+pose.translate(-0.5F, -0.5F, 0F);
+state.submit(pose, collector, light, overlay, outline);
+pose.popPose();
+```
+
+**⇒ 外层给了 `scale(16,-16,16)`、我们给了居中 —— 两者相乘就是原版 GUI 的摆法。**
+
+### ② 收回时球在**备用区**变成球堆（1.1.0.33）
+
+```java
+// BallPouchItem.isPristine（原来）
+return !ball.has(ModComponents.TOUGHNESS_LEFT.get());   // ★ 壳没有耐久组件 ⇒ 恒判「满耐久」
+```
+
+`deliverReturned` 用它决定进 `ammo`（备用区）还是 `transit` ⇒ **每个壳都被当成满耐久 ⇒ 进备用区**，
+而备用区走 `fillInto`（按组件全等合并）⇒ 壳和球永不相等 ⇒ 每壳独占一格。
+
+**修法**：`isPristine` 认壳 —— 摊开成里面那颗球再判（回收链只对**用过的球**套壳，
+所以壳摊开后必然带耐久组件 ⇒ 进 `transit`，那才是球堆该待的地方）。
+
+### ③ 装填乱动背包 —— **上一批我只撤了一半**（1.1.0.34）
+
+`BallAmmo.swapHeldAmmoForLowestDurability` 里有两处动背包：
+
+```
+① 副手空 → 从背包挑一颗顶上            ← 上一批撤了
+② 副手满耐久 → 和背包里最旧的同种对调    ← 这一批才撤
+```
+
+② 才是作者说的「**根本没选过弹药，副手也被塞**」的来源：它由 `CrossbowItemMixin`
+在**弩装填时无条件调用**，**根本不看有没有选弹药**。
+
+修完后该方法的反汇编只剩判断：
+
+```
+0: instanceof Player ; 15: return                  ← 非玩家
+16: getOffhandItem ; 22: isCluster ; 28: return    ← 副手是壳
+30: isEmpty ; 36: return                           ← 副手空
+38: isBall ; 41: ifne ; 44: return                 ← 不是球
+45: return
+方法内 Inventory 调用 = 0    setItemInHand = 0
+```
+
+### ④ 自检收尾（1.1.0.36）
+
+日志里一直刷的一条自检 WARN，末尾是 `[redstone_snowball]` ——
+**红石雪球在 `#more_balls:balls` 标签里却没进 `BallFragments.sources()`**。
+它和另外四颗雪球一样是「一摔就碎」的，不参与切割与组合球
+⇒ 补进 `BallIntegrationCheck.INTENTIONALLY_EXCLUDED` 并写明理由。
+**改完 runClient 验证：`自检提示` 一行都没有了。**
+
+### 这一批的教训
+
+**改了四次 `getExtents` 都没效果** —— 因为那个值只**间接**影响 GUI 的缩放估算，
+而真正决定「画在哪」的是 **pose 的坐标**。**我一直在调一个影响不到现象的参数。**
+
+⇒ **现象对不上时，先问「我改的这个值，真的会影响我看到的那件事吗」。**
+
+---
 ## 1.1.0.27 ~ 1.1.0.32 — 球堆第六批实测反馈（作者 2026-10-15 / 1.1.0.26）
 
 **六条。这一批的教训是「一个功能是靠一条链串起来的 —— 只修一环不够」。**
