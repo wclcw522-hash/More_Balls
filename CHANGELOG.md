@@ -1,3 +1,101 @@
+## 1.1.0.38 ~ 1.1.0.40 — 专用服务端崩溃修复 + 图标诊断
+
+**这一批本来只是想验证「球堆图标」，结果顺带撞出一个独立的严重 bug。**
+
+### ★ 专用服务端起不来（1.1.0.40）—— 严重
+
+```
+Failed to create mod instance. ModID: more_balls
+java.lang.NoClassDefFoundError: net/minecraft/client/player/LocalPlayer
+Caused by: Attempted to load class net.minecraft.client.player.LocalPlayer
+           which is not present on the dedicated server
+```
+
+**根因**（`MoreBalls` 的构造里三行）：
+
+```java
+import com.mcmodworkspace.moreballs.client.MoreBallsClient;               // ①
+modEventBus.addListener(MoreBallsClient::registerSpecialModelRenderers);  // ②
+modEventBus.addListener(MoreBallsClient::registerReloadListeners);        // ③
+```
+
+**方法引用会触发目标类的解析与校验**，而 `MoreBallsClient` 的成员签名里带着
+`LocalPlayer` / `GuiGraphicsExtractor` / `Font` 这些客户端专属类型
+⇒ 专用服务端加载就抛 `NoClassDefFoundError`。
+
+我原来在那里的注释断言：
+
+> 「这里不需要额外的『是不是客户端』判断：该事件只在客户端触发，
+> **而方法引用是延迟解析的** —— 专用服务器永远不会加载到 MoreBallsClient。」
+
+**那句话是错的。** 实测 `runServer` 直接 FAILED，`run\world` 都生成不出来。
+
+**修法**：新增薄类 `client/MoreBallsClientModBus`，标注 `value = Dist.CLIENT`，
+只做转发；`MoreBalls` 里那三处引用全删。核对：
+
+```
+MoreBalls 字节码里 MoreBallsClient 出现次数 = 0（原本 3 处）
+runServer: Done (10.403s)! For help, type "help"
+           [ball] 新球适配自检通过：13 颗组合球部件、20 个 balls 标签成员，无遗漏
+           run\world 生成成功
+```
+
+**⚠️ 顺带说明：26.2 的 `@EventBusSubscriber` 已经没有 `bus` 参数**
+（写了会「找不到符号」），FML 按事件类型自己判断总线。
+
+**教训**：1.1.0.x（乃至更早）**从来没有在专用服务端上验证过** ——
+我一直只跑 `runClient`（它到主菜单就完事）。这条会一直藏着，
+直到这次为了「让 runClient 自动进世界」去跑 `runServer` 才撞出来。
+**⇒ 以后每批至少要跑一次 `runServer`。**
+
+### 图标诊断（1.1.0.38 / .39）
+
+作者反复报「球堆贴图一点变化没有」，而我改过 4 次 `getExtents` 都无效
+⇒ 需要一个「不靠肉眼」的判据。做法：在客户端 tick 里造一个
+`ItemStackRenderState`，走 `updateForTopItem` 解析，再用 `visitExtents`（public）
+把模型顶点打出来：
+
+```
+extents = (0,0,0) 与 (16,16,16)  ⇒ **我的 special 渲染器在跑** ⇒ 问题只在 pose ⇒ Plan B 就是答案
+extents = 别的值 / 一个顶点都没有 ⇒ 走的是原版兜底 ⇒ special 没接上 ⇒ 回头查 JSON
+```
+
+两个坑记下来：
+
+```
+① 挂 RenderGuiEvent.Post → 主菜单不渲染 HUD ⇒ 一次都不触发 ⇒ 改成 ClientTickEvent.Post
+② 主菜单阶段 `new ItemStack(...)` 抛 `NullPointerException: Components not bound yet`
+   （ItemStack 构造要 holder.components()）⇒ 必须等到 `mc.level != null`
+   ⇒ 也就是说**物品栈在进世界之前根本构造不出来**，
+     球堆的模型解析与渲染必然发生在进世界之后
+```
+
+### 附带：`build.gradle` 加了一个调试开关（默认不生效）
+
+```gradle
+runs {
+    client {
+        if (project.hasProperty('quickPlayWorld')) {
+            programArguments.addAll '--quickPlaySingleplayer',
+                    project.property('quickPlayWorld') as String
+        }
+    }
+}
+```
+
+用途：`gradle runClient -PquickPlayWorld=<存档名>` 让客户端直接进世界，
+好在**没有人工操作 GUI** 的环境里验证 In-Game 行为。
+
+**为什么不用 `--args`**：NeoForge 的 devlaunch 会把第一个参数当成 main class ——
+
+```
+java.lang.IllegalArgumentException: Could not find main class or main method.
+Given main class: --quickPlaySingleplayer
+```
+
+**默认不传这个属性 ⇒ 行为与原来完全一致**，不影响正常开发。
+
+---
 ## 1.1.0.33 ~ 1.1.0.37 — 球堆第七批实测反馈（作者 2026-10-15）
 
 **三条。这一批的重点是「图标」—— 我改了四次 `getExtents` 都没用，最后发现改错了地方。**
