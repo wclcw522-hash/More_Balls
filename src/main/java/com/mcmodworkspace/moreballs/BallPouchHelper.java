@@ -142,14 +142,22 @@ public final class BallPouchHelper {
             }
         }
 
-        // ② 手里（主手 → 副手）
+        // ② 主手（**到此为止 —— 副手一律不碰**；作者 2026-10-15 选定）
+        //
+        // ⚠️⚠️ 原来这里还有一站「副手空 → 把球放进副手」，已撤掉。理由：
+        //
+        //     副手在这套机制里是**装填位**。唯一该往那儿放东西的是
+        //     `BallAmmoAutoLoader`（主手是弩 + 装备了收纳袋 + 轮盘里选过种类 + 副手空
+        //     ⇒ 从袋子里抽**选中那个种类**的球补上）。
+        //
+        //     回收流程（本方法）也往副手塞，玩家就会看到
+        //     「**没在轮盘选过弹药，副手却被塞了球**」—— 而且塞进去的正是**刚飞回来的那颗**
+        //     （它可能根本不是当前选中的种类）。
+        //
+        //     正确顺序是：**回收 → 进袋子 → 再由自动补弹按「选中的种类」决定要不要上副手**。
+        //     也就是说：副手上出现球，唯一的来源就是「在轮盘里选过那种球」。
         if (player.getMainHandItem().isEmpty()) {
             player.setItemInHand(net.minecraft.world.InteractionHand.MAIN_HAND, ball.copy());
-            ball.setCount(0);
-            return true;
-        }
-        if (player.getOffhandItem().isEmpty()) {
-            player.setItemInHand(net.minecraft.world.InteractionHand.OFF_HAND, ball.copy());
             ball.setCount(0);
             return true;
         }
