@@ -61,32 +61,42 @@ public class BallClusterSpecialRenderer implements SpecialModelRenderer<ItemStac
             return;
         }
 
-        // 走原版流程画那一颗球：组合球的象限、附魔光效、损坏条全部自动带上
+        // ⚠️⚠️ 三个关键点，缺一个都会「偏」——
         //
-        // ⚠️⚠️ 必须用 updateForTopItem，**不能用 updateForNonLiving** ——
+        //  【1】必须用 updateForTopItem，**不能用 updateForNonLiving** ——
+        //      后者签名收的是一个 Entity，内部直接调 entity.level()。
+        //      而物品栏渲染这条链（GuiItemAtlas.drawToSlot → ItemStackRenderState.submit）
+        //      上**没有任何实体可传**，只能传 null ⇒ 进世界立刻
+        //      NullPointerException: Cannot invoke "Entity.level()" because "entity" is null
+        //      （作者 2026-10-15 实测崩溃，1.1.0.10 引进的）
+        //      updateForTopItem 收的是 Level + ItemOwner，两者都允许为 null。
         //
-        //     后者签名收的是一个 Entity，内部直接调 entity.level()。
-        //     而物品栏渲染这条链（GuiItemAtlas.drawToSlot → ItemStackRenderState.submit）
-        //     上**没有任何实体可传**，只能传 null ⇒ 进世界立刻
-        //     NullPointerException: Cannot invoke "Entity.level()" because "entity" is null
+        //  【2】context 必须是 **GUI**，不是 NONE。
+        //      `minecraft:item/generated` 父模型带一层「把 0..1 的顶点挪到以原点居中」的
+        //      translation，而那层变换**只在 GUI 这个 display context 下生效**。
+        //      用 NONE 就没有它 ⇒ 模型从槽位中心向右下画 ⇒ 图标偏移。
         //
-        //     （作者 2026-10-15 实测崩溃，1.1.0.10 引进的）
+        //  【3】提交前要把外层 pose **清干净**。
+        //      GuiItemAtlas.drawToSlot 的 pose 链是（javap 逐句核过）：
+        //          pushPose()
+        //          translate(槽位中心X, 槽位中心Y, 0)
+        //          scale(16, -16, 16)
+        //          state.submit(poseStack, …)      ← 我的 submit 就在这一行
+        //          popPose()
+        //      那已经是**完整的 GUI 物品坐标系**；而 GUI context 的 render state
+        //      自己也会带来同样的变换 —— 不清就是**叠两层**（放大 16×、Y 翻两次）。
+        //      先 identity() 抹掉，让 state 自己在原点、按 1 格 = 1 单位画。
         //
-        //     updateForTopItem 收的是 Level + ItemOwner，两者都允许为 null ——
-        //     它正是原版 GUI 渲染物品时用的那个入口。
-        // ⚠️⚠️ 用 NONE，**不能用 GUI** ——
-        //
-        //     ItemStackRenderState.submit 会**原样**把 pose 传给每一层
-        //     （javap: `layers[i].submit(pose, ...)`，中间不做任何变换），
-        //     所以走到这里时 pose 已经是 GUI 摆好的坐标系了。
-        //     再套一次 GUI 变换 = 双重变换 ⇒ 那颗球被推到画布外，
-        //     **只看得见一个小角**（作者 2026-10-15 反馈的正是这个）。
-        //
-        //     NONE 意味着「不做额外变换」，直接按当前 pose 画 —— 和原版 special 一致。
+        //  （1.1.0.12 把 GUI 改成 NONE 只解决了一半：外层那 16 倍缩放还在，
+        //    又丢了居中位移 ⇒ 从「只看见一个小角」变成「整体偏移」。）
         ItemStackRenderState state = new ItemStackRenderState();
         Minecraft.getInstance().getItemModelResolver().updateForTopItem(
-                state, inner, ItemDisplayContext.NONE, null, null, 0);
+                state, inner, ItemDisplayContext.GUI, null, null, 0);
+
+        pose.pushPose();
+        pose.last().pose().identity();   // 抹掉外层的 translate + scale(16, -16, 16)
         state.submit(pose, collector, light, overlay, outline);
+        pose.popPose();
     }
 
     @Override
