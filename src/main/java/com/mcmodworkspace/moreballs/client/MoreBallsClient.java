@@ -116,7 +116,8 @@ public final class MoreBallsClient {
      * `extractArgument` 对空壳会返回空栈，那只会让 `submit` early return，不影响这里的判断。</p>
      */
     @SubscribeEvent
-    public static void diagnoseClusterModelOnFirstFrame(RenderGuiEvent.Post event) {
+    public static void diagnoseClusterModelOnFirstFrame(
+            net.neoforged.neoforge.client.event.ClientTickEvent.Post event) {
         if (clusterModelDiagnosed) {
             return;
         }
