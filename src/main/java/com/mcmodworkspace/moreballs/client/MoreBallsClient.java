@@ -153,8 +153,90 @@ public final class MoreBallsClient {
                 st.visitExtents(v -> MoreBalls.LOGGER.info(
                         "[球堆][诊断]   extents 顶点 ({}, {}, {})", v.x(), v.y(), v.z()));
             }
+
+            // ★★ 用「间谍 collector」把 state 真正提交的几何抓出来。
+            //
+            // 我前几轮一直在推「几何是 0..1 / ±0.5 / 0..16」—— 推了五种答案全错。
+            // 这里直接拦下 `SubmitNodeCollector` 的调用，把 quad 的顶点坐标读出来：
+            // 一测就知道真实范围，配上上面那份 pose 矩阵（缩放 48 / 位移 288,48,-24）
+            // 就能算出图标最终落在屏幕哪里。
+            //
+            // 注意：26.2 **没有** `BakedModel` / `ItemRenderer.getModel` 那套旧 API，
+            // 所以「直接问模型要 quads」这条路是不通的，只能从提交端截。
+            spySubmitGeometry(mc);
         } catch (Throwable t) {
             MoreBalls.LOGGER.warn("[球堆][诊断] 探测失败", t);
+        }
+    }
+
+    /**
+     * 【临时诊断】用「间谍 collector」抓 `state` 真正提交的几何。
+     *
+     * <p>前几轮我一直在推「几何是 0..1 / ±0.5 / 0..16」——推了五种答案全错。
+     * 这里不再推：把 `SubmitNodeCollector` 换成动态代理，从 `submitItem` 的参数里
+     * 把 quad 的顶点坐标读出来，一测就知道真实范围。</p>
+     *
+     * <p>⚠️ 26.2 **没有** `BakedModel` / `ItemRenderer.getModel` 那套旧 API
+     * （jar 里连这两个类都没有），所以「直接问模型要 quads」这条路是死的，
+     * 只能从提交端截。</p>
+     */
+    private static void spySubmitGeometry(Minecraft mc) {
+        try {
+            net.minecraft.client.renderer.item.ItemStackRenderState st =
+                    new net.minecraft.client.renderer.item.ItemStackRenderState();
+            mc.getItemModelResolver().updateForTopItem(
+                    st,
+                    new ItemStack(com.mcmodworkspace.moreballs.ModItems.BALL_CLUSTER.get()),
+                    net.minecraft.world.item.ItemDisplayContext.GUI, null, null, 0);
+
+            java.lang.reflect.InvocationHandler handler = (proxy, method, args) -> {
+                if (args != null) {
+                    for (Object a : args) {
+                        if (a instanceof java.util.List<?> list && !list.isEmpty()
+                                && list.get(0) instanceof net.minecraft.client.resources.model
+                                        .geometry.BakedQuad) {
+                            float minX = Float.MAX_VALUE;
+                            float maxX = -Float.MAX_VALUE;
+                            float minY = Float.MAX_VALUE;
+                            float maxY = -Float.MAX_VALUE;
+                            float minZ = Float.MAX_VALUE;
+                            float maxZ = -Float.MAX_VALUE;
+                            for (Object o : list) {
+                                net.minecraft.client.resources.model.geometry.BakedQuad q =
+                                        (net.minecraft.client.resources.model.geometry.BakedQuad) o;
+                                for (int i = 0; i < 4; i++) {
+                                    org.joml.Vector3fc p = q.position(i);
+                                    minX = Math.min(minX, p.x());
+                                    maxX = Math.max(maxX, p.x());
+                                    minY = Math.min(minY, p.y());
+                                    maxY = Math.max(maxY, p.y());
+                                    minZ = Math.min(minZ, p.z());
+                                    maxZ = Math.max(maxZ, p.z());
+                                }
+                            }
+                            MoreBalls.LOGGER.info(
+                                    "[球堆][诊断] ★ 真实几何：{} 个 quad，x=[{}, {}] y=[{}, {}] z=[{}, {}]",
+                                    list.size(), minX, maxX, minY, maxY, minZ, maxZ);
+                        }
+                    }
+                }
+                Class<?> rt = method.getReturnType();
+                if (rt == boolean.class) {
+                    return Boolean.FALSE;
+                }
+                if (rt == int.class) {
+                    return Integer.valueOf(0);
+                }
+                return null;
+            };
+            Object spy = java.lang.reflect.Proxy.newProxyInstance(
+                    net.minecraft.client.renderer.SubmitNodeCollector.class.getClassLoader(),
+                    new Class<?>[] { net.minecraft.client.renderer.SubmitNodeCollector.class },
+                    handler);
+            st.submit(new com.mojang.blaze3d.vertex.PoseStack(),
+                    (net.minecraft.client.renderer.SubmitNodeCollector) spy, 0, 0, 0);
+        } catch (Throwable t) {
+            MoreBalls.LOGGER.warn("[球堆][诊断] 间谍提交失败", t);
         }
     }
 

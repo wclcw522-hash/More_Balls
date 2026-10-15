@@ -162,6 +162,18 @@ public final class BallAmmo {
             return;
         }
 
+        // ===== 副手拿着**满耐久**的同种球 → 换成**袋子里**最旧的那颗（作者 2026-10-15）=====
+        //
+        // ⚠️ 只从**收纳袋**里取，**绝不碰玩家背包** —— 作者明确要求
+        //    「背包内的球不应该被调动」。
+        //
+        //    球堆本来就住在袋子里，「先把袋里最旧的那颗打出去」正是这个机制该有的行为：
+        //    副手挂着崭新的满耐久球时，上膛应该去袋里掏一颗用过的顶上。
+        //
+        //    （这里原先那一大段是「从**背包**找最旧的同种球对调」，已被作者否掉、删掉了；
+        //      现在恢复的是**袋子版**。）
+        swapOffhandForOlderInPouch(player, offhand);
+
         // ===== 【已撤除】「副手满耐久 → 和背包里最旧的同种球交换」=====
         //
         // ⚠️⚠️ 作者 2026-10-15 明确：「**背包内的球不应该被调动**」。
@@ -177,6 +189,68 @@ public final class BallAmmo {
         // ⇒ 模组只从两个地方提供弹药，**玩家的背包一律不碰**：
         //     · 收纳袋 → `BallAmmoAutoLoader`（且要求轮盘选过种类）
         //     · 副手的球堆 → `CrossbowItemMixin` 装填前扣一颗
+    }
+
+    /**
+     * <b>副手那颗球还是满耐久时，换成收纳袋里最旧的一颗同种球</b>（作者 2026-10-15）。
+     *
+     * <h2>为什么只动袋子</h2>
+     * <p>作者明确要求过「<b>背包内的球不应该被调动</b>」，所以这里只向
+     * {@link BallPouchHelper#allPouchStacks} 要弹药 —— 球堆本来就住在袋子里，
+     * 「先把袋里最旧的那颗打出去」正是这套机制该有的行为。</p>
+     *
+     * <h2>不满足条件时什么都不做</h2>
+     * <ul>
+     *   <li>副手那颗已经不是满耐久 ⇒ 本来就该先打它，不用换</li>
+     *   <li>袋里没有同种球 ⇒ 不动</li>
+     *   <li>袋里那颗**并不更旧** ⇒ 把它原样放回，别白折腾一次</li>
+     * </ul>
+     */
+    private static void swapOffhandForOlderInPouch(Player player, ItemStack offhand) {
+        BallBehavior.BallProfile profile = BallBehavior.profileFor(offhand);
+        if (profile.toughness() <= 0) {
+            return;   // 没有耐久概念的球，没什么可挑的
+        }
+        int offhandLeft = BallItem.remainingToughness(offhand, profile.toughness());
+        if (offhandLeft < profile.toughness()) {
+            return;   // 副手已经不是满耐久了 —— 先用它
+        }
+
+        java.util.List<ItemStack> pouches = BallPouchHelper.allPouchStacks(player);
+        if (pouches.isEmpty()) {
+            return;
+        }
+
+        ItemStack taken = ItemStack.EMPTY;
+        for (ItemStack pouch : pouches) {
+            taken = BallPouchItem.takeLowestDurability(pouch, offhand);
+            if (!taken.isEmpty()) {
+                break;
+            }
+        }
+        if (taken.isEmpty()) {
+            return;   // 袋里没有这种球
+        }
+
+        // 袋里那颗要**确实更旧**才值得换
+        int takenLeft = BallItem.remainingToughness(taken, profile.toughness());
+        if (takenLeft >= offhandLeft) {
+            putBack(player, taken);
+            return;
+        }
+
+        // 换：副手原来那颗先收好（走和回收同一条链，绝不凭空消失），再把袋里那颗顶上去
+        ItemStack old = offhand.copy();
+        player.setItemInHand(net.minecraft.world.InteractionHand.OFF_HAND, taken);
+        putBack(player, old);
+        BallPouchHelper.syncPouchToClient(player);
+    }
+
+    /** 把一颗球放回袋子（放不下就进背包、再不行掉地上）—— 绝不凭空消失 */
+    private static void putBack(Player player, ItemStack ball) {
+        if (BallPouchHelper.deliverReturned(player, ball) == BallPouchHelper.Delivery.NOWHERE) {
+            player.drop(ball, false);
+        }
     }
 
     /**

@@ -195,6 +195,15 @@ public final class BallAmmoAutoLoader {
         ItemStack old = offhand.copy();
         player.setItemInHand(InteractionHand.OFF_HAND, ItemStack.EMPTY);
         BallPouchHelper.Delivery delivery = BallPouchHelper.deliverReturned(player, old);
+
+        // 【临时诊断】作者报「切走时收起副手球是**隐藏**、而不是收回收纳袋」——
+        // 把交付结果打出来就能分辨：
+        //   · NOWHERE（=哪儿都放不下，会掉在地上，看起来就像"没了"）
+        //   · INVENTORY_TRANSIT_FULL（本该进中转区、满了改放背包）
+        //   · AMMO / TRANSIT / INVENTORY（正常）
+        MoreBalls.LOGGER.info("[球堆][诊断] 切走收回副手球：{} → delivery={}，身上袋子 {} 个",
+                old.getHoverName().getString(), delivery,
+                BallPouchHelper.allPouchStacks(player).size());
         if (delivery == BallPouchHelper.Delivery.NOWHERE) {
             player.drop(old, false);
         } else if (delivery == BallPouchHelper.Delivery.INVENTORY_TRANSIT_FULL) {
