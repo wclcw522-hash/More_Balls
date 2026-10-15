@@ -124,6 +124,16 @@ public final class MoreBallsClient {
         clusterModelDiagnosed = true;
         try {
             Minecraft mc = Minecraft.getInstance();
+            // ⚠️⚠️ 必须先等「进了世界」—— 主菜单阶段**注册表还没绑定**，
+            //     `new ItemStack(...)` 会直接抛
+            //     `NullPointerException: Components not bound yet`
+            //     （ItemStack 构造里要 `holder.components()`）。
+            //     这也顺带说明：物品栈在进世界前根本构造不出来 ⇒
+            //     球堆的模型解析与渲染必然发生在进世界之后 ⇒ **主菜单阶段无法探测**。
+            if (mc.level == null) {
+                clusterModelDiagnosed = false;   // 还没到时候 —— 下一 tick 再看
+                return;
+            }
             net.minecraft.client.renderer.item.ItemStackRenderState state =
                     new net.minecraft.client.renderer.item.ItemStackRenderState();
             mc.getItemModelResolver().updateForTopItem(

@@ -1,7 +1,6 @@
 package com.mcmodworkspace.moreballs;
 
 import com.mcmodworkspace.shared.core.ModLog;
-import com.mcmodworkspace.moreballs.client.MoreBallsClient;
 import net.neoforged.bus.api.IEventBus;
 import net.neoforged.fml.ModContainer;
 import net.neoforged.fml.common.Mod;
@@ -44,17 +43,25 @@ public class MoreBalls {
         // 实测：挂在 FMLLoadCompleteEvent 上时标签仍是空的，自检会误报「球不在标签里」。
         // 所以挪到 BallIntegrationCheck 自己的服务端启动钩子里（见那个类）。
 
-        // 组合球装填到弩上时的外观 —— 客户端专用的 special 渲染器。
+        // ===== 组合球的 special 渲染器 + 资源包重载缓存 =====
         //
-        // ⚠️ 必须挂在**这个 mod 总线**上，不能靠 @EventBusSubscriber（那是 GAME 总线）：
-        //    RegisterSpecialModelRendererEvent 声明了 implements IModBusEvent，
-        //    挂错总线的症状极其隐蔽 —— 模型静默变空白（整把弩消失），日志里
-        //    一条报错都没有，只有「模型加载不出来」这一个可见结果。
-        //    这里不需要额外的「是不是客户端」判断：该事件只在客户端触发，
-        //    而方法引用是延迟解析的 —— 专用服务器永远不会加载到 MoreBallsClient。
-        modEventBus.addListener(MoreBallsClient::registerSpecialModelRenderers);
-        // 资源包重载时清掉按贴图算出来的缓存（弩的组合球贴图）
-        modEventBus.addListener(MoreBallsClient::registerReloadListeners);
+        // ⚠️⚠️ 这两件事**不在这里注册** —— 它们在客户端专属的
+        //     `client/MoreBallsClientModBus`（标注 `value = Dist.CLIENT` + `bus = Bus.MOD`）。
+        //
+        //     原来这里是 `modEventBus.addListener(MoreBallsClient::registerSpecialModelRenderers)`，
+        //     注释还断言「方法引用是延迟解析的，专用服务器永远不会加载到 MoreBallsClient」——
+        //     **那句话是错的**：方法引用会触发目标类的解析与校验，而 MoreBallsClient 的
+        //     成员签名里带着 LocalPlayer / GuiGraphicsExtractor / Font 等客户端专属类型
+        //     ⇒ **专用服务端启动时直接**
+        //
+        //         java.lang.NoClassDefFoundError: net/minecraft/client/player/LocalPlayer
+        //         Caused by: Attempted to load class … which is not present on the dedicated server
+        //
+        //     **这一线在专用服务端上根本起不来**（作者 2026-10-15，runServer 实测 FAILED）。
+        //     修法见 `MoreBallsClientModBus` 的类注释。
+        //
+        //     顺带：那两条注册必须挂在 **mod 总线**上 —— 它们的事件都声明了
+        //     `implements IModBusEvent`，挂错总线的症状极其隐蔽（模型静默变空白、日志无报错）。
 
         LOGGER.info("[{}] 初始化完成：分类「球」、标签 #{}:balls、右键投掷（含蓄力）、弩弹药",
                 MOD_ID, MOD_ID);
