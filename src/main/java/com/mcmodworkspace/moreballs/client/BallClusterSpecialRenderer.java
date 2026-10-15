@@ -62,9 +62,21 @@ public class BallClusterSpecialRenderer implements SpecialModelRenderer<ItemStac
         }
 
         // 走原版流程画那一颗球：组合球的象限、附魔光效、损坏条全部自动带上
+        //
+        // ⚠️⚠️ 必须用 updateForTopItem，**不能用 updateForNonLiving** ——
+        //
+        //     后者签名收的是一个 Entity，内部直接调 entity.level()。
+        //     而物品栏渲染这条链（GuiItemAtlas.drawToSlot → ItemStackRenderState.submit）
+        //     上**没有任何实体可传**，只能传 null ⇒ 进世界立刻
+        //     NullPointerException: Cannot invoke "Entity.level()" because "entity" is null
+        //
+        //     （作者 2026-10-15 实测崩溃，1.1.0.10 引进的）
+        //
+        //     updateForTopItem 收的是 Level + ItemOwner，两者都允许为 null ——
+        //     它正是原版 GUI 渲染物品时用的那个入口。
         ItemStackRenderState state = new ItemStackRenderState();
-        Minecraft.getInstance().getItemModelResolver().updateForNonLiving(
-                state, inner, ItemDisplayContext.GUI, null);
+        Minecraft.getInstance().getItemModelResolver().updateForTopItem(
+                state, inner, ItemDisplayContext.GUI, null, null, 0);
         state.submit(pose, collector, light, overlay, outline);
     }
 
