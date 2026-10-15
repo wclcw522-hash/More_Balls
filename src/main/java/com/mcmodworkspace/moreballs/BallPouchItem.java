@@ -108,7 +108,44 @@ public class BallPouchItem extends Item {
      * @return true 表示这颗球<b>全部</b>塞进去了
      */
     public static boolean insert(ItemStack pouch, ItemStack ball) {
-        if (ball.isEmpty() || !BallAmmo.isBall(ball)) {
+        if (ball.isEmpty()) {
+            return false;
+        }
+
+        // ===== 【球堆】壳进袋子（作者 2026-10-14）=====
+        //
+        // 壳不能走下面那条「就地扣数量」的路 —— 它的语义是「掏一颗出来」，
+        // 而不是「这一格少一个」。所以在这里把壳里的球**逐颗倒进袋子**：
+        //
+        //   · 每颗都按它自己的耐久分流（满耐久 → 弹药段，用过的 → 转运段）
+        //   · 袋子塞不下就把这一颗**放回壳里**并收工（其余的原样留着）
+        //   · 壳被掏空后组件自动摘掉，调用方拿 contents().isEmpty() 就能看出来
+        //
+        // 这样「袋子优先、球堆兜底」那条分工才真正成立：袋子的容量先被用满，
+        // 剩下的球才在回收流程里被套成壳。
+        if (BallClusterItem.isCluster(ball)) {
+            boolean moved = false;
+            while (!BallClusterItem.contents(ball).isEmpty()) {
+                ItemStack one = BallClusterItem.takeOne(ball);
+                if (one.isEmpty()) {
+                    break;
+                }
+                ItemStack probe = one.copy();   // 塞进去的是副本，探针用来判断成没成
+                boolean ok = isPristine(probe)
+                        ? insertToAmmo(pouch, probe)
+                        : insertToTransit(pouch, probe);
+                if (!probe.isEmpty()) {
+                    // 塞不下：把这一颗放回壳里，收工（其余的也还在）
+                    BallClusterContents current = BallClusterItem.contents(ball);
+                    BallClusterItem.setContents(ball, current.withAdded(probe));
+                    break;
+                }
+                moved = true;
+            }
+            return moved;
+        }
+
+        if (!BallAmmo.isBall(ball)) {
             return false;
         }
         boolean toAmmo = isPristine(ball);

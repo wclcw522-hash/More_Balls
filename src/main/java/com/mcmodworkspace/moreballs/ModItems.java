@@ -280,6 +280,29 @@ public final class ModItems {
     public static final DeferredItem<Item> NETHERITE_BALL_POUCH = registerPouch(BallPouchTier.NETHERITE);
 
     /**
+     * <b>「球堆」</b>—— 见 {@link BallClusterItem}。
+     *
+     * <h2>为什么是 {@code stacksTo(1)}</h2>
+     * <p>球堆内部存着一批球（{@link BallClusterContents}），而这些球的内容本身就是组件的一部分，
+     * 所以两个球堆几乎不可能组件一致 —— <b>它们本来就叠不起来</b>。
+     * 但这不影响它的目的：<b>一个球堆最多装 {@link BallClusterContents#MAX_BALLS} 颗，自己只占一格</b>。
+     * （和潜影盒同理，装满的潜影盒之间也叠不了，但它本来就只占一格。）</p>
+     *
+     * <p>物品栏图标角落那个「内部球数」由 {@code BallClusterDecorator} 自己画 ——
+     * 原版只给真的可堆叠物品画堆叠数字。</p>
+     *
+     * <h2>为什么它不会出现在创造栏和 JEI 里</h2>
+     * <p>创造栏是<b>标签驱动</b>的（见 {@code ModCreativeTabs}：实时遍历注册表、只收
+     * {@code #more_balls:balls} 标签的东西）。<b>本物品不挂那个标签</b>，
+     * 于是它自动进不去 —— 一行代码都不用改。</p>
+     *
+     * <p>作者指定的定位：<b>它只是「减少物品栏占用」的措施</b>，
+     * 不是给玩家直接拿的东西，玩家手上拿到的球堆一律是回收流程生成的。</p>
+     */
+    public static final DeferredItem<Item> BALL_CLUSTER =
+            ITEMS.registerItem("ball_cluster", props -> new BallClusterItem(props.stacksTo(1)));
+
+    /**
      * 注册一件收纳袋。
      *
      * <p>物品 id 就是等级的资源名（皮革那件叫 {@code ball_pouch}）。</p>

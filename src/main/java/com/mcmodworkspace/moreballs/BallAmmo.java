@@ -129,6 +129,32 @@ public final class BallAmmo {
             return;
         }
         ItemStack offhand = player.getOffhandItem();
+
+        // ===== 【球堆】副手拿着整堆球时，先把最低的那颗掏出来顶上（作者 2026-10-14）=====
+        //
+        // ⚠️ 光让 predicate 认球堆是不够的：原版 tryLoadProjectiles 会调 draw()，
+        //    而 draw() 装进 CHARGED_PROJECTILES 的是**那一格本身的副本** ——
+        //    副手是壳，装进去的就是整个壳，于是 createProjectile 那边 isBall(projectile)
+        //    不认壳、掉进原版兜底，发射出来变成一支普通箭。
+        //
+        // 所以必须在**装填之前**把副手那一格摊开成一颗真正的球，
+        // 后续原版流程一个字都不用改（和上面「换耐久最低」是同一套手法）。
+        //
+        // 壳剩下的部分退回背包 —— 它还有别的球，不能丢。
+        if (BallClusterItem.isCluster(offhand)) {
+            ItemStack ball = BallClusterItem.takeOne(offhand);
+            if (!ball.isEmpty()) {
+                ItemStack leftover = offhand.copy();   // takeOne 已经从 offhand 里减掉了这一颗
+                player.setItemInHand(net.minecraft.world.InteractionHand.OFF_HAND, ball);
+                if (!leftover.isEmpty()) {
+                    if (!player.getInventory().add(leftover)) {
+                        player.drop(leftover, false);
+                    }
+                }
+            }
+            return;
+        }
+
         if (!isBall(offhand)) {
             return;
         }

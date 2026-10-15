@@ -137,6 +137,29 @@ public final class ModComponents {
     public static final List<DeferredHolder<DataComponentType<?>, DataComponentType<Integer>>> COMBO_SLOTS =
             List.of(COMBO_SLOT_1, COMBO_SLOT_2, COMBO_SLOT_3, COMBO_SLOT_4);
 
+    /**
+     * 「球堆」里装着的那批球 —— 见 {@link BallClusterContents}。
+     *
+     * <h2>为什么需要它（作者 2026-10-14 指定的机制）</h2>
+     * <p>打出去一组球、回收回来时，每颗挨的碰撞次数都不一样 —— 而耐久记在上面那个
+     * {@link #TOUGHNESS_LEFT} 组件里，<b>组件值不同就必然分成不同的堆</b>。
+     * 结果就是「一组的球回来占掉大半个背包」，且越用越散。</p>
+     *
+     * <p>球堆给这些球套一个「壳」：<b>壳只记「哪种球 + 哪一档」</b>，
+     * 内部的球则原样存着（每颗带自己精确的耐久）。取出时把原来那颗还回去，
+     * <b>耐久一分不差</b>。</p>
+     *
+     * <p>⚠️ 壳与壳之间<b>不能</b>互相叠 —— 因为 {@code balls} 的内容本身就是组件的一部分。
+     * 但那不影响本机制的目的：一个壳最多装 {@link BallClusterContents#MAX_BALLS} 颗，
+     * 自己就只占一格。（和潜影盒同理：装满的潜影盒之间也叠不了，但它本来就只占一格。）</p>
+     *
+     * <p>不带这个组件 = 不是球堆（普通球就是这样）。</p>
+     */
+    public static final DeferredHolder<DataComponentType<?>, DataComponentType<BallClusterContents>> BALL_CLUSTER =
+            COMPONENTS.registerComponentType("ball_cluster", builder -> builder
+                    .persistent(BallClusterContents.CODEC)
+                    .networkSynchronized(BallClusterContents.STREAM_CODEC));
+
     public static void register(IEventBus modEventBus) {
         COMPONENTS.register(modEventBus);
     }

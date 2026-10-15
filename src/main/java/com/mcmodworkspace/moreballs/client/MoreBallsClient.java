@@ -70,6 +70,20 @@ public final class MoreBallsClient {
         }
     }
 
+    /**
+     * 【球堆】图标角落那个数量 —— 见 {@link BallClusterDecorator}。
+     *
+     * <p>球堆是 {@code stacksTo(1)} 的，原版不会给它画堆叠数字（那个只读
+     * {@code ItemStack#getCount()}），所以得自己挂一个 {@code IItemDecorator}。
+     * 数字取的是球列长度，现算的。</p>
+     */
+    @SubscribeEvent
+    public static void onRegisterItemDecorations(
+            net.neoforged.neoforge.client.event.RegisterItemDecorationsEvent event) {
+        event.register(com.mcmodworkspace.moreballs.ModItems.BALL_CLUSTER.get(),
+                BallClusterDecorator.INSTANCE);
+    }
+
     /** 球的投射物复用原版 ThrownItemRenderer：按实体携带的物品堆渲染，无需写渲染代码 */
     @SubscribeEvent
     public static void onRegisterRenderers(EntityRenderersEvent.RegisterRenderers event) {

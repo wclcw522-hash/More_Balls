@@ -3592,8 +3592,22 @@ public class BallProjectile extends ThrowableItemProjectile {
 
         // 作者指定的回收顺序：袋子的中转槽 → 背包最前 → 快捷栏最前 → 掉成掉落物。
         // （用附魔回收时玩家多半没空手接，所以和主动拾取的顺序是反的）
-        boolean stored = owner instanceof Player player
-                && BallPouchHelper.deliverReturned(player, stack) != BallPouchHelper.Delivery.NOWHERE;
+        //
+        // 【球堆】（作者 2026-10-14 追加）—— 袋子和球堆都是「省格子」的措施，分工是：
+        //   · **袋子能收就进袋子**（它有弹药段 / 转运段两段，本来就是为此设计的）
+        //   · **袋子收不了时改走球堆**，而不是直接掉在地上 ——
+        //     那正是作者反馈的「打出去一组、收回来五六组耐久不同的球」的来源
+        //   · 两者都放不下才掉成掉落物（BallClusterItem.store 内部自己会兜这一下）
+        boolean stored;
+        if (owner instanceof Player player) {
+            stored = BallPouchHelper.deliverReturned(player, stack) != BallPouchHelper.Delivery.NOWHERE;
+            if (!stored) {
+                com.mcmodworkspace.moreballs.BallClusterItem.store(player, stack);
+                stored = true;   // store 放不下时会自己掉在玩家脚下，这里不必再兜一次
+            }
+        } else {
+            stored = false;
+        }
         if (!stored) {
             this.spawnAtLocation(level, stack, 0.1F);
         }

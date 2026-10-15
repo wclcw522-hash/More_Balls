@@ -136,6 +136,64 @@ public class MoreBallsJeiPlugin implements IModPlugin {
         // SlotDisplay 用的是裸模板 —— 于是「从成品反查配方」查到的 uid
         // 和注册进去的对不上，两个组合球配方在「用途」页里全部消失。
         // 组合球只有八种来源，合并显示反而是想要的效果。
+
+        // ===== 球堆（作者 2026-10-14 追加的需求）=====
+        //
+        // 需求：**在背包里把鼠标悬停在球堆上、按查询配方的键，要跳到「球堆内部那颗球」的配方。**
+        //
+        // JEI 是按「物品 + 子类型」索引配方的，所以想让带组件的球堆查到配方，
+        // **必须**把它注册成子类型 —— 这恰好是上面那两条教训的反面：
+        // 半球 / 组合球不注册是因为「不想多出条目」，而球堆不注册就**根本查不到配方**。
+        //
+        // ⚠️⚠️ **子类型只按「球种」算，绝不把耐久算进去**
+        //     （作者特意交代「最好不要一次性搞太多条目」）。
+        //     球堆内部的耐久千变万化，算进去会炸出几十上百个条目；
+        //     而**耐久根本不影响配方** —— 只按球种算既能查到正确的配方，
+        //     JEI 里也最多只有 8 个球堆条目（每种球一个）。
+        //
+        //     所以这里取的是**内部球的物品 id**，不是那颗球本身。
+        registration.registerSubtypeInterpreter(ModItems.BALL_CLUSTER.get(), (stack, context) -> {
+            ItemStack inner = com.mcmodworkspace.moreballs.BallClusterItem.contents(stack).lowest();
+            return inner.isEmpty()
+                    ? ""
+                    : net.minecraft.core.registries.BuiltInRegistries.ITEM.getKey(inner.getItem()).toString();
+        });
+    }
+
+    /**
+     * <b>运行期把球堆从 JEI 的物品列表里移除。</b>
+     *
+     * <h2>这是「C 方案」的后半（作者 2026-10-14 指定「试试 c」）</h2>
+     * <p>前面 {@link #registerItemSubtypes} 给球堆注册了子类型，那是
+     * 「按 R 能跳到内部那颗球的配方」的<b>硬性前提</b> —— 但副作用是球堆会出现在
+     * JEI 的物品列表里，而作者要的是「它只是个减少物品栏占用的措施，不是给玩家直接拿的东西」。</p>
+     *
+     * <p>所以这里在 JEI 运行期就绪之后把它<b>从列表移除</b>，两件事都要：</p>
+     * <ul>
+     *   <li><b>注册子类型</b> —— 拿到「悬停按 R 查配方」的能力</li>
+     *   <li><b>运行期移除</b> —— 列表里看不见它</li>
+     * </ul>
+     *
+     * <h2>⚠️ 未知项</h2>
+     * <p><b>我无法在这里实测「移除之后按 R 还能不能查到配方」</b> ——
+     * {@code runClient} 只跑到主菜单，射不出那一箭、也点不到 JEI 界面。
+     * 两种结果都有可能：</p>
+     * <ol>
+     *   <li>移除只影响<b>列表显示</b>，配方索引照旧 ⇒ 两个目的都达到（理想情况）</li>
+     *   <li>移除同时也把配方索引摘了 ⇒ 按 R 查不到，那就得在这两者之间取舍</li>
+     * </ol>
+     * <p>请作者实测后告知走的是哪一条；若是第 2 种，把本方法注释掉即可回到
+     * 「列表里有、但按 R 能查配方」的状态（那种状态本身也是可用的）。</p>
+     */
+    @Override
+    public void onRuntimeAvailable(mezz.jei.api.runtime.IJeiRuntime runtime) {
+        try {
+            runtime.getIngredientManager().removeIngredientsAtRuntime(
+                    mezz.jei.api.constants.VanillaTypes.ITEM_STACK,
+                    java.util.List.of(new ItemStack(ModItems.BALL_CLUSTER.get())));
+        } catch (Throwable ignored) {
+            // JEI 版本差异导致口子对不上时安静跳过 —— 顶多是列表里多一个条目，不影响游戏
+        }
     }
 
     // ===== 四个示例物品已在 0.3.3.127 删除（作者指定）=====
