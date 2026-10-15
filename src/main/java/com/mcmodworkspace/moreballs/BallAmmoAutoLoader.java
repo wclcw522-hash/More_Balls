@@ -131,7 +131,39 @@ public final class BallAmmoAutoLoader {
     }
 
     /**
-     * 补弹诊断 —— 只在「本该补弹却没补」的地方调用，并做限流避免每刻刷屏。
+     * <b>把副手那颗球收回袋子</b> —— 主手从弩切到别的东西时调用（作者 2026-10-15 要求）。
+     *
+     * <h2>为什么只在「有袋子」时收</h2>
+     * <p>袋子不在身上时「收回」无处可去，只能塞进背包 —— 而背包本来就是玩家自己管的，
+     * 那样反而像模组擅自挪了东西。所以没袋子就什么都不做，副手保持原样。</p>
+     *
+     * <h2>只收「是球」的副手</h2>
+     * <p>副手拿着火把 / 盾牌 / 别的物品时一律不碰 —— 那是玩家自己的搭配。</p>
+     *
+     * <p>收回走 {@link BallPouchHelper#deliverReturned}，和弩射完的回收是同一套：
+     * 优先袋子中转槽、退而进背包、实在不行掉地上。绝不会让那颗球凭空消失。</p>
+     */
+    private static void recallOffhandBall(Player player) {
+        ItemStack offhand = player.getOffhandItem();
+        if (offhand.isEmpty() || !BallAmmo.isBall(offhand)) {
+            return;
+        }
+        if (BallPouchHelper.allPouchStacks(player).isEmpty()) {
+            return;   // 没袋子 —— 不擅自挪玩家的东西
+        }
+        ItemStack old = offhand.copy();
+        player.setItemInHand(InteractionHand.OFF_HAND, ItemStack.EMPTY);
+        BallPouchHelper.Delivery delivery = BallPouchHelper.deliverReturned(player, old);
+        if (delivery == BallPouchHelper.Delivery.NOWHERE) {
+            player.drop(old, false);
+        } else if (delivery == BallPouchHelper.Delivery.INVENTORY_TRANSIT_FULL) {
+            player.sendOverlayMessage(
+                    Component.translatable("message.more_balls.transit_full"));
+        }
+    }
+
+    /**
+     * 补弹诊断补弹诊断 —— 只在「本该补弹却没补」的地方调用，并做限流避免每刻刷屏。
      *
      * <p>打出的量：选中的是哪种球、副手现在拿着什么/耐久多少、袋子里同种最低耐久、
      * 身上有几个收纳袋。这四个数一摆，「补不上来」的几种可能（没选、袋子没找到、
