@@ -375,7 +375,22 @@ public class BallClusterItem extends Item {
                 .withStyle(ChatFormatting.GOLD));
         if (!lowest.isEmpty()) {
             boolean shift = isShiftDown();
-            for (BallTooltip.Entry entry : BallTooltip.entries(lowest, shift)) {
+
+            // ⚠️⚠️ 【蓄力x】这一行**必须常显**（作者 2026-10-15：「球堆没有蓄力的那一行提示字」）。
+            //
+            //     `BallTooltip.entries` 里那条的显示条件是
+            //         `detailed || profile.chargeLevels() != DEFAULT_CHARGE_LEVELS`
+            //     —— 也就是**默认档的球在没按 Shift 时根本不生成这一行**。
+            //
+            //     那对「球」是合理的（球主要当弩弹药，径向菜单也跳过它），
+            //     但**球堆不同**：手持球堆右键就是蓄力投掷，这是玩家最先要知道的事。
+            //     所以这里拿 `detailed = true` 的完整列表，再按「CHARGE 恒显、其余跟随 Shift」
+            //     过滤 —— 格式仍然是 `BallTooltip` 那一份，不自己拼。
+            for (BallTooltip.Entry entry : BallTooltip.entries(lowest, true)) {
+                boolean isCharge = entry.kind() == BallTooltip.Kind.CHARGE;
+                if (!shift && !isCharge) {
+                    continue;   // 没按 Shift 时，只额外放行蓄力那一条
+                }
                 tooltip.accept(entry.text());
                 if (shift && entry.detail() != null) {
                     tooltip.accept(Component.literal("  ").append(entry.detail()));
