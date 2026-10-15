@@ -360,24 +360,50 @@ public class BallClusterItem extends Item {
             return;
         }
 
-        // 常规栏：数量 + **里面是哪种球** + 最低耐久
+        // 常规栏：数量 + **球的详细信息**（作者 2026-10-15 明确）
+        //
+        // ⚠️ 作者原话：「**不需要**在悬停界面显示名字（名字里本身就包含这是啥球），
+        //    而是显示对应球的详细信息，比如【坚固x】【基础伤害x】等这些，
+        //    **格式和球本身的一样**。（包括悬停页和 shift 展开页）」
+        //
+        // 所以这里**不再自己拼格式**，直接复用球自己的 tooltip 生成器
+        // {@link BallTooltip#entries} —— 和 {@code BallItem.appendHoverText} 逐行同构：
+        //   · 不按 Shift：只给词条本身（【基础伤害11】【坚固3】…）
+        //   · 按住 Shift：每条后面追加它的说明（entry.detail()，缩进一格）
+        // 两处读同一份数据，**将来球改了词条，球堆自动跟着变**，不会说法不一致。
         tooltip.accept(Component.translatable("tooltip.more_balls.cluster.count", count)
                 .withStyle(ChatFormatting.GOLD));
         if (!lowest.isEmpty()) {
-            // 「球本身的信息也要显示出来」（作者 2026-10-15）——
-            // 壳里的球都是完整栈（耐久、词条都在），把它的显示名摆出来，
-            // 一眼就知道这一堆是什么球、哪一档（名字自带「瑕疵的」「破损的」这类前缀）
-            tooltip.accept(Component.translatable("tooltip.more_balls.cluster.contains",
-                            lowest.getHoverName())
-                    .withStyle(ChatFormatting.WHITE));
-            // 带上「这一档有几颗」（作者 2026-10-15 要求）—— 也就是「最低耐久的那一组」的大小，
-            // 和 Shift+右键 扔出去的数量是同一个口径
+            boolean shift = isShiftDown();
+            for (BallTooltip.Entry entry : BallTooltip.entries(lowest, shift)) {
+                tooltip.accept(entry.text());
+                if (shift && entry.detail() != null) {
+                    tooltip.accept(Component.literal("  ").append(entry.detail()));
+                }
+            }
+            // 「这一档有几颗」（作者 2026-10-15）—— 「最低耐久的那一组」的大小，
+            // 和 Shift+右键 / 右键取一组 是同一个口径
             tooltip.accept(Component.translatable("tooltip.more_balls.cluster.lowest",
                             left(lowest), contents.lowestGroupSize())
                     .withStyle(ChatFormatting.GRAY));
         }
         tooltip.accept(Component.translatable("tooltip.more_balls.cluster.hint_alt")
                 .withStyle(ChatFormatting.DARK_GRAY));
+    }
+
+    /**
+     * 是否按住 Shift（和 {@code BallItem} 里那个同样的写法）。
+     *
+     * <p>26.x 的 {@code Screen} 已经没有 {@code hasShiftDown()}，改问 {@link Minecraft} 本身；
+     * 只有客户端有这个类，所以用 try/catch 兜住 —— 取不到就当没按。</p>
+     */
+    private static boolean isShiftDown() {
+        try {
+            net.minecraft.client.Minecraft minecraft = net.minecraft.client.Minecraft.getInstance();
+            return minecraft != null && minecraft.hasShiftDown();
+        } catch (Throwable ignored) {
+            return false;
+        }
     }
 
     /**

@@ -170,6 +170,18 @@ public record BallClusterContents(ItemStack icon, List<ItemStack> balls) {
      * <p>塞不下、或种类/档位不符时<b>原样返回 {@code this}</b> —— 调用方拿返回值比一下
      * 就知道成没成，不用另开 boolean。</p>
      *
+     * <p><b>⚠️ 按 {@code count} 拆成一颗一个元素</b>（作者 2026-10-15 实测反馈
+     * 「同耐久的一组球整理后只剩 1 个」就是这条引起的）。</p>
+     *
+     * <h2>为什么必须拆</h2>
+     * <p>背包里 8 颗同耐久的球是<b>一个 {@code count=8} 的栈</b>。原先这里写的是
+     * {@code next.add(ball.copy())} —— 把<b>整个栈当成一个元素</b>塞进去，于是
+     * `balls.size()` 返回 1，而 {@link #size()}（图标角标、tooltip、「一组」的数量、
+     * `declusterInto` 的判据）全都拿它当「几颗」用 ⇒ 8 颗显示成 1 颗。</p>
+     *
+     * <p>现在一个元素 = 一颗球，`size()` 就是货真价实的颗数 ——
+     * <b>六处口径一次性对齐，不用逐处改</b>。</p>
+     *
      * <p>塞完重新按耐久升序排一次（见类注释里的排序约定）。</p>
      */
     public BallClusterContents withAdded(ItemStack ball) {
@@ -181,7 +193,12 @@ public record BallClusterContents(ItemStack icon, List<ItemStack> balls) {
             return this;   // 种类或档位不符
         }
         List<ItemStack> next = new ArrayList<>(this.balls);
-        next.add(ball.copy());
+        // 一颗一个元素；装不下的部分留在原栈里（调用方靠返回值判断成没成）
+        int room = MAX_BALLS - next.size();
+        int add = Math.min(ball.getCount(), room);
+        for (int i = 0; i < add; i++) {
+            next.add(ball.copyWithCount(1));
+        }
         return new BallClusterContents(iconNow, sortByLowest(next));
     }
 

@@ -116,11 +116,30 @@ public class BallClusterSpecialRenderer implements SpecialModelRenderer<ItemStac
         //     PoseStack pose = new PoseStack();
         //     model.root().getExtentsForGui(pose, out);
         //
-        // 我这边拿不到「那一刻那个球」的模型（getExtents 是无参的），所以给一个**略大**的范围：
-        // GUI 是按这个盒子算缩放的 —— 给大了顶多缩一点，**给小了会被裁掉**。
-        // 宁可略大。
-        out.accept(new org.joml.Vector3f(-0.6F, -0.6F, -0.6F));
-        out.accept(new org.joml.Vector3f(0.6F, 0.6F, 0.6F));
+        // ⚠️⚠️ 我 1.1.0.20 这里写死过 `±0.6F`，**这是错的**（作者实测「贴图还是错的」）。
+        //
+        //    这个盒子是 **GUI 用来算缩放的**：
+        //      · 给大了 ⇒ 被判成「超大物品」（ItemStackRenderState.isOversizedInGui /
+        //        OversizedItemRenderer 那条独立渲染链）⇒ 走另一套缩放与裁剪 ⇒ 图标偏移
+        //      · 给小了 ⇒ 直接被裁掉
+        //
+        // 我拿不到「那一刻那个球」的模型（getExtents 无参，每个未烘焙模型只调一次），
+        // 但 **ItemStackRenderState 自带 `visitExtents(Consumer)`** ——
+        // 建一个「标准尺寸物品」的 render state 问它就行，这和原版「问模型要」等价。
+        //
+        // 用雪球当基准：本模组所有球的图标都是 `minecraft:item/generated` 那一类，
+        // 尺寸口径与它一致（组合球的自定义模型也是按同一个格子做的）。
+        try {
+            ItemStackRenderState probe = new ItemStackRenderState();
+            Minecraft.getInstance().getItemModelResolver().updateForTopItem(
+                    probe, new ItemStack(net.minecraft.world.item.Items.SNOWBALL),
+                    ItemDisplayContext.GUI, null, null, 0);
+            probe.visitExtents(out);
+        } catch (Throwable ignored) {
+            // 模型系统还没起来 / 取不到实例 —— 退回原版 generated 物品的标准盒子
+            out.accept(new org.joml.Vector3f(-0.5F, -0.5F, -0.5F));
+            out.accept(new org.joml.Vector3f(0.5F, 0.5F, 0.5F));
+        }
     }
 
     /**

@@ -220,6 +220,44 @@ public final class BallPouchHelper {
 
         // ② 背包最靠前的位置（含快捷栏 —— 原版背包就是 0..35）
         Inventory inventory = player.getInventory();
+
+        // ===== ②-0 ★ 先并进背包里**已有的同类壳**（作者 2026-10-15 反馈）=====
+        //
+        // 「球自己飞回来的情况下还是不会主动并入球堆」—— 根因就在这段：
+        // 原先这里**只找空格**，从不看背包里有没有同类的壳，于是飞回来的球
+        // 自己新建一个壳占一格，已有的壳原地不动。
+        //
+        // ⚠️ 比对时用的是 `asBall(ball)`（**壳里那颗球**），不是 ball 本身 ——
+        //    传进来的 ball 在回收链上已经 clusterize 过，是个**壳**；
+        //    拿壳去 matches 会因为 item 不同而永远失配（这个坑在袋子那边踩过）。
+        //
+        // ⚠️ `withAdded` 会静默失败（满 64 / 不匹配），必须核对返回值 ——
+        //    加不进去就当没成，继续试下一个（这是 1.1.0.21 修「丢球」时立的规矩）。
+        if (BallClusterItem.isCluster(ball)) {
+            ItemStack probe = BallClusterItem.asBall(ball);
+            if (!probe.isEmpty()) {
+                for (int i = 0; i < 36; i++) {
+                    ItemStack slot = inventory.getItem(i);
+                    if (!BallClusterItem.isCluster(slot)) {
+                        continue;
+                    }
+                    BallClusterContents existing = BallClusterItem.contents(slot);
+                    if (!existing.hasRoom() || !existing.matches(probe)) {
+                        continue;
+                    }
+                    BallClusterContents after = existing.withAdded(probe);
+                    if (after == existing) {
+                        continue;   // 没加进去 → 试下一个壳
+                    }
+                    BallClusterItem.setContents(slot, after);
+                    ball.setCount(0);
+                    return pristine || pouches.isEmpty()
+                            ? Delivery.INVENTORY
+                            : Delivery.INVENTORY_TRANSIT_FULL;
+                }
+            }
+        }
+
         for (int i = 0; i < 36; i++) {
             if (inventory.getItem(i).isEmpty()) {
                 inventory.setItem(i, ball.copy());
