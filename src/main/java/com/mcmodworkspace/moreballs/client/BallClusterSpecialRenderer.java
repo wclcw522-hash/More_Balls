@@ -174,37 +174,23 @@ public class BallClusterSpecialRenderer implements SpecialModelRenderer<ItemStac
         // 球堆画的是「里面那颗球」，属 `minecraft:item/generated` 那一类 ——
         // 模型是**从 (0,0,0) 到 (1,1,1) 的立方体**（左上原点，**不是**原点居中）。
         //
-        // ⚠️⚠️ 我先后给过三种答案，**全是错的**（作者实测「只有右上角那一块，偏得非常厉害」）：
-        //   · `±0.5` / `±0.6` —— 那是「原点居中」的口径 ⇒ GUI 算出的缩放与偏移都不对
-        //   · `ItemStackRenderState.visitExtents` 采样 —— 它会 applyTransform，
-        //     给的是**变换后**的盒子，比本地盒多一层
-        //   ⇒ 正确的就是**本地的 0..1 立方体**。
+        // ===== 单位是【1/16 格】，模型盒子是 0..16 =====
         //
-        // ===== 【临时诊断】把 GUI 真正消费的那个盒子打出来，用一次 runClient 定死单位 =====
-        //   作者反馈「0..1 还是只有一个角」—— 说明单位判断仍不对。
-        //   `visitExtents` 的输出是「应用 display 变换之后」的盒子，数量和值能直接反映 GUI 看到的尺度：
-        //     若是 ±0.5 上下 ⇒ 原版口径是「归一化 + 变换」
-        //     若是 0..16 / 0..256 量级 ⇒ 单位是别的，我给 0..1 就小了好几个数量级
-        if (DIAGNOSED.compareAndSet(false, true)) {
-            try {
-                ItemStackRenderState probe = new ItemStackRenderState();
-                Minecraft.getInstance().getItemModelResolver().updateForTopItem(
-                        probe, new ItemStack(net.minecraft.world.item.Items.SNOWBALL),
-                        ItemDisplayContext.GUI, null, null, 0);
-                java.util.List<String> pts = new java.util.ArrayList<>();
-                probe.visitExtents(v -> pts.add(String.format("(%.3f,%.3f,%.3f)", v.x(), v.y(), v.z())));
-                MoreBalls.LOGGER.info("[球堆][诊断] 雪球 visitExtents 点数={} 值={}", pts.size(), pts);
-            } catch (Throwable t) {
-                MoreBalls.LOGGER.warn("[球堆][诊断] 采样失败", t);
-            }
-        }
+        // 证据链（都 javap 核过）：
+        //   · `SpecialModelWrapper` 把本方法的输出包成 Supplier、直接 `setExtents` 到
+        //     `LayerRenderState` ⇒ 原版要的是**未经 display 变换的模型本地坐标**
+        //   · `ModelPart.getExtentsForGui` 的 lambda 遍历的是 `Cube.polygons`（逐面顶点），
+        //     而 `ModelPart$Cube` 的构造里坐标**直接存、没有 ÷16**
+        //     ⇒ **模型 JSON 的元素是 `from[0,0,0] to[16,16,16]`，Cube 存的就是 0..16**
+        //
+        // ⚠️⚠️ 我先后给过四种答案，**前三种全错**（作者实测「只有右上角那一块」）：
+        //   · `±0.5` / `±0.6` —— 「原点居中」口径，错
+        //   · `visitExtents` 采样 —— 会 applyTransform，多一层，错
+        //   · `0..1` —— 把 1/16 格当成了 1 格 ⇒ 盒子小 16 倍 ⇒ GUI 放大 16 倍 ⇒ 只看见一个角
+        //   ⇒ 正确的就是**本地的 0..16**。
         out.accept(new org.joml.Vector3f(0.0F, 0.0F, 0.0F));
-        out.accept(new org.joml.Vector3f(1.0F, 1.0F, 1.0F));
+        out.accept(new org.joml.Vector3f(16.0F, 16.0F, 16.0F));
     }
-
-    /** 诊断只打印一次 */
-    private static final java.util.concurrent.atomic.AtomicBoolean DIAGNOSED =
-            new java.util.concurrent.atomic.AtomicBoolean(false);
 
     /**
      * 模型 json 的反序列化入口。
