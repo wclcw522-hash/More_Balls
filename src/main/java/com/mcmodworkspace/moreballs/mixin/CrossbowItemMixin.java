@@ -58,7 +58,13 @@ public abstract class CrossbowItemMixin {
         if (base == null) {
             return;
         }
-        cir.setReturnValue(base.or(BallAmmo::isBall));
+        // 除了球本身，**也认球堆（壳）** —— 作者 2026-10-15 要求：
+        // 「副手持球堆的时候上膛，应当直接扣球堆的球进行装填」。
+        // 壳成为合法的副手弹药之后，原版 draw() 会把那一格整个存进 CHARGED_PROJECTILES，
+        // 真正的「摊开」留到 createProjectile 那一步做（见下面那个注入）——
+        // 这样副手**全程保持是壳**，玩家看到的形态不变。
+        cir.setReturnValue(base.or(BallAmmo::isBall)
+                .or(com.mcmodworkspace.moreballs.BallClusterItem::isCluster));
     }
 
     /**
@@ -76,9 +82,32 @@ public abstract class CrossbowItemMixin {
     private void moreBalls$ballProjectile(Level level, LivingEntity shooter, ItemStack heldItem,
                                           ItemStack projectile, boolean isCrit,
                                           CallbackInfoReturnable<Projectile> cir) {
-        if (BallAmmo.isBall(projectile)) {
+        // ===== 球堆：摊开一颗来建实体，并从**副手那一格**真正扣掉它 =====
+        //
+        // ⚠️ 两个位置必须分清：
+        //    · `projectile` 是从 CHARGED_PROJECTILES 里拿出来的**副本** —— 从它 takeOne
+        //      不会影响玩家的背包（那只是弹仓里的记录）
+        //    · `shooter.getOffhandItem()` 才是**真身** —— 扣它才会真的少一颗
+        //    壳掏空之后 takeOne 会自己摘掉组件（那一格变成空壳），所以副手会自然消失。
+        //
+        // 作者 2026-10-15：这样副手**全程保持是壳**，不再需要「先填充一次副手」那个中间态。
+        ItemStack actual = projectile;
+        if (com.mcmodworkspace.moreballs.BallClusterItem.isCluster(projectile)) {
+            actual = com.mcmodworkspace.moreballs.BallClusterItem.asBall(projectile);
+            if (actual.isEmpty()) {
+                return;   // 空壳：交给原版兜底
+            }
+            if (shooter != null) {
+                ItemStack offhand = shooter.getOffhandItem();
+                if (com.mcmodworkspace.moreballs.BallClusterItem.isCluster(offhand)) {
+                    com.mcmodworkspace.moreballs.BallClusterItem.takeOne(offhand);   // 真的扣一颗
+                }
+            }
+        }
+
+        if (BallAmmo.isBall(actual)) {
             // heldItem 就是弩本身：穿透等附魔等级由它决定
-            cir.setReturnValue(BallAmmo.createProjectile(level, shooter, heldItem, projectile));
+            cir.setReturnValue(BallAmmo.createProjectile(level, shooter, heldItem, actual));
         }
     }
 
