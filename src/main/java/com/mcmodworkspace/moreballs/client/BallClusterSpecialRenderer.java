@@ -161,36 +161,26 @@ public class BallClusterSpecialRenderer implements SpecialModelRenderer<ItemStac
 
     @Override
     public void getExtents(Consumer<Vector3fc> out) {
-        // 原版的 getExtents 一律**问模型要真实包围盒**（javap 核过 Trident / ShulkerBox /
-        // Book / Conduit / CopperGolemStatue —— 没有一个写固定常量）：
+        // ===== 这个盒子是「模型本地盒」，不是「原点居中的盒子」 =====
         //
-        //     PoseStack pose = new PoseStack();
-        //     model.root().getExtentsForGui(pose, out);
+        // 证据链（都 javap 核过）：
+        //   · `SpecialModelWrapper` 把本方法的输出包成 Supplier，直接 `setExtents` 到
+        //     `LayerRenderState`；`LayerRenderState.visitExtents` 里**先 applyTransform 再算** ——
+        //     也就是说**原版要的是未经 display 变换的本地坐标**
+        //   · 原版五个实现（Trident / ShulkerBox / Book / Conduit / CopperGolemStatue）
+        //     一律用 `model.root().getExtentsForGui(new PoseStack(), out)` ——
+        //     **空 PoseStack ⇒ 本地坐标**
         //
-        // ⚠️⚠️ 我 1.1.0.20 这里写死过 `±0.6F`，**这是错的**（作者实测「贴图还是错的」）。
+        // 球堆画的是「里面那颗球」，属 `minecraft:item/generated` 那一类 ——
+        // 模型是**从 (0,0,0) 到 (1,1,1) 的立方体**（左上原点，**不是**原点居中）。
         //
-        //    这个盒子是 **GUI 用来算缩放的**：
-        //      · 给大了 ⇒ 被判成「超大物品」（ItemStackRenderState.isOversizedInGui /
-        //        OversizedItemRenderer 那条独立渲染链）⇒ 走另一套缩放与裁剪 ⇒ 图标偏移
-        //      · 给小了 ⇒ 直接被裁掉
-        //
-        // 我拿不到「那一刻那个球」的模型（getExtents 无参，每个未烘焙模型只调一次），
-        // 但 **ItemStackRenderState 自带 `visitExtents(Consumer)`** ——
-        // 建一个「标准尺寸物品」的 render state 问它就行，这和原版「问模型要」等价。
-        //
-        // 用雪球当基准：本模组所有球的图标都是 `minecraft:item/generated` 那一类，
-        // 尺寸口径与它一致（组合球的自定义模型也是按同一个格子做的）。
-        try {
-            ItemStackRenderState probe = new ItemStackRenderState();
-            Minecraft.getInstance().getItemModelResolver().updateForTopItem(
-                    probe, new ItemStack(net.minecraft.world.item.Items.SNOWBALL),
-                    ItemDisplayContext.GUI, null, null, 0);
-            probe.visitExtents(out);
-        } catch (Throwable ignored) {
-            // 模型系统还没起来 / 取不到实例 —— 退回原版 generated 物品的标准盒子
-            out.accept(new org.joml.Vector3f(-0.5F, -0.5F, -0.5F));
-            out.accept(new org.joml.Vector3f(0.5F, 0.5F, 0.5F));
-        }
+        // ⚠️⚠️ 我先后给过三种答案，**全是错的**（作者实测「只有右上角那一块，偏得非常厉害」）：
+        //   · `±0.5` / `±0.6` —— 那是「原点居中」的口径 ⇒ GUI 算出的缩放与偏移都不对
+        //   · `ItemStackRenderState.visitExtents` 采样 —— 它会 applyTransform，
+        //     给的是**变换后**的盒子，比本地盒多一层
+        //   ⇒ 正确的就是**本地的 0..1 立方体**。
+        out.accept(new org.joml.Vector3f(0.0F, 0.0F, 0.0F));
+        out.accept(new org.joml.Vector3f(1.0F, 1.0F, 1.0F));
     }
 
     /**

@@ -376,21 +376,16 @@ public class BallClusterItem extends Item {
         if (!lowest.isEmpty()) {
             boolean shift = isShiftDown();
 
-            // ⚠️⚠️ 【蓄力x】这一行**必须常显**（作者 2026-10-15：「球堆没有蓄力的那一行提示字」）。
+            // ★★ 完全照搬球本身（作者 2026-10-15 明确要求）：
             //
-            //     `BallTooltip.entries` 里那条的显示条件是
-            //         `detailed || profile.chargeLevels() != DEFAULT_CHARGE_LEVELS`
-            //     —— 也就是**默认档的球在没按 Shift 时根本不生成这一行**。
+            //   「原来的球直接显示那些信息，现在就显示那些信息；
+            //     原来要 shift 展开那些，在球堆上就要 shift 展开哪些，
+            //     **而不是现在只有【蓄力x】一条**，并且有时候蓄力也是在 shift 展开信息里的。」
             //
-            //     那对「球」是合理的（球主要当弩弹药，径向菜单也跳过它），
-            //     但**球堆不同**：手持球堆右键就是蓄力投掷，这是玩家最先要知道的事。
-            //     所以这里拿 `detailed = true` 的完整列表，再按「CHARGE 恒显、其余跟随 Shift」
-            //     过滤 —— 格式仍然是 `BallTooltip` 那一份，不自己拼。
-            for (BallTooltip.Entry entry : BallTooltip.entries(lowest, true)) {
-                boolean isCharge = entry.kind() == BallTooltip.Kind.CHARGE;
-                if (!shift && !isCharge) {
-                    continue;   // 没按 Shift 时，只额外放行蓄力那一条
-                }
+            // 所以这里就是 `BallItem.appendHoverText` 那一段的逐字复刻 ——
+            // **不按 kind 过滤、不加任何特例**。
+            // （我 1.1.0.25 曾把 `Kind.CHARGE` 改成恒显，那是多余的，已撤掉。）
+            for (BallTooltip.Entry entry : BallTooltip.entries(lowest, shift)) {
                 tooltip.accept(entry.text());
                 if (shift && entry.detail() != null) {
                     tooltip.accept(Component.literal("  ").append(entry.detail()));

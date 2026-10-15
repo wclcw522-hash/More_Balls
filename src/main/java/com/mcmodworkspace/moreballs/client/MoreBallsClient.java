@@ -111,10 +111,25 @@ public final class MoreBallsClient {
         }
 
         ItemStack stack = player.getUseItem();
-        if (!BallBehavior.handles(stack)) {
+
+        // ===== ★ 球堆：手上是**壳**，能不能蓄力要看**壳里那颗球**（作者 2026-10-15）=====
+        //
+        // ⚠️⚠️ 这里原先直接问 `BallBehavior.handles(stack)` —— 而壳**不在** `#more_balls:balls`
+        //    标签里，`handles` 对它返回 false ⇒ **本方法当场 return** ⇒
+        //    那条「蓄力 x / y」在手持球堆蓄力时**永远不显示**。
+        //
+        //    作者原话：「拿着球堆蓄力时那行"蓄力x/x"还是没有显示」—— 说的就是这一处。
+        //    （我 1.1.0.21 给壳补 `getUseDuration` 是另一条路，跟这行字无关。）
+        //
+        //    `asBall` 把壳摊成里面**耐久最低**的那颗球（散球原样返回），
+        //    后面的 profile / 等级计算就都跟着正确了。
+        ItemStack probe = com.mcmodworkspace.moreballs.BallClusterItem.isCluster(stack)
+                ? com.mcmodworkspace.moreballs.BallClusterItem.asBall(stack)
+                : stack;
+        if (!BallBehavior.handles(probe)) {
             return;
         }
-        BallBehavior.BallProfile profile = BallBehavior.profileFor(stack);
+        BallBehavior.BallProfile profile = BallBehavior.profileFor(probe);
         int maxLevel = profile.chargeLevels();
         if (maxLevel <= 0) {
             return;

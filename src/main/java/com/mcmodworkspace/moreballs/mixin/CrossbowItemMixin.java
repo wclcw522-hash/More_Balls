@@ -4,6 +4,7 @@ import com.mcmodworkspace.moreballs.BallAmmo;
 import com.mcmodworkspace.moreballs.ModEnchantments;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.entity.LivingEntity;
+import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.entity.projectile.Projectile;
 import net.minecraft.world.item.CrossbowItem;
 import net.minecraft.world.item.ItemStack;
@@ -112,11 +113,29 @@ public abstract class CrossbowItemMixin {
     }
 
     /**
-     * 上膛前的弹药置换：副手拿着满耐久的球时，先换成背包里<b>耐久最低的同种球</b>。
+     * <b>装填前的弹药置换</b>。
      *
-     * <p>作者指定：上膛应该优先扣背包里最旧的同类弹药，把崭新的球留在副手备用。
-     * 换在装填<b>之前</b>做，后面的原版流程完全不用改。</p>
+     * <p><b>球堆（壳）</b>：从壳里扣一颗<b>耐久最低</b>的球顶上副手，装填完再把壳放回副手 ——
+     * 这是作者 2026-10-15 指定的行为：
+     * 「副手持球堆的时候，应当从球堆里扣除一颗耐久最低的球上膛，
+     *   然后球堆减少对应的球，保持放在副手。」</p>
+     *
+     * <p><b>散球</b>：副手拿着满耐久的球时，先换成背包里耐久最低的同种球
+     * （作者指定：上膛应该优先扣背包里最旧的同类弹药，把崭新的球留在副手备用）。</p>
+     *
+     * <h2>⚠️ 为什么不能把「壳本身」当弹药</h2>
+     * <p>{@code tryLoadProjectiles} → {@code getProjectile}（拿到的是壳）→
+     * {@code draw(...)} 返回的 List 里<b>装的就是壳本身</b> ⇒ <b>整个壳进弹仓</b> ⇒
+     * 一次发射全没了（作者实测：「球堆放在副手当弹药会错误的直接全部发射出去」）。</p>
+     *
+     * <p>所以这里先把壳换成「一颗球」交给原版装填，装填结束（{@code RETURN}）再把壳放回副手。
+     * 壳的减少量与收纳袋补弹是<b>同一套</b> —— 补弹那边也是往副手送「一颗球」，
+     * 而这里走的是直接从壳扣，两者不会各算各的。</p>
      */
+    /** 装填期间暂存的壳（装填是同步的，单线程够用） */
+    private static final ThreadLocal<ItemStack> PENDING_SHELL =
+            ThreadLocal.withInitial(() -> ItemStack.EMPTY);
+
     @Inject(
             method = "tryLoadProjectiles",
             at = @At("HEAD"),
@@ -124,7 +143,45 @@ public abstract class CrossbowItemMixin {
     )
     private static void moreBalls$preferLowDurabilityAmmo(LivingEntity shooter, ItemStack crossbow,
                                                           CallbackInfoReturnable<Boolean> cir) {
+        // ===== ★ 球堆在副手：从壳扣一颗耐久最低的顶上（作者 2026-10-15）=====
+        if (shooter instanceof Player player) {
+            ItemStack offhand = player.getOffhandItem();
+            if (com.mcmodworkspace.moreballs.BallClusterItem.isCluster(offhand)) {
+                // takeOne 会**就地**改壳（扣掉耐久最低的那颗）——
+                // 所以壳要在这之后 copy，拿到的才是「剩余的壳」
+                ItemStack one = com.mcmodworkspace.moreballs.BallClusterItem.takeOne(offhand);
+                if (!one.isEmpty()) {
+                    PENDING_SHELL.set(offhand.copy());
+                    player.setItemInHand(InteractionHand.OFF_HAND, one);
+                }
+                return;   // 壳这条路径不走「从背包挑最低」那套
+            }
+        }
         BallAmmo.swapHeldAmmoForLowestDurability(shooter);
+    }
+
+    /**
+     * <b>装填结束：把壳放回副手</b>（原版已经把顶上来的那颗球消耗进弹仓了）。
+     *
+     * <p>副手若还有别的东西（原版没消耗掉那颗临时球），就把壳收进背包 —— <b>绝不凭空消失</b>。</p>
+     */
+    @Inject(
+            method = "tryLoadProjectiles",
+            at = @At("RETURN"),
+            require = 0
+    )
+    private static void moreBalls$restoreShell(LivingEntity shooter, ItemStack crossbow,
+                                               CallbackInfoReturnable<Boolean> cir) {
+        ItemStack shell = PENDING_SHELL.get();
+        PENDING_SHELL.remove();
+        if (shell.isEmpty() || !(shooter instanceof Player player)) {
+            return;
+        }
+        if (player.getOffhandItem().isEmpty()) {
+            player.setItemInHand(InteractionHand.OFF_HAND, shell);
+        } else if (!player.getInventory().add(shell)) {
+            player.drop(shell, false);
+        }
     }
 
     /**
