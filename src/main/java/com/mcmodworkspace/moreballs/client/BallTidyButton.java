@@ -14,6 +14,7 @@ import net.minecraft.client.KeyMapping;
 import net.minecraft.client.Minecraft;
 import net.minecraft.resources.Identifier;
 import net.neoforged.neoforge.client.event.ClientTickEvent;
+import net.neoforged.neoforge.client.event.InputEvent;
 import net.neoforged.neoforge.client.event.RegisterKeyMappingsEvent;
 import net.neoforged.neoforge.client.network.ClientPacketDistributor;
 
@@ -77,7 +78,12 @@ public final class BallTidyButton {
         event.register(TIDY_KEY);
     }
 
-    /** 中键按下 → 请求服务端整理（和界面里那个按钮走同一个包） */
+    /**
+     * 中键按下 → 请求服务端整理（和界面里那个按钮走同一个包）。
+     *
+     * <p>这条路处理「玩家把整理键改成了键盘键」的情况；鼠标键由
+     * {@link #onMouseButton} 直接拦（作者实测单靠 KeyMapping 收不到鼠标中键）。</p>
+     */
     @SubscribeEvent
     public static void onClientTick(ClientTickEvent.Post event) {
         Minecraft minecraft = Minecraft.getInstance();
@@ -87,6 +93,42 @@ public final class BallTidyButton {
         while (TIDY_KEY.consumeClick()) {
             ClientPacketDistributor.sendToServer(TidyBallsPayload.INSTANCE);
         }
+    }
+
+    /**
+     * <b>鼠标键直接拦截 —— 这是中键真正生效的那条路</b>（作者 2026-10-15 反馈「鼠标中键不生效」）。
+     *
+     * <h2>为什么还要这一层</h2>
+     * <p>原先只挂了 {@link KeyMapping} + {@code consumeClick}，作者实测**中键没反应**。
+     * 与其去猜 KeyMapping 为什么没收到鼠标键，不如在鼠标事件上直接兜底 ——
+     * 这条路不经过原版那套按键分发，可靠得多。</p>
+     *
+     * <h2>它跟随玩家绑的键</h2>
+     * <p>判断用的是 {@code TIDY_KEY.getKey()}（也就是玩家在按键设置里绑的那个键），
+     * 不是写死的中键 —— 所以玩家改键之后这里也跟着变。</p>
+     *
+     * <h2>不会和上面那条重复发包</h2>
+     * <p>这里 {@code setCanceled(true)} 之后，原版不会再把这次按键喂给 KeyMapping，
+     * 于是 {@code consumeClick()} 不会返回 true ⇒ 只发一次。</p>
+     *
+     * <p>界面打开时不动手 —— 那边有那个小按钮，而且背包里的鼠标键可能还被原版用着。</p>
+     */
+    @SubscribeEvent
+    public static void onMouseButton(InputEvent.MouseButton.Pre event) {
+        if (event.getAction() != org.lwjgl.glfw.GLFW.GLFW_PRESS) {
+            return;   // 只管按下，不管松开
+        }
+        com.mojang.blaze3d.platform.InputConstants.Key bound = TIDY_KEY.getKey();
+        if (bound.getType() != com.mojang.blaze3d.platform.InputConstants.Type.MOUSE
+                || bound.getValue() != event.getButton()) {
+            return;   // 这个鼠标键不是绑给「整理球堆」的
+        }
+        Minecraft minecraft = Minecraft.getInstance();
+        if (minecraft.player == null || minecraft.gui.screen() != null) {
+            return;
+        }
+        ClientPacketDistributor.sendToServer(TidyBallsPayload.INSTANCE);
+        event.setCanceled(true);   // 吃掉这次按键
     }
 
     @SubscribeEvent
