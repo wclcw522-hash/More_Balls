@@ -433,13 +433,29 @@ public class BallClusterItem extends Item {
             return InteractionResult.PASS;
         }
 
-        // ===== 两套动作的分工 =====
+        // ===== 可蓄力的球：进入原版「使用中」状态，松开右键才出手 =====
         //
-        //   右键        → **扔出**一颗最低耐久的球
-        //   Shift+右键  → **放进空着的物品栏**一组最低耐久的球（不是扔）
+        // ⚠️ 这一段必须排在 `level.isClientSide()` 检查**之前**，而且**两端都要走** ——
+        //    蓄力条的长度与原版的 usedTicks 都来自「使用中」状态，客户端不进这个状态
+        //    就看不到蓄力条。（原版的弓 / 雪球也是两端都 startUsingItem。）
         //
-        // ⚠️ 一律**只在服务端**动手 —— use 两端都会调，客户端也扔一颗就是扔两份。
-        //    客户端只返回一个 CONSUME，告诉原版这次右键用掉了。
+        //    进入之后由 BallThrowHandler 接管：
+        //      · onStartUsing  认壳 → 设蓄力条长度
+        //      · onStopUsing   认壳 → 从壳取一颗 → 按 BallCharge.levelAt 算等级出手
+        //    蓄力曲线、袖珍活塞那两个接点因此走的还是同一条路，不会分叉。
+        //
+        //    作者 2026-10-15：「从球堆扔球也要继承球本身的那些信息……包括蓄力」——
+        //    能不能蓄力由**壳里那颗球**的 profile 决定，不是壳决定的。
+        ItemStack probe = asBall(shell);
+        if (!probe.isEmpty() && BallBehavior.profileFor(probe).chargeLevels() > 0) {
+            player.startUsingItem(hand);
+            return InteractionResult.CONSUME;
+        }
+
+        // ===== 以下都是「立即出手」，只在服务端做 =====
+        //
+        // ⚠️ use 两端都会调，客户端也动手就是做两份。
+        //    客户端只返回 CONSUME，告诉原版这次右键用掉了。
         if (level.isClientSide()) {
             return InteractionResult.CONSUME;
         }

@@ -4,6 +4,7 @@ import com.mcmodworkspace.moreballs.entity.BallProjectile;
 import net.minecraft.sounds.SoundEvents;
 import net.minecraft.sounds.SoundSource;
 import net.minecraft.stats.Stats;
+import net.minecraft.world.InteractionHand;
 import net.minecraft.world.InteractionResult;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.ItemStack;
@@ -58,9 +59,27 @@ public final class BallThrowHandler {
     /**
      * 蓄力条的长度：给一个足够长的使用时长，让玩家自己决定何时松手。
      * 若不改时长，原版物品默认 0 会让使用状态立刻结束。
+     *
+     * <p><b>球堆（壳）也走这里</b>（作者 2026-10-15）—— 手持壳蓄力时，手上的物品是壳，
+     * 但「能不能蓄力」由<b>壳里那颗球</b>决定，所以先 {@link BallClusterItem#asBall 摊开}
+     * 拿一颗来读 profile。{@code asBall} 返回的是副本，探测不会动到壳。</p>
      */
     public static void onStartUsing(LivingEntityUseItemEvent.Start event) {
         ItemStack stack = event.getItem();
+
+        // ===== 球堆：能不能蓄力看里面那颗球 =====
+        if (BallClusterItem.isCluster(stack)) {
+            ItemStack probe = BallClusterItem.asBall(stack);
+            if (probe.isEmpty()) {
+                return;
+            }
+            if (BallBehavior.profileFor(probe).chargeLevels() <= 0) {
+                return;
+            }
+            event.setDuration(BallCharge.USE_DURATION);
+            return;
+        }
+
         if (!BallBehavior.handles(stack)) {
             return;
         }
@@ -80,6 +99,37 @@ public final class BallThrowHandler {
             return;
         }
         ItemStack stack = event.getItem();
+
+        // ===== 球堆：取一颗出来，用**那颗球**的 profile 按蓄力等级出手（作者 2026-10-15）=====
+        //
+        // ⚠️ 拿的是 `player.getItemInHand(hand)` 而不是 `event.getItem()` ——
+        //    后者不保证是玩家背包里那一格的同一个引用，而我要**就地扣掉一颗**。
+        //    手上那一格才是真身。
+        if (BallClusterItem.isCluster(stack)) {
+            InteractionHand hand = event.getHand();
+            ItemStack shell = player.getItemInHand(hand);
+            if (!BallClusterItem.isCluster(shell)) {
+                return;
+            }
+            BallBehavior.BallProfile probeProfile =
+                    BallBehavior.profileFor(BallClusterItem.asBall(shell));
+            if (probeProfile.chargeLevels() <= 0) {
+                return;
+            }
+            int level = BallCharge.levelAt(BallCharge.usedTicks(player), probeProfile.chargeLevels());
+
+            BallClusterItem.TakeResult r = BallClusterItem.takeOneWithDecluster(shell);
+            if (r.taken().isEmpty()) {
+                return;
+            }
+            throwBall(player, r.taken(), level);
+            // 壳只剩一颗 → 那一颗顶上手上这一格（不留空球堆）
+            if (r.hasLeftover()) {
+                player.setItemInHand(hand, r.leftover());
+            }
+            return;
+        }
+
         if (!BallBehavior.handles(stack)) {
             return;
         }
