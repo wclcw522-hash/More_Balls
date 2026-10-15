@@ -155,6 +155,14 @@ public final class MoreBallsClient {
         event.register(
                 Identifier.fromNamespaceAndPath(MoreBalls.MOD_ID, "combo_charge_ball"),
                 ComboChargeBallRenderer.Unbaked.MAP_CODEC);
+
+        // 【球堆】图标 = 里面那颗球（作者 2026-10-15 指定）
+        //
+        // 与上面那条同理：必须由 MoreBalls 在 **mod 总线**上调用本方法，
+        // 靠 @EventBusSubscriber（GAME 总线）挂不上 —— 症状会是没有报错的静默空白图标。
+        event.register(
+                BallClusterSpecialRenderer.Unbaked.ID,
+                BallClusterSpecialRenderer.Unbaked.CODEC);
     }
     @SubscribeEvent
     public static void onRegisterSelectProperties(RegisterSelectItemModelPropertyEvent event) {
