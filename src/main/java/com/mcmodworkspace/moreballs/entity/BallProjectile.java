@@ -3715,6 +3715,18 @@ public class BallProjectile extends ThrowableItemProjectile {
         if (this.level().isClientSide()) {
             return;
         }
+
+        // 【临时诊断】碎裂时打一行 —— 作者 2026-10-15 报「球飞回来之后直接没了」。
+        //
+        // 球「消失」只可能是三条路之一：
+        //   ① 走到 deliverToOwner 交付了（那里有 [球堆][诊断] 回收/套壳/交付 三行）
+        //   ② 走到这里 burst 碎掉（本行）
+        //   ③ 别的分支 discard —— 那两行都没出现就说明是它
+        // 把「剩余耐久」与「是不是附属弹」一起打出来，就能区分是耐久耗光还是别的。
+        MoreBalls.LOGGER.info("[球堆][诊断] 碎裂：剩余耐久={} 附属弹={} 变形={} 位置=({}, {}, {})",
+                this.getToughness(), this.multishotSide, this.traitFired(TRAIT_MORPH),
+                (int) this.getX(), (int) this.getY(), (int) this.getZ());
+
         BallBehavior.BallProfile profile = this.profile();
 
         // 【变形】：耐久耗尽不碎裂，而是停在原地变成方块
