@@ -70,8 +70,19 @@ public record SelectAmmoPayload(List<ItemStack> ammo) implements CustomPacketPay
             return;
         }
         ItemStack ball = payload.ammo().get(0);
-        // 只接受真正的球
-        if (!com.mcmodworkspace.moreballs.BallAmmo.isBall(ball)) {
+        // ===== ★ 球堆（壳）也要接受（作者 2026-10-15：「没法正确的被放置到副手」）=====
+        //
+        // ⚠️⚠️ 壳**不在** `#more_balls:balls` 标签里，`BallAmmo.isBall(壳)` 返回 false ——
+        //     原先这里直接 `return`，于是**「在轮盘里选中球堆」这件事压根没生效**：
+        //     轮盘看着选中了，服务端的 `SELECTED_AMMO` 却还是空的，
+        //     自动装填自然不知道要往副手送什么 ⇒ 表现就是「放不到副手」。
+        //
+        //     摊开成壳里那颗球来判「是不是球」，判过了照旧把**原始样本**交给 select ——
+        //     `BallAmmoSelection.kindOf` 那边已经会认壳并摊开（数量和合并也都按壳内颗数算了）。
+        ItemStack kind = com.mcmodworkspace.moreballs.BallClusterItem.isCluster(ball)
+                ? com.mcmodworkspace.moreballs.BallClusterItem.asBall(ball)
+                : ball;
+        if (!com.mcmodworkspace.moreballs.BallAmmo.isBall(kind)) {
             return;
         }
         BallAmmoSelection.select(player, ball);
