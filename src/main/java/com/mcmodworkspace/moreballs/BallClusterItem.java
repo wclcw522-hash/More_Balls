@@ -76,6 +76,27 @@ public class BallClusterItem extends Item {
         }
     }
 
+    /**
+     * 把<b>一颗球</b>套成壳 —— 满耐久的原样返回，用过的才包。
+     *
+     * <h2>它是回收流程的入口（作者 2026-10-15 明确）</h2>
+     * <p>作者要的是「回收时**默认**变成球堆」—— 也就是说套壳要排在袋子前面，
+     * 而不是「袋子收不下才套」。所以 {@code deliverToOwner} 拿到球之后先过这一道，
+     * 之后不管进袋子还是进背包，玩家拿到的都是「一格装一堆」。</p>
+     *
+     * <p>满耐久的球原样返回 —— 它们不带耐久组件、彼此组件一致，本来就能叠成一堆。</p>
+     *
+     * @return 套好壳的物品堆；满耐久或空堆时原样返回
+     */
+    public static ItemStack clusterize(ItemStack ball) {
+        if (ball.isEmpty() || !BallClusterTier.of(ball).isClustered()) {
+            return ball;
+        }
+        ItemStack shell = new ItemStack(ModItems.BALL_CLUSTER.get());
+        setContents(shell, BallClusterContents.EMPTY.withAdded(ball.copy()));
+        return shell;
+    }
+
     /** 这个物品堆是不是球堆 */
     public static boolean isCluster(ItemStack stack) {
         return stack.getItem() instanceof BallClusterItem;

@@ -2058,6 +2058,18 @@ public class BallProjectile extends ThrowableItemProjectile {
         // 把飞行中消耗掉的耐久写回物品 —— 这就是「全局耐久」
         BallItem.applyToughness(stack, this.getToughness());
 
+        // ===== 【球堆】交付前**默认套成球堆**（作者 2026-10-15 纠正的方向）=====
+        //
+        // ⚠️⚠️ 这里必须排在**交付之前** —— 我原先写的是「袋子优先、袋子收不下才套壳」，
+        //    结果带着袋子时袋子永远收得下、套壳那段永远不执行，**球堆成了死代码**
+        //    （作者原话：「球堆这个机制就没用」）。
+        //
+        //    作者要的是「回收时**默认**变成球堆」—— 套壳在前，之后不管进袋子还是进背包，
+        //    玩家拿到的都是「一格装一堆」。
+        //
+        //    满耐久的球会被 clusterize 原样返回（它们本来就能叠成一堆，不需要壳）。
+        stack = com.mcmodworkspace.moreballs.BallClusterItem.clusterize(stack);
+
         if (!stack.isEmpty() && BallPouchHelper.giveToPlayer(player, stack)) {
             this.discard();
             return;
@@ -3607,6 +3619,18 @@ public class BallProjectile extends ThrowableItemProjectile {
         ItemStack stack = this.getItem().copy();
         BallItem.stripIntangible(stack);
         BallItem.applyToughness(stack, this.getToughness());
+
+        // ===== 【球堆】交付前**默认套成球堆**（作者 2026-10-15 纠正的方向）=====
+        //
+        // ⚠️⚠️ 这里必须排在**交付之前** —— 我原先写的是「袋子优先、袋子收不下才套壳」，
+        //    结果带着袋子时袋子永远收得下、套壳那段永远不执行，**球堆成了死代码**
+        //    （作者原话：「球堆这个机制就没用」）。
+        //
+        //    作者要的是「回收时**默认**变成球堆」—— 套壳在前，之后不管进袋子还是进背包，
+        //    玩家拿到的都是「一格装一堆」。
+        //
+        //    满耐久的球会被 clusterize 原样返回（它们本来就能叠成一堆，不需要壳）。
+        stack = com.mcmodworkspace.moreballs.BallClusterItem.clusterize(stack);
 
         // 作者指定的回收顺序：袋子的中转槽 → 背包最前 → 快捷栏最前 → 掉成掉落物。
         // （用附魔回收时玩家多半没空手接，所以和主动拾取的顺序是反的）

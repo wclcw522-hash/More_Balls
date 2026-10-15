@@ -231,10 +231,11 @@ public class BallPouchItem extends Item {
                     continue;
                 }
                 BallClusterContents existing = BallClusterItem.contents(other);
-                if (!existing.hasRoom() || !existing.matches(ball)) {
+                ItemStack probe3 = BallClusterItem.asBall(ball);
+                if (probe3.isEmpty() || !existing.hasRoom() || !existing.matches(probe3)) {
                     continue;
                 }
-                BallClusterItem.setContents(other, existing.withAdded(ball));
+                BallClusterItem.setContents(other, existing.withAdded(probe3));
                 merged = true;
                 break;
             }
@@ -265,10 +266,14 @@ public class BallPouchItem extends Item {
                 continue;
             }
             BallClusterContents existing = BallClusterItem.contents(slot);
-            if (!existing.hasRoom() || !existing.matches(ball)) {
+            // ⚠️ 要比对的是**壳里那颗球**，不是壳本身 —— 传进来的 ball 可能已经是壳了
+            //    （回收流程现在会先套壳），拿壳去 matches 会因 items 不同而永远失配，
+            //    结果是「一个壳装一颗」，等于没收纳。
+            ItemStack probe = BallClusterItem.asBall(ball);
+            if (probe.isEmpty() || !existing.hasRoom() || !existing.matches(probe)) {
                 continue;
             }
-            BallClusterItem.setContents(slot, existing.withAdded(ball.copy()));
+            BallClusterItem.setContents(slot, existing.withAdded(probe));
             ball.setCount(0);
             changed = true;
         }
@@ -278,8 +283,13 @@ public class BallPouchItem extends Item {
             if (!segment.get(i).isEmpty()) {
                 continue;
             }
+            ItemStack probe2 = BallClusterItem.asBall(ball);
+            if (probe2.isEmpty()) {
+                ball.setCount(0);
+                continue;
+            }
             ItemStack shell = new ItemStack(ModItems.BALL_CLUSTER.get());
-            BallClusterItem.setContents(shell, BallClusterContents.EMPTY.withAdded(ball.copy()));
+            BallClusterItem.setContents(shell, BallClusterContents.EMPTY.withAdded(probe2));
             segment.set(i, shell);
             ball.setCount(0);
             changed = true;
