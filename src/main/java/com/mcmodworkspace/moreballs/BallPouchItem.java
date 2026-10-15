@@ -166,7 +166,10 @@ public class BallPouchItem extends Item {
      * @return true 表示全部塞进去了
      */
     public static boolean insertToTransit(ItemStack pouch, ItemStack ball) {
-        if (ball.isEmpty() || !BallAmmo.isBall(ball)) {
+        // ★ 球堆（壳）也要收（作者 2026-10-15）：壳不是 `#more_balls:balls` 标签里的物品，
+        //   原先只判 `isBall` ⇒ **球堆根本塞不进袋子** ⇒ 袋子里的球堆这条路整条是断的。
+        if (ball.isEmpty() || !(BallAmmo.isBall(ball)
+                || BallClusterItem.isCluster(ball))) {
             return false;
         }
         BallPouchContents current = contents(pouch);
@@ -319,7 +322,10 @@ public class BallPouchItem extends Item {
 
     /** 只往<b>弹药段</b>塞 */
     public static boolean insertToAmmo(ItemStack pouch, ItemStack ball) {
-        if (ball.isEmpty() || !BallAmmo.isBall(ball)) {
+        // ★ 球堆（壳）也要收（作者 2026-10-15）：壳不是 `#more_balls:balls` 标签里的物品，
+        //   原先只判 `isBall` ⇒ **球堆根本塞不进袋子** ⇒ 袋子里的球堆这条路整条是断的。
+        if (ball.isEmpty() || !(BallAmmo.isBall(ball)
+                || BallClusterItem.isCluster(ball))) {
             return false;
         }
         BallPouchContents current = contents(pouch);
@@ -499,7 +505,7 @@ public class BallPouchItem extends Item {
         int transitIndex = indexOfLowestDurability(current.transit(), wanted);
         if (transitIndex >= 0) {
             List<ItemStack> segment = new ArrayList<>(current.transit());
-            ItemStack taken = segment.remove(transitIndex);
+            ItemStack taken = takeOneFromSlot(segment, transitIndex);
             // 另一段也裁一遍 —— 顺带清掉旧存档里已经存在的越界幽灵球
             setContents(pouch, new BallPouchContents(
                     cappedSegment(current.ammo(), tier(pouch).ammoSlots()), segment));
@@ -509,13 +515,37 @@ public class BallPouchItem extends Item {
         int ammoIndex = indexOfLowestDurability(current.ammo(), wanted);
         if (ammoIndex >= 0) {
             List<ItemStack> segment = new ArrayList<>(current.ammo());
-            ItemStack taken = segment.remove(ammoIndex);
+            ItemStack taken = takeOneFromSlot(segment, ammoIndex);
             setContents(pouch, new BallPouchContents(
                     segment, cappedSegment(current.transit(), tier(pouch).transitSlots())));
             return taken;
         }
 
         return ItemStack.EMPTY;
+    }
+
+    /**
+     * 从某一段的第 {@code index} 格里**取出一颗球**。
+     *
+     * <p>⚠️ 那一格是<b>壳</b>时要「掏一颗、壳留剩」（作者 2026-10-15）——
+     * 原来直接写的是 {@code segment.remove(index)}，会把**整个壳**当成一颗球交出去，
+     * 而下游（弩的装填、`createProjectile`）只认「球」 ⇒ 表现就是装不上 / 塞出一个球堆。</p>
+     *
+     * <p>掏空了就把那一格清掉（空壳不留在袋子里，和物品栏那边同一个规矩）。</p>
+     */
+    private static ItemStack takeOneFromSlot(List<ItemStack> segment, int index) {
+        ItemStack slot = segment.get(index);
+        if (BallClusterItem.isCluster(slot)) {
+            ItemStack one = BallClusterItem.takeOne(slot);      // 就地扣一颗（最低耐久那颗）
+            if (BallClusterItem.contents(slot).isEmpty()) {
+                segment.remove(index);                          // 掏空了 —— 那一格清掉
+            } else {
+                segment.set(index, slot);                       // 还有剩 —— 壳留在原格
+            }
+            return one;
+        }
+        segment.remove(index);
+        return slot;
     }
 
     /**
@@ -538,7 +568,12 @@ public class BallPouchItem extends Item {
             if (slot.isEmpty() || !sameKind(slot, wanted)) {
                 continue;
             }
-            int left = remainingToughness(slot);
+            // ★ 球堆：耐久要看**壳里那颗球**（作者 2026-10-15）
+            //
+            //   壳自身没有 `TOUGHNESS_LEFT` 组件，`remainingToughness(壳)` 会返回 MAX_VALUE
+            //   ⇒ 壳永远排在最后 ⇒ **袋里的球堆永远取不出来**（弩装填时就装不上它）。
+            //   摊开之后拿到的才是「这颗球还剩几次」。
+            int left = remainingToughness(BallClusterItem.asBall(slot));
             if (best < 0 || left < bestLeft) {
                 bestLeft = left;
                 best = i;
