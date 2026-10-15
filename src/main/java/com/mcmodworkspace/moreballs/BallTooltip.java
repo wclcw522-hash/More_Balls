@@ -351,12 +351,14 @@ public final class BallTooltip {
                     line("tooltip.more_balls.desc.seal")));
         }
 
-        // 【招蜂引蝶N】—— 蜜饯球（**数值类特性**）：击中时召唤 N 只血量 5 的蜜蜂
+        // 【招蜂引蝶N】—— 蜜饯球（**数值类特性**）：击中时召唤 N 只蜜蜂
+        // （血量走常量 BallExtraTraits.BEE_HEALTH，别在文案里写死）
         if (profile.hasBees()) {
             out.add(Entry.of(
                     line("tooltip.more_balls.entry.bees", String.valueOf(profile.beeCount())),
                     Kind.TRAIT,
-                    line("tooltip.more_balls.desc.bees", String.valueOf(profile.beeCount()))));
+                    line("tooltip.more_balls.desc.bees", String.valueOf(profile.beeCount()),
+                            BallExtraTraits.beeHealthText())));
         }
 
         // 【滋养】—— 蜜饯球的**组合类**特性词条（作者 2026-10-15 定稿的新类别）：

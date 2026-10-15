@@ -11,6 +11,7 @@ import net.minecraft.util.Mth;
 import net.minecraft.world.effect.MobEffectInstance;
 import net.minecraft.world.effect.MobEffects;
 import net.minecraft.world.entity.Entity;
+import net.minecraft.world.entity.EntityReference;
 import net.minecraft.world.entity.EntitySpawnReason;
 import net.minecraft.world.entity.EntityTypes;
 import net.minecraft.world.entity.LivingEntity;
@@ -29,6 +30,9 @@ import net.neoforged.neoforge.event.tick.EntityTickEvent;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
+import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * <b>第十三批的击中类 / 组合类词条</b>（作者 2026-10-15 定稿）。
@@ -68,11 +72,51 @@ public final class BallExtraTraits {
     /** 【滋养】：生命恢复的时长 —— 60 刻 = 3 秒 */
     public static final int NURTURE_TICKS = 60;
 
-    /** 【招蜂引蝶】：蜜蜂的血量（作者指定 5） */
-    public static final float BEE_HEALTH = 5.0F;
+    /** 【招蜂引蝶】：蜜蜂的血量（作者 2026-10-15 下调：5 → 3） */
+    public static final float BEE_HEALTH = 3.0F;
 
     /** 【招蜂引蝶】：蜜蜂的召唤半径 */
     private static final double BEE_SPAWN_RADIUS = 1.6D;
+
+    /**
+     * 蜜蜂的「愤怒持续时长」（刻）—— 每隔 {@link #BEE_ANGER_REFRESH_TICKS} 刻给它顶到这个值。
+     *
+     * <p>作者 2026-10-15 实测反馈「召唤的蜜蜂仇恨不持久」：光靠 {@code setTarget}
+     * 是留不住目标的 —— 原版蜜蜂的反击 AI（{@code BeeHurtByOtherGoal}）在
+     * {@code canContinueToUse()} 里要求 {@code isAngry()}，而 {@code isAngry()}
+     * 看的是中立怪那套「愤怒截止时刻」。所以这里改用
+     * {@code setPersistentAngerTarget} + {@code setTimeToRemainAngry} 持续续期，
+     * 蜜蜂才会真的咬住被击中者不放。</p>
+     */
+    public static final int BEE_ANGER_TICKS = 400;
+
+    /** 续期间隔（刻）—— 每 10 刻刷一次就够，不必逐刻 */
+    private static final int BEE_ANGER_REFRESH_TICKS = 10;
+
+    /**
+     * 【招蜂引蝶】召唤出来的蜜蜂身上的标记（记分板标签）。
+     *
+     * <p>两个用途：<br>
+     * ① 球<b>不命中</b>这些蜜蜂（见 {@code BallProjectile#canHitEntity}）——
+     *    否则球回头打中蜜蜂，蜜蜂的仇恨就跑到同伴身上去了（作者 2026-10-15 实测）；<br>
+     * ② 每 10 刻给它们续愤怒时长、并把跑偏的目标拨回来。</p>
+     */
+    public static final String SUMMONED_BEE_TAG = "more_balls.summoned_bee";
+
+    /** 被召唤的蜜蜂 → 它该咬的那个目标（UUID） */
+    private static final Map<UUID, UUID> SUMMONED_BEE_TARGETS = new ConcurrentHashMap<>();
+
+    /** 这只蜜蜂是不是【招蜂引蝶】召唤出来的 */
+    public static boolean isSummonedBee(Entity entity) {
+        return entity != null && entity.entityTags().contains(SUMMONED_BEE_TAG);
+    }
+
+    /** 蜜蜂血量在 tooltip 里的显示文本（3.0 → "3"） */
+    public static String beeHealthText() {
+        return BEE_HEALTH == Math.round(BEE_HEALTH)
+                ? String.valueOf((int) BEE_HEALTH)
+                : String.valueOf(BEE_HEALTH);
+    }
 
     /** 【尖刺】：滴水石锥的数量 —— 8 个方向 */
     public static final int SPIKE_COUNT = 8;
@@ -146,15 +190,21 @@ public final class BallExtraTraits {
                     victim.getY() + 1.0D,
                     victim.getZ() + Math.sin(angle) * BEE_SPAWN_RADIUS,
                     victim.getYRot(), 0.0F);
-            // 生命上限也压到 5 —— 否则「血量 5」只在生成那一刻成立
+            // 生命上限也跟着压 —— 否则「血量 N」只在生成那一刻成立
             var maxHealth = bee.getAttribute(Attributes.MAX_HEALTH);
             if (maxHealth != null) {
                 maxHealth.setBaseValue(BEE_HEALTH);
             }
             bee.setHealth(BEE_HEALTH);
+            // 打标记：球不命中它、每 10 刻给它续愤怒（见 SUMMONED_BEE_TAG 的说明）
+            bee.addTag(SUMMONED_BEE_TAG);
+            // 用原版中立怪的愤怒机制接管仇恨 —— 光 setTarget 留不住（作者实测「仇恨不持久」）
+            bee.setPersistentAngerTarget(EntityReference.of(victim));
+            bee.setTimeToRemainAngry(BEE_ANGER_TICKS);
             bee.setTarget(victim);
             bee.setPersistenceRequired();
             level.addFreshEntity(bee);
+            SUMMONED_BEE_TARGETS.put(bee.getUUID(), victim.getUUID());
             // 仇恨反向转移：让被击中的目标去咬蜜蜂
             if (victim instanceof Mob mob) {
                 mob.setTarget(bee);
@@ -164,19 +214,62 @@ public final class BallExtraTraits {
                 SoundSource.NEUTRAL, 1.0F, 1.0F);
     }
 
+    /**
+     * 被召唤蜜蜂的仇恨维护 —— 每 10 刻一次：续期、纠偏、清理。
+     *
+     * <p>作者 2026-10-15 的两条反馈都落在这里：</p>
+     * <ul>
+     *   <li><b>「仇恨不持久」</b>：续 {@code setTimeToRemainAngry}，让原版那套
+     *       {@code isAngry()} 判定一直成立（蜜蜂的反击 AI 靠它才持续）</li>
+     *   <li><b>「仇恨跑到蜜蜂身上」</b>：目标被改成别的生物（尤其是同伴蜜蜂）时
+     *       <b>拨回</b>它该咬的那个目标 —— 蜜蜂挨打会通过 {@code BeeHurtByOtherGoal}
+     *       通知同伴，一来一回就容易内讧，这里每 10 刻纠一次偏</li>
+     * </ul>
+     */
+    private static void maintainSummonedBee(ServerLevel level, Bee bee) {
+        UUID ownerId = SUMMONED_BEE_TARGETS.get(bee.getUUID());
+        if (ownerId == null) {
+            return;   // 不是我们召唤的（或记录已清）
+        }
+        if (!bee.isAlive()) {
+            SUMMONED_BEE_TARGETS.remove(bee.getUUID());
+            return;
+        }
+        if (bee.tickCount % BEE_ANGER_REFRESH_TICKS != 0) {
+            return;
+        }
+        Entity target = level.getEntity(ownerId);
+        if (!(target instanceof LivingEntity living) || !living.isAlive()) {
+            // 目标没了 → 收工，把记录清掉（它自己会回去采蜜）
+            SUMMONED_BEE_TARGETS.remove(bee.getUUID());
+            bee.setTarget(null);
+            return;
+        }
+        bee.setPersistentAngerTarget(EntityReference.of(living));
+        bee.setTimeToRemainAngry(BEE_ANGER_TICKS);
+        if (bee.getTarget() != living) {
+            bee.setTarget(living);
+        }
+    }
+
     // ===== 【尖刺】=====
 
     /**
      * 射出一圈滴水石锥。
      *
-     * <h2>几何（作者给的规格，逐条对着实现）</h2>
+     * <h2>几何（作者 2026-10-15 二次澄清后的定稿）</h2>
      * <ol>
      *   <li><b>基准面</b> = 垂直于速度的面（速度方向即该面的法线）</li>
-     *   <li>在该面内取 <b>8 个均匀方向</b></li>
-     *   <li>每枚锥子的射出方向 = 「基准面里那个方向」与「最终速度的<b>反方向</b>」成 <b>60°</b>
-     *       —— 也就是朝来向张开的一把伞</li>
-     *   <li>飞行<b>最高点 2 格</b>：按 {@code v = sqrt(2gh)} 反推竖直初速度，再折算成整条初速度</li>
+     *   <li>在该面内取 <b>8 个均匀方向</b>（每枚锥子对应一个方位）</li>
+     *   <li>每枚锥子的射出方向 = <b>该方位再朝上抬起、与基准面成 60°</b>
+     *       —— 也就是一整圈斜着向上张开的伞，<b>不是</b>朝来向张开的那种</li>
+     *   <li>飞行<b>最高点 2 格</b>：按 {@code v_y = sqrt(2gh)} 反推竖直初速度，
+     *       再除以方向的竖直分量折算成整条初速度（这样不论方位朝向如何，最高点都是 2 格）</li>
      * </ol>
+     *
+     * <p>⚠️ 第一版把「与最终速度反方向夹角 60 度」实现成了朝来向张开的伞，而且速度被
+     * {@code clamp} 压到上限之后竖直分量几乎归零 —— 表现就是作者反馈的「几乎平射」。
+     * 现在按「与基准面成 60°、朝上」重做，并且不再让 clamp 吃掉竖直分量。</p>
      *
      * <p>载体是真的滴水石锥（{@link DripstoneShard}）—— 外观、抛物线、命中结算都走原版那一套，
      * 基础伤害 3 由实体自己加。</p>
@@ -188,27 +281,28 @@ public final class BallExtraTraits {
         Vec3 dir = velocity.lengthSqr() < 1.0E-6D
                 ? new Vec3(0.0D, -1.0D, 0.0D) : velocity.normalize();
 
-        // 在「垂直于 dir」的平面内取两个正交基
-        Vec3 up = Math.abs(dir.y) > 0.99D ? new Vec3(1.0D, 0.0D, 0.0D) : new Vec3(0.0D, 1.0D, 0.0D);
-        Vec3 u = dir.cross(up).normalize();
+        // 在「垂直于 dir」的平面内取两个正交基 —— 这两条张起的就是基准面
+        Vec3 helper = Math.abs(dir.y) > 0.99D ? new Vec3(1.0D, 0.0D, 0.0D) : new Vec3(0.0D, 1.0D, 0.0D);
+        Vec3 u = dir.cross(helper).normalize();
         Vec3 v = dir.cross(u).normalize();
 
-        double angle = Math.toRadians(SPIKE_ANGLE_DEG);
-        double sin = Math.sin(angle);
-        double cos = Math.cos(angle);
-        // 「最高点 2 格」需要的竖直分量
-        double apexSpeed = Math.sqrt(2.0D * THROWN_GRAVITY * SPIKE_APEX);
+        double tilt = Math.toRadians(SPIKE_ANGLE_DEG);   // 与基准面的夹角（作者指定 60°）
+        double cos = Math.cos(tilt);
+        double sin = Math.sin(tilt);
+        // 「最高点 2 格」需要的竖直初速度
+        double apexVy = Math.sqrt(2.0D * THROWN_GRAVITY * SPIKE_APEX);
 
         LivingEntity shooter = owner instanceof LivingEntity living ? living : null;
 
         for (int i = 0; i < SPIKE_COUNT; i++) {
             double theta = (Math.PI * 2.0D / SPIKE_COUNT) * i;
             Vec3 radial = u.scale(Math.cos(theta)).add(v.scale(Math.sin(theta)));
-            Vec3 shoot = dir.scale(-cos).add(radial.scale(sin)).normalize();
+            // 基准面内的方位 × cos60° + 世界上方 × sin60° ⟹ 与基准面成 60°、朝上
+            Vec3 shoot = radial.scale(cos).add(new Vec3(0.0D, sin, 0.0D)).normalize();
 
-            // 以竖直分量为准反推整条初速度；近乎水平的朝向取一个稳定的下限量级
-            double speed = Math.abs(shoot.y) < 1.0E-3D
-                    ? apexSpeed : apexSpeed / Math.abs(shoot.y);
+            // 按竖直分量反推整条初速度。shoot.y 最小也有 sin60° − cos60° = 0.366，
+            // 所以这里不会算出爆掉的速度；clamp 只当保险用。
+            double speed = apexVy / Math.max(0.3D, shoot.y);
             speed = Mth.clamp(speed, SPIKE_MIN_SPEED, SPIKE_MAX_SPEED);
 
             level.addFreshEntity(new DripstoneShard(level, position, shoot.scale(speed), shooter));
@@ -329,6 +423,15 @@ public final class BallExtraTraits {
         if (!(event.getEntity() instanceof Mob mob) || mob.level().isClientSide()) {
             return;
         }
+
+        // 【招蜂引蝶】召唤出来的蜜蜂：续愤怒时长 + 把跑偏的目标拨回来
+        // （参数收 Bee 而不是 Mob —— setTimeToRemainAngry / setPersistentAngerTarget
+        //   是 NeutralMob 接口的方法，Mob 上并没有）
+        if (mob instanceof Bee bee && isSummonedBee(bee)
+                && bee.level() instanceof ServerLevel beeLevel) {
+            maintainSummonedBee(beeLevel, bee);
+        }
+
         if (!isSealed(mob)) {
             return;
         }

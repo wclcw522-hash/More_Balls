@@ -207,7 +207,7 @@
   "tooltip.more_balls.entry.seal": "[Seal] Expelliarmus!",
   "tooltip.more_balls.desc.seal": "Randomly disables an item",
   "tooltip.more_balls.entry.bees": "[Swarm %1$s] Summons bees on hit",
-  "tooltip.more_balls.desc.bees": "On hit, summons %1$s bees with 5 health and forces the victim to aggro them instead",
+  "tooltip.more_balls.desc.bees": "On hit, summons %1$s bees with %2$s health and forces the victim to aggro them instead",
   "tooltip.more_balls.entry.nurture": "[Nourish] On a successful recovery, gain %1$s",
   "tooltip.more_balls.entry.nurture_inactive": "(Not active yet) [Nourish] On a successful recovery, gain %1$s"
 }

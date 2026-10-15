@@ -1177,6 +1177,19 @@ public class BallProjectile extends ThrowableItemProjectile {
         if (target == this.getOwner() && this.getOwner() instanceof Mob) {
             return false;
         }
+        // 【招蜂引蝶】召唤出来的蜜蜂**不吃自己人的球**（作者 2026-10-15 实测反馈）。
+        //
+        // 现象：「【招蜂引蝶x】会击中蜜蜂，导致后续所有蜜蜂的仇恨不在目标上而是在蜜蜂上」。
+        // 链条：球打中一只召唤蜂 → 原版蜜蜂「被打就反击 + 通知同伴」
+        //      （HurtByTargetGoal.setAlertOthers → BeeHurtByOtherGoal.alertOther，
+        //        L192 / L1018-1022）把它和同伴的目标全改成「打它的那个」
+        //      → 蜂群内讧、目标反而没人咬。
+        //
+        // 修法：球**直接无视**这些蜜蜂（连碰撞都不算，直接穿过去）——
+        // 配合 BallExtraTraits 每 10 刻的仇恨纠偏，双保险。
+        if (BallExtraTraits.isSummonedBee(target)) {
+            return false;
+        }
         return super.canHitEntity(target)
                 && (this.piercingIgnoreEntityIds == null
                         || !this.piercingIgnoreEntityIds.contains(target.getId()));
@@ -1625,7 +1638,20 @@ public class BallProjectile extends ThrowableItemProjectile {
                 this.setSettled(true);
                 this.settledTicks = 0;
                 this.settleDropTicks = SETTLE_DROP_TICKS;
-            } else if (this.returnToOwner && !this.profile().loyalty() && this.tickInWater()) {
+            } else if (this.returnToOwner && !this.profile().loyalty()
+                    && !this.profile().tidalSurge() && this.tickInWater()) {
+                // 【潮涌】同样不走这条捷径（作者 2026-10-15 实测反馈：
+                //   「潮汐球参与组合球的时候，组合球在入水之后速度方向会偏移，导致到处乱飞」）。
+                //
+                //   根因：【忠诚】是**唯一特殊**类词条，组合球一律写回 false（见 BallFragments.comboProfile），
+                //   于是「带【潮涌】的组合球」在这条判据里**通过了** —— 它一进水泡够 20 刻就被当成落定，
+                //   紧接着被 `homingToOwner()` 接管：那里有一句
+                //   `this.setDeltaMovement(this.returnDirection.scale(nextSpeed))`，
+                //   **把整条飞行方向改写成「朝主人」**，表现就是方向突然偏移、球在水里来回乱窜。
+                //   完整潮汐球因为有【忠诚】一直躲过了这一条，所以这个现象只在组合球上看得见。
+                //
+                //   修法与忠诚球一致：带【潮涌】的球在水里也只走**严格条件**（真的撞停才回收）——
+                //   它本来就是「水中不受重力、不减速」的那颗球，不该被这条捷径拽走。
                 // 【忠诚】不走水里这条捷径（作者 2026-10-13 第三轮反馈：「水里会过早地触发忠诚回收，
                 // 这是最开始写空气动力球代码的时候搞的」）。
                 //
@@ -1860,6 +1886,19 @@ public class BallProjectile extends ThrowableItemProjectile {
         if (vx * vx + vz * vz < SETTLE_SPEED_SQR) {
             this.setDeltaMovement(Vec3.ZERO);
             this.setRolling(false);
+            // ⚠️ **多重射击的附属弹：滚停即碎**（作者 2026-10-15 报的 bug）。
+            //
+            //    这条路径原来直接 `setSettled(true)` —— 没有那套「附属弹一落定就碎」的判定。
+            //    于是附属弹变成「**已落定、却没碎**」的状态挂在地上，而收纳袋的自动收纳
+            //    （{@code BallPouchCurios.autoCollect}）只判 {@code isSettled()}，
+            //    就把它当普通球收进袋子里了 —— 表现正是作者说的
+            //    「附属球在即将停稳但未到达破碎时被收纳袋错误收纳」。
+            //
+            //    落定即碎是附属弹的既定设计（见 L1591 / L1666 那两处同款判定），这里补齐。
+            if (this.multishotSide || this.shatterOnSettle) {
+                this.burst();
+                return;
+            }
             // 同一 tick 内转入静止态，让重力立刻断掉
             this.setSettled(true);
             this.settledTicks = 0;

@@ -207,7 +207,7 @@
   "tooltip.more_balls.entry.seal": "【封印】除你武器！",
   "tooltip.more_balls.desc.seal": "随机禁用物品",
   "tooltip.more_balls.entry.bees": "【招蜂引蝶%1$s】击中时召唤蜜蜂",
-  "tooltip.more_balls.desc.bees": "击中时召唤 %1$s 只血量 5 点的蜜蜂，并把被击中者的仇恨强制转移到它们身上",
+  "tooltip.more_balls.desc.bees": "击中时召唤 %1$s 只血量 %2$s 点的蜜蜂，并把被击中者的仇恨强制转移到它们身上",
   "tooltip.more_balls.entry.nurture": "【滋养】回收成功时，获得%1$s",
   "tooltip.more_balls.entry.nurture_inactive": "（当前未生效）【滋养】回收成功时，获得%1$s"
 }
