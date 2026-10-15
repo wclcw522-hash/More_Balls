@@ -1274,7 +1274,15 @@ public class BallProjectile extends ThrowableItemProjectile {
         //   主球（非附属弹）的行为一个字不变。
         //
         // 判据走 profile，所以带潮汐球的组合球同样享有忠诚。
-        if (this.profile().loyalty() && !this.multishotSide) {
+        // ⚠️ **附属弹也必须走这条** —— 不是为了回家，而是为了保留「回收体系」里的那些**兜底**：
+        //    挂区块票据、tickSlowStuck() 的「卡住就当落定」、水里那条替代落定，
+        //    全都挂在 returnToOwner 上。少了它们，附属弹卡在墙上就**永远不落定、也不碎**，
+        //    【潮涌】的激流特效会一直挂着（作者 2026-10-14 报的现象②）；
+        //    水里那条替代落定没了之后，球会落到严格条件那条路上，
+        //    而那里的 burst() 排在 homingToOwner() 检查**之前** → 表现为「提前破碎」（现象①）。
+        //
+        //    「不回家」由 homingToOwner0() 开头那条 multishotSide 判据负责，与这里解耦。
+        if (this.profile().loyalty() || this.multishotSide) {
             this.returnToOwner = true;
         }
 
@@ -1585,6 +1593,19 @@ public class BallProjectile extends ThrowableItemProjectile {
                 if (this.homingToOwner()) {
                     return;
                 }
+
+                // ⚠️⚠️ **不回家的球必须在这里真的落定**（作者 2026-10-14 报的第二轮 bug）。
+                //
+                //    上面那段注释把它叫「兜底落定」，但它原来只做了一件事：把球交给回归逻辑。
+                //    这一句 `setSettled` 都没有 —— 于是不回家的球（多重射击的附属弹）走到这里后
+                //    什么都不会发生，而严格条件（速度阈值 + 脚下有支撑）在卡墙时又凑不齐，
+                //    结果就是**卡在原地既不落定也不碎、【潮涌】特效一直挂着**。
+                //
+                //    修法：不回家的球，这里就当作「停了」—— 落定之后走 5 刻「坐实」，
+                //    再落到下面那句 `if (multishotSide) burst()`，碎掉、特效随之消失。
+                this.setSettled(true);
+                this.settledTicks = 0;
+                this.settleDropTicks = SETTLE_DROP_TICKS;
             } else if (this.returnToOwner && !this.profile().loyalty() && this.tickInWater()) {
                 // 【忠诚】不走水里这条捷径（作者 2026-10-13 第三轮反馈：「水里会过早地触发忠诚回收，
                 // 这是最开始写空气动力球代码的时候搞的」）。
@@ -3295,6 +3316,16 @@ public class BallProjectile extends ThrowableItemProjectile {
     }
 
     private boolean homingToOwner0() {
+        // 【多重射击的附属弹】—— **永远不真的回家**。
+        //
+        // returnToOwner 对它是 true（见 ballTickPre），但那只是为了拿到回收体系的兜底：
+        // 区块票据、卡住兜底、水里替代落定。它自己的归宿是**落定即碎**（见 burst 那两处调用）。
+        //
+        // 放在本方法最开头，是因为前面那条【智慧】判据允许「还在锁目标时不回家」，
+        // 而附属弹压根不该走到那一步 —— 它没有「还在追目标」这种豁免。
+        if (this.multishotSide) {
+            return false;
+        }
         // 【智慧x】次数未耗尽时**不启动回归** —— 它还在追目标，不该被拽回主人身边。
         // 次数用完（wisdomUsesLeft == 0）或**空追太久**才解除这条限制，正常掉落并可被回收。
         // （作者 2026-10-09 指定）
