@@ -89,14 +89,22 @@ public class BallItem extends Item {
      * <p><b>规则</b>（作者 2026-10-13）：<b>任何球只有耐久 ≥ 80% 才能切割</b>。</p>
      *
      * <p>口径与耐久条的百分比完全一致（见 {@code getDurabilityBar}）：
-     * 上限取 {@code profile.toughness()}，剩余取 {@code TOUGHNESS_LEFT} 组件。
-     * 上限为 0 的球（不坚固的那几种：雪球系 / 碎片）本来就不在
-     * {@link BallFragments#sources()} 里，这里再挡一次防除零。</p>
+     * 上限取 {@code profile.toughness()}，剩余取 {@code TOUGHNESS_LEFT} 组件。</p>
+     *
+     * <p>⚠️ <b>「不坚固」的球（{@code toughness <= 0}）视为满耐久，可以切</b> ——
+     * 作者 2026-10-15 明确：「这种碰到就碎也能切啊，视为满耐久，你像末影珍珠不就是吗」。
+     * 它们压根没有耐久条可掉，80% 那条约束对它们没有意义。
+     * 这里原先直接返回 {@code false} 是写错了：末影珍珠、蜜饯球、符箓球这些
+     * 明明在 {@link BallFragments#sources()} 里、本该切得动，却被这道门槛挡在切石机外
+     * （蜜饯球的【滋养】是**组合类**词条，切不动就等于整条机制拿不到）。</p>
+     *
+     * <p>{@code TOUGH_FOREVER}（{@code -1}，「坚固」无后缀那种永不碎裂）经
+     * {@code Math.max(0, …)} 抬平后同样落进这一档 —— 永不碎自然也是满耐久。</p>
      */
     public static boolean canBeCut(ItemStack stack) {
         int max = Math.max(0, BallBehavior.profileFor(stack).toughness());
         if (max <= 0) {
-            return false;
+            return true;   // 不坚固（含 TOUGH_FOREVER）：视为满耐久
         }
         int left = Math.min(remainingToughness(stack, max), max);
         return left >= Math.ceil(max * CUT_TOUGHNESS_RATIO);
