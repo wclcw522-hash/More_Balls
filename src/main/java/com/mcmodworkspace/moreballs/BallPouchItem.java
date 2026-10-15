@@ -95,7 +95,27 @@ public class BallPouchItem extends Item {
      * 弹过一次就写入了具体数值。</p>
      */
     public static boolean isPristine(ItemStack ball) {
-        return !ball.has(ModComponents.TOUGHNESS_LEFT.get());
+        // ★★ 球堆要摊开看**壳里那颗球**（作者 2026-10-15：
+        //    「收回时球会错误的在备用区变成球堆」）。
+        //
+        // ⚠️⚠️ 壳自身**没有** `TOUGHNESS_LEFT` 组件（耐久记在里面的球上），
+        //     所以原先这个判据对壳**恒返回 true** ⇒ 它被当成「满耐久」⇒
+        //     `deliverReturned` 把它送进 **ammo（备用区）**。
+        //     而备用区走的是 `fillInto`（按 `isSameItemSameComponents` 全等合并）——
+        //     壳和球永远不相等 ⇒ **每个壳独占一格**，表现就是你说的
+        //     「用过的球收回后在备用区变成了球堆」。
+        //
+        // 正确口径：壳按**里面那颗球**的实际耐久分流。
+        // 回收链上 `clusterize` 只对「用过的球」套壳（满耐久原样返回），
+        // 所以壳摊开后必然带着耐久组件 ⇒ 这里返回 false ⇒ 进 **transit（转运段）**，
+        // 而转运段本来就有 `clusterizeSegment` / `fillClustered` —— 那才是球堆该待的地方。
+        ItemStack probe = BallClusterItem.isCluster(ball)
+                ? BallClusterItem.asBall(ball)
+                : ball;
+        if (probe.isEmpty()) {
+            return false;
+        }
+        return !probe.has(ModComponents.TOUGHNESS_LEFT.get());
     }
 
     /**

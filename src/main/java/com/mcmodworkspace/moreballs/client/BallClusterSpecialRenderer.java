@@ -54,9 +54,26 @@ public class BallClusterSpecialRenderer implements SpecialModelRenderer<ItemStac
         return icon.isEmpty() ? contents.lowest().copy() : icon.copy();
     }
 
+    /** 【临时诊断】submit 只报一次 —— 作者报「贴图一点变化没有」，必须先确认渲染器有没有被调到 */
+    private static boolean diagnoseSubmitLogged = false;
+
+    /** 【临时诊断】getExtents 只报一次 */
+    private static boolean diagnoseExtentsLogged = false;
+
     @Override
     public void submit(ItemStack inner, PoseStack pose, SubmitNodeCollector collector,
                        int light, int overlay, boolean foil, int outline) {
+        // ===== 【临时诊断】整个 special 渲染链有没有走到这里 =====
+        //
+        // 作者 2026-10-15：「球堆贴图一点变化没有」—— 而我先后改过 extents **四次**
+        // （±0.5 / ±0.6 / visitExtents 采样 / 0..16）都毫无变化 ⇒ 必须确认：
+        //   · 这一行打出来 ⇒ 渲染器在用，问题在 extents / pose 的取值
+        //   · 没打出来     ⇒ 物品走的还是普通 generated 图标 ⇒ **special 模型没接上**
+        if (!diagnoseSubmitLogged) {
+            diagnoseSubmitLogged = true;
+            MoreBalls.LOGGER.info("[球堆][诊断] submit 被调用 —— special 渲染器确实在跑；inner={}",
+                    inner.isEmpty() ? "(空)" : inner.getHoverName().getString());
+        }
         if (inner.isEmpty()) {
             return;
         }
@@ -188,6 +205,12 @@ public class BallClusterSpecialRenderer implements SpecialModelRenderer<ItemStac
         //   · `visitExtents` 采样 —— 会 applyTransform，多一层，错
         //   · `0..1` —— 把 1/16 格当成了 1 格 ⇒ 盒子小 16 倍 ⇒ GUI 放大 16 倍 ⇒ 只看见一个角
         //   ⇒ 正确的就是**本地的 0..16**。
+        //
+        // 【临时诊断】确认本方法**真的被调用过**（作者报「贴图一点变化没有」）
+        if (!diagnoseExtentsLogged) {
+            diagnoseExtentsLogged = true;
+            MoreBalls.LOGGER.info("[球堆][诊断] getExtents 被调用 —— 给出 0..16");
+        }
         out.accept(new org.joml.Vector3f(0.0F, 0.0F, 0.0F));
         out.accept(new org.joml.Vector3f(16.0F, 16.0F, 16.0F));
     }
