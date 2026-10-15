@@ -148,7 +148,21 @@ public final class BallClusterTidy {
             if (probe.isEmpty() || !existing.hasRoom() || !existing.matches(ball)) {
                 continue;
             }
-            BallClusterItem.setContents(slot, existing.withAdded(ball));
+
+            // ⚠️⚠️ **必须核对 withAdded 到底加进去没有**（作者 2026-10-15 报「整理时莫名消失一部分球」）。
+            //
+            //     `withAdded` 在 `balls.size() >= MAX_BALLS` 或 `!matches(ball)` 时会
+            //     **静默返回 this**（球根本没进壳）。而它内部的判据和上面这两行是**重复的** ——
+            //     重复就意味着两处可能不一致，一旦不一致，球就会在这条缝里被丢掉。
+            //
+            //     所以这里改成：加不进去就 `continue` 找下一个壳，**绝不把它当成功**。
+            //     （`BallClusterContents` 是 record，`withAdded` 失败时返回同一个引用，
+            //       用 `==` 判断可靠。）
+            BallClusterContents after = existing.withAdded(ball);
+            if (after == existing) {
+                continue;
+            }
+            BallClusterItem.setContents(slot, after);
             return true;
         }
 

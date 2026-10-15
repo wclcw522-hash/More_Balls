@@ -93,10 +93,19 @@ public class BallClusterSpecialRenderer implements SpecialModelRenderer<ItemStac
         Minecraft.getInstance().getItemModelResolver().updateForTopItem(
                 state, inner, ItemDisplayContext.GUI, null, null, 0);
 
-        pose.pushPose();
-        pose.last().pose().identity();   // 抹掉外层的 translate + scale(16, -16, 16)
+        // ⚠️ 直接提交，**不要**动 pose —— 外层那个 scale(16, -16, 16) 正是 state 需要的。
+        //
+        //    【1.1.0.20 的回归】我在这里加过 `pose.last().pose().identity()`，结果**图标整个消失**
+        //        —— state 里模型顶点是 0..1（1 格 = 1 单位），画到「1 格 = 1 单位」的 pose 上
+        //        只占 1/16 格，肉眼看不见。作者实测反馈「球堆图标直接没了」。
+        //
+        //    【1.1.0.12 的错误】那一版把 context 改成 NONE，也不对 ——
+        //        那样会丢掉 `minecraft:item/generated` 那层「把 0..1 顶点挪到以原点居中」的
+        //        display translation（**只在 GUI context 下生效**），图标向右下偏移。
+        //
+        //    ⇒ **GUI context + 原样提交**才是对的：外层已经是完整的 GUI 物品坐标系，
+        //      state 自己带的 GUI 变换与之是配套的一层（不是叠加）。
         state.submit(pose, collector, light, overlay, outline);
-        pose.popPose();
     }
 
     @Override

@@ -235,7 +235,14 @@ public class BallPouchItem extends Item {
                 if (probe3.isEmpty() || !existing.hasRoom() || !existing.matches(probe3)) {
                     continue;
                 }
-                BallClusterItem.setContents(other, existing.withAdded(probe3));
+                // ⚠️⚠️ 核对真的加进去了（作者 2026-10-15 报「整理时莫名消失一部分球」）。
+                //      `withAdded` 在满 64 / 不匹配时会**静默返回 this** —— 而这里原来无条件
+                //      置 `merged = true`，那样外层就会把这一格的改动当成成功，球实际没进壳。
+                BallClusterContents after = existing.withAdded(probe3);
+                if (after == existing) {
+                    continue;   // 没加进去 → 换下一个壳试
+                }
+                BallClusterItem.setContents(other, after);
                 merged = true;
                 break;
             }
@@ -273,7 +280,20 @@ public class BallPouchItem extends Item {
             if (probe.isEmpty() || !existing.hasRoom() || !existing.matches(probe)) {
                 continue;
             }
-            BallClusterItem.setContents(slot, existing.withAdded(probe));
+            // ⚠️⚠️ **这就是那个丢球点**（作者 2026-10-15 报「整理时莫名消失一部分球」）。
+            //
+            //      原来是：
+            //          BallClusterItem.setContents(slot, existing.withAdded(probe));
+            //          ball.setCount(0);          ← 无条件清零
+            //
+            //      `withAdded` 在满 64 / 不匹配时会**静默返回 this**（球没进壳），
+            //      而这里不管加没加都把源棧清零 ⇒ **球凭空消失**。
+            //      现在先核对，加不进去就换下一个壳，**绝不清源栈**。
+            BallClusterContents after = existing.withAdded(probe);
+            if (after == existing) {
+                continue;
+            }
+            BallClusterItem.setContents(slot, after);
             ball.setCount(0);
             changed = true;
         }

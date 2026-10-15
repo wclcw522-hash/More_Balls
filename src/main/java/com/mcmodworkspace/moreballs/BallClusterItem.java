@@ -4,6 +4,7 @@ import net.minecraft.ChatFormatting;
 import net.minecraft.network.chat.Component;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.InteractionResult;
+import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
@@ -431,6 +432,43 @@ public class BallClusterItem extends Item {
      * <p><b>不留空球堆</b>：取完若壳里只剩 1 颗，那一颗会直接顶上这一格
      * （见 {@link #takeOneWithDecluster}）。</p>
      */
+    /**
+     * <b>蓄力条的长度</b>（作者 2026-10-15 反馈「蓄力等级不显示」）。
+     *
+     * <h2>为什么之前没有条</h2>
+     * <p>原版 HUD 画蓄力条时读的是<b>玩家正在使用的那件物品</b> —— 而手持球堆蓄力时，
+     * 那件物品是<b>壳</b>，不是球。壳原先没有这两个覆写，原版拿到 duration 0 / 动画 NONE，
+     * 于是**什么都不画**（蓄力其实是生效的，只是看不见）。</p>
+     *
+     * <p>长度取 {@link BallCharge#USE_DURATION}，与 {@code BallThrowHandler.onStartUsing}
+     * 给球设的完全一致 —— 两边必须是同一个数，否则条画满了但等级还没到。</p>
+     *
+     * <p>只有「壳里那颗球本身可蓄力」时才给长度；不坚固的球（chargeLevels == 0）返回 0，
+     * 与它们直接出手的行为一致。</p>
+     */
+    @Override
+    public int getUseDuration(ItemStack stack, LivingEntity entity) {
+        ItemStack probe = asBall(stack);
+        if (probe.isEmpty() || BallBehavior.profileFor(probe).chargeLevels() <= 0) {
+            return 0;
+        }
+        return BallCharge.USE_DURATION;
+    }
+
+    /**
+     * <b>蓄力条的样式</b> —— 用弓那种（拉满的弧线），一眼能看出「在蓄力」。
+     *
+     * <p>不覆写的话原版用 {@code ItemUseAnimation.NONE}，同样画不出条。</p>
+     */
+    @Override
+    public net.minecraft.world.item.ItemUseAnimation getUseAnimation(ItemStack stack) {
+        ItemStack probe = asBall(stack);
+        if (probe.isEmpty() || BallBehavior.profileFor(probe).chargeLevels() <= 0) {
+            return net.minecraft.world.item.ItemUseAnimation.NONE;
+        }
+        return net.minecraft.world.item.ItemUseAnimation.BOW;
+    }
+
     @Override
     public InteractionResult use(Level level, Player player, InteractionHand hand) {
         ItemStack shell = player.getItemInHand(hand);
@@ -452,8 +490,13 @@ public class BallClusterItem extends Item {
         //
         //    作者 2026-10-15：「从球堆扔球也要继承球本身的那些信息……包括蓄力」——
         //    能不能蓄力由**壳里那颗球**的 profile 决定，不是壳决定的。
+        //    ⚠️ **必须排除 Shift** —— Shift+右键 是「放进物品栏」，不能进蓄力。
+        //       我 1.1.0.18 加这一段时忘了这一条，于是 Shift 也走 startUsingItem，
+        //       松开时被 onStopUsing 当成普通投掷扔出去 —— 作者实测反馈「shift右键还是扔出」。
         ItemStack probe = asBall(shell);
-        if (!probe.isEmpty() && BallBehavior.profileFor(probe).chargeLevels() > 0) {
+        if (!player.isShiftKeyDown()
+                && !probe.isEmpty()
+                && BallBehavior.profileFor(probe).chargeLevels() > 0) {
             player.startUsingItem(hand);
             return InteractionResult.CONSUME;
         }
