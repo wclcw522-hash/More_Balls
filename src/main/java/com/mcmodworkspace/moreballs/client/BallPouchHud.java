@@ -112,8 +112,20 @@ public final class BallPouchHud implements GuiLayer {
         // 图标：16×16 在 29×24 的格子里居中偏上
         graphics.item(ammo, x + 7, y + 4);
 
-        // 数量：压在图标右下角，跟原版物品格的画法一样
-        String amount = String.valueOf(BallAmmoSelection.countOf(player, ammo));
+        // 数量：压在图标右下角，跟原版物品格的画法一样。
+        //
+        // ⚠️⚠️ **优先读服务端同步过来的那个值**，而不是自己数客户端的袋子内容 ——
+        //      袋子的内容存在 ItemStack 的组件里，服务端改了组件客户端不会自动知道
+        //      （尤其是挂在饰品栏上的袋子：Curios 只认「栈被换过」）。
+        //      自己数就会一直显示旧值，要玩家手动动一下袋子才刷新
+        //      （作者 2026-10-15 反馈的「剩余弹药显示槽有延迟」）。
+        //
+        //      `SELECTED_AMMO_COUNT` 是带 `.sync(...)` 的 attachment ⇒ 由框架保证同步。
+        //      值 `-1` 表示还没收到过同步（比如刚进游戏），那就退回本地数一次兜底。
+        int synced = player.getData(
+                com.mcmodworkspace.moreballs.ModAttachments.SELECTED_AMMO_COUNT.get());
+        int count = synced >= 0 ? synced : BallAmmoSelection.countOf(player, ammo);
+        String amount = String.valueOf(count);
         graphics.text(minecraft.font, amount,
                 x + 24 - minecraft.font.width(amount), y + 13, 0xFFFFFFFF, true);
     }

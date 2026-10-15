@@ -136,6 +136,27 @@ public final class ModAttachments {
                     .build());
 
     /**
+     * <b>选中弹药的当前数量</b> —— 专门给 HUD 那个弹药格显示用（{@code -1} = 还没同步过）。
+     *
+     * <h2>为什么要单独存一个数</h2>
+     * <p>HUD 显示的是「收纳袋里这种球还剩几颗」。原本是客户端自己数的
+     * （{@code BallAmmoSelection.countOf} 遍历客户端那份袋子内容）—— 而袋子的内容存在
+     * ItemStack 的<b>组件</b>里，服务端改了组件客户端不会自动知道
+     * （挂在饰品栏上的袋子尤其如此：Curios 只认「栈被换过」）。</p>
+     *
+     * <p>症状就是作者 2026-10-15 反馈的「剩余弹药显示槽有延迟，要手动改一下袋子里的球才刷新」。</p>
+     *
+     * <p>所以改成：服务端每次改完袋子就把这个数写进来 —— 它是 {@code .sync(...)} 的
+     * attachment，<b>由框架保证同步</b>，客户端直接读，不再依赖 Curios 的同步时机。</p>
+     */
+    public static final Supplier<AttachmentType<Integer>> SELECTED_AMMO_COUNT = ATTACHMENTS.register(
+            "selected_ammo_count",
+            () -> AttachmentType.builder(() -> -1)
+                    .serialize(Codec.INT.fieldOf("selected_ammo_count"))
+                    .sync(ByteBufCodecs.VAR_INT)
+                    .build());
+
+    /**
      * 怪物捡球时，从主手上<b>收起来</b>的那件东西（空列表 = 没收着）。
      *
      * <p>作者 2026-10-11 指定：捡球不再把原来手里的东西丢在地上，而是<b>收起来</b>，

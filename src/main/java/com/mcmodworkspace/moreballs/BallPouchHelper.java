@@ -315,6 +315,15 @@ public final class BallPouchHelper {
         }
         if (player instanceof net.minecraft.server.level.ServerPlayer serverPlayer) {
             serverPlayer.inventoryMenu.broadcastChanges();
+
+            // 再把「选中弹药的当前数量」写进同步 attachment —— HUD 直接读那一个数。
+            //
+            // 只靠上面那句广播不够：**挂在饰品栏上的袋子**走的是 Curios 自己的同步，
+            // 时机不由我们控制（作者实测「更新依旧不及时」）。而这个 attachment 带
+            // `.sync(...)`，由框架保证发到客户端。
+            ItemStack selected = BallAmmoSelection.selected(player);
+            int count = selected.isEmpty() ? 0 : BallAmmoSelection.countOf(player, selected);
+            serverPlayer.setData(ModAttachments.SELECTED_AMMO_COUNT.get(), count);
         }
         BallPouchCurios.forceSync(player);
     }
