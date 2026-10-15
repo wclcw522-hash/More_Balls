@@ -1,5 +1,7 @@
 {
-    "cluster.more_balls.tier.pristine": "完整",
+        "button.more_balls.tidy": "整理球堆",
+  "message.more_balls.tidy_done": "整理完成：%1$s 颗球收好了",
+  "cluster.more_balls.tier.pristine": "完整",
   "cluster.more_balls.tier.flawed": "瑕疵",
   "cluster.more_balls.tier.damaged": "破损",
   "cluster.more_balls.tier.broken": "残缺",

@@ -32,5 +32,11 @@ public final class ModNetwork {
                 SelectAmmoPayload.TYPE,
                 SelectAmmoPayload.STREAM_CODEC,
                 SelectAmmoPayload::handle);
+
+        // 一键整理：背包界面那个小按钮（作者 2026-10-15 要求）
+        registrar.playToServer(
+                TidyBallsPayload.TYPE,
+                TidyBallsPayload.STREAM_CODEC,
+                TidyBallsPayload::handle);
     }
 }
