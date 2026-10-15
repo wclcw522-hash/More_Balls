@@ -220,6 +220,16 @@ neoForge {
             //   （主菜单连 `new ItemStack(...)` 都会抛 `Components not bound yet`）。
             //
             // 默认不传这个属性 ⇒ 行为与原来**完全一致**，不会影响正常开发。
+            // 【调试用】传 `-PquickPlayWorld=<存档名>` 可让 runClient 直接进那个世界。
+            //
+            // 为什么需要它：`gradle runClient --args="--quickPlaySingleplayer test"` 行不通 ——
+            // NeoForge 的 devlaunch 会把第一个参数当成 main class：
+            //   java.lang.IllegalArgumentException: Could not find main class or main method.
+            //   Given main class: --quickPlaySingleplayer
+            //
+            // ⚠️ 实测这个开关**在 26.2 + gradle 9.8 的 dev 环境下没能让客户端进世界**
+            //   （参数看着传进去了，650 秒也没进）。留着是因为写法本身是对的、
+            //   换个环境可能就有用；**默认不传属性 ⇒ 行为与原来完全一致**。
             if (project.hasProperty('quickPlayWorld')) {
                 programArguments.addAll '--quickPlaySingleplayer',
                         project.property('quickPlayWorld') as String
