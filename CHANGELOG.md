@@ -1,3 +1,45 @@
+## 1.1.0.48 — 球堆第十一批实测反馈（作者 2026-10-15）
+
+### ① ★ 球堆图标 —— **照 `ComboChargeBallRenderer` 重写**（作者指的路）
+
+作者原话：**「你当时做组合球咋渲染的现在学一下很难吗？」** —— 对，这就是正解。
+
+那个渲染器（上膛的弩上那颗球，一直显示正常）的做法：
+
+- **完全不碰 `ItemStackRenderState`** ⇒ 没有 display context 那一层未知数
+- 自己读贴图 + **`submitCustomGeometry` 手写顶点**
+- `submit` 里 `pushPose → scale(1/16) → 提交 0..16 的顶点 → popPose`
+- `getExtents` 报 **0..1**（= 几何在 pose 空间的实际范围）
+
+`BallClusterSpecialRenderer` 现在与它**逐字对齐**：常量（`MODEL_SCALE` / `MIN` / `MAX` /
+`PLANE_Z_FRONT` / `PLANE_Z_BACK`）、顶点顺序、UV 约定、背面「顶点倒序但 UV 与正面一致」、
+包围盒口径 —— 全部照抄。**唯一的差别是「画哪张图」**：它画合成的弩上那颗球，
+我画壳里那颗球的贴图。
+
+贴图约定：`more_balls:textures/item/<物品路径>.png`（查过 `models/item/*.json`，
+所有普通球都是 `item/generated` + `layer0: more_balls:item/<同名>`）。
+⚠️ **组合球没有单一贴图**（它是 composite + 四个 select 拼的），查到没有对应文件时不画。
+
+**前几版错在哪**：我一直在 `ItemStackRenderState` 上打转（想着「组合球的 composite 它自己能处理」），
+于是 extents 口径、context、居中位移……推了五六轮全错。**学现成的能跑的实现，比推公式便宜太多。**
+
+### ② 弩切走后副手的球**没有**收进收纳袋 —— 判据漏了球堆
+
+作者原话：「**切走立马放回收纳袋**，不是切走再切回来的时候」。
+
+根因就在 `recallOffhandBall` 的第一行：
+
+```java
+if (offhand.isEmpty() || !BallAmmo.isBall(offhand)) { return; }
+```
+
+而 `BallAmmo.isBall` 是 `stack.is(ModTags.Items.BALLS)` ——
+**球堆不在 `BALLS` 标签里**（它是容器，不是弹药）⇒ 副手拿着球堆时这一行直接 return、
+什么都不做。而作者的用法恰恰是「副手挂着球堆」。
+
+⇒ 改成「是球 **或** 是壳」都收（`deliverReturned` 本来就认壳，整颗收进转运段）。
+
+---
 ## 1.1.0.47 — 球堆第十批实测反馈（作者 2026-10-15）
 
 ### ① 球堆图标（第四次反馈）
