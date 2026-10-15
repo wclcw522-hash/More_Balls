@@ -1,8 +1,0 @@
-{
-  "type": "minecraft:crafting_shaped",
-  "category": "misc",
-  "key": { "P": "minecraft:paper", "I": "minecraft:ink_sac" },
-  "pattern": [ " P ", "PIP", " P " ],
-  "result": { "count": 4, "id": "more_balls:talisman_ball" },
-  "show_notification": false
-}

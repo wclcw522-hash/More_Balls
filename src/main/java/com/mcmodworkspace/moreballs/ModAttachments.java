@@ -194,34 +194,6 @@ public final class ModAttachments {
     //   后来发现原版 Creeper.getSwelling() 就能直接读出蓄力进度，比自记时刻更准，
     //   于是那个 attachment 就没人用了，2026-10-07 清掉。）
 
-
-    /**
-     * 【封印】解除时刻（游戏刻）—— 符箓球击中怪物时写入（作者 2026-10-15）。
-     *
-     * <p>10 秒内这只怪不能攻击、也不能捡球。玩法见 {@code BallExtraTraits#seal}。</p>
-     *
-     * <p>用 attachment 而不是药水效果：药水效果会显示在 HUD 上（生物不显示，
-     * 但语义也不对），而这是一个「纯机制标记」，不该有粒子与图标。</p>
-     */
-    public static final Supplier<AttachmentType<Long>> SEALED_UNTIL = ATTACHMENTS.register(
-            "sealed_until",
-            () -> AttachmentType.builder(() -> 0L)
-                    .serialize(Codec.LONG.fieldOf("sealed_until"))
-                    .build());
-
-    /** 把目标封印到指定游戏刻 */
-    public static void seal(net.minecraft.world.entity.Entity target, long untilTick) {
-        target.setData(SEALED_UNTIL.get(), untilTick);
-    }
-
-    /** 目标当前是否处于封印中 */
-    public static boolean isSealed(net.minecraft.world.entity.Entity target) {
-        if (target == null || target.level() == null) {
-            return false;
-        }
-        Long until = target.getData(SEALED_UNTIL.get());
-        return until != null && until > target.level().getGameTime();
-    }
     public static void register(IEventBus modEventBus) {
         ATTACHMENTS.register(modEventBus);
     }

@@ -316,49 +316,6 @@ public final class BallTooltip {
                     line("tooltip.more_balls.desc.loyalty")));
         }
 
-        // ===== 第十三批词条（作者 2026-10-15）=====
-        //
-        // 【敛财】【尖刺】【招蜂引蝶N】【封印】属于「其它特殊」/「数值类」：完整球照样生效。
-        //
-        // 【滋养】是**组合类**（第三类，与「唯一特殊」正好相反）：
-        //   · 完整球上**不生效** —— 所以当前 profile 里那一位已经被 profileFor 抹掉了，
-        //     要读「原始 profile」才知道这颗球**本来有**这条词条；
-        //   · 完整球显示成「（当前未生效）【滋养】」，组合球才显示正常的「【滋养】」。
-        BallBehavior.BallProfile rawProfile = BallBehavior.rawProfileFor(stack);
-        boolean comboTraitActive = stack.getItem() == ModItems.COMBO_BALL.get();
-
-        if (rawProfile.hasFlag(BallBehavior.BallProfile.FLAG_MONEY)) {
-            out.add(Entry.of(line("tooltip.more_balls.entry.money"), Kind.TRAIT,
-                    // ⚠️ 效果名与时长**走原版药水格式**（作者指定的「用原版药水显示格式」）——
-                    //    和【脉冲】【魔法】一个做法：名字带效果颜色、时长自动格式化成 mm:ss，
-                    //    而不是在 lang 里写死「（00:10）」（那样时长一改就对不上）。
-                    Component.translatable("tooltip.more_balls.desc.money",
-                            effectWithDuration(ModEffects.MONEY, BallExtraTraits.MONEY_TICKS, 0))));
-        }
-        if (rawProfile.hasFlag(BallBehavior.BallProfile.FLAG_SPIKES)) {
-            out.add(Entry.of(line("tooltip.more_balls.entry.spikes"), Kind.TRAIT,
-                    line("tooltip.more_balls.desc.spikes")));
-        }
-        if (rawProfile.bees() > 0) {
-            out.add(Entry.of(
-                    line("tooltip.more_balls.entry.bees", String.valueOf(rawProfile.bees())),
-                    Kind.TRAIT, line("tooltip.more_balls.desc.bees")));
-        }
-        if (rawProfile.hasFlag(BallBehavior.BallProfile.FLAG_SEAL)) {
-            out.add(Entry.of(line("tooltip.more_balls.entry.seal"), Kind.TRAIT,
-                    line("tooltip.more_balls.desc.seal")));
-        }
-        if (rawProfile.hasFlag(BallBehavior.BallProfile.FLAG_NURTURE)) {
-            out.add(Entry.of(
-                    comboTraitActive ? line("tooltip.more_balls.entry.nurture")
-                            : line("tooltip.more_balls.entry.nurture_inactive"),
-                    Kind.TRAIT,
-                    // 同样走原版药水格式（作者要求「用原版药水格式」）
-                    Component.translatable("tooltip.more_balls.desc.nurture",
-                            effectWithDuration(net.minecraft.world.effect.MobEffects.REGENERATION,
-                                    BallExtraTraits.NURTURE_TICKS, 0))));
-        }
-
         // ===== 更早批次：【感应】自 2.0.0 起就有（渲染代码排在此处）=====
 
         // 【感应】—— 底层词条，不带数字即 1 级（【感应】与【感应1】是一回事）；
