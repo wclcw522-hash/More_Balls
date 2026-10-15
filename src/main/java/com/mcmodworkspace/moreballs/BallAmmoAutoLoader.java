@@ -50,9 +50,23 @@ public final class BallAmmoAutoLoader {
     public static void onPlayerTick(PlayerTickEvent.Post event) {
         Player player = event.getEntity();
 
-        // ① 主手得是弩，而且还没装填
         ItemStack mainHand = player.getMainHandItem();
-        if (!(mainHand.getItem() instanceof CrossbowItem) || CrossbowItem.isCharged(mainHand)) {
+
+        // ===== ⓪ 主手不是弩 → 把副手那颗球收回收纳袋（作者 2026-10-15 要求）=====
+        //
+        // ⚠️ 顺序很关键：这一条必须排在「主手得是弩」的 return **之前**。
+        //    原来的写法是「主手不是弩就 return」，于是副手那颗自动补上去的球
+        //    会一直挂在手上 —— 切到镐子、切到剑都还在，玩家得自己拿掉。
+        //    作者要的是「主手从持弩状态切换到其它状态时，袋子主动收回副手的球」。
+        //
+        //    只收「是球」的副手 —— 副手拿着火把 / 盾牌之类的，一律不碰。
+        if (!(mainHand.getItem() instanceof CrossbowItem)) {
+            recallOffhandBall(player);
+            return;
+        }
+
+        // ① 主手是弩，但已经装填好了 → 不用管（子弹已经在膛里）
+        if (CrossbowItem.isCharged(mainHand)) {
             return;
         }
 
