@@ -123,7 +123,7 @@ public class BallClusterSpecialRenderer implements SpecialModelRenderer<ItemStac
         // GUI 那套居中来自代码生成的 `builtin/generated`，而 `NONE` 不走它。
         ItemStackRenderState state = new ItemStackRenderState();
         Minecraft.getInstance().getItemModelResolver().updateForTopItem(
-                state, inner, ItemDisplayContext.NONE, null, null, 0);
+                state, inner, ItemDisplayContext.GUI, null, null, 0);
 
         // ⚠️ 直接提交，**不要**动 pose —— 外层那个 scale(16, -16, 16) 正是 state 需要的。
         //
@@ -154,24 +154,31 @@ public class BallClusterSpecialRenderer implements SpecialModelRenderer<ItemStac
         //   注意 pushPose / popPose 必须成对 —— 外层那个 pose 是共用的，不能污染。
         float charge = chargeProgress();
         pose.pushPose();
-        // ===== ★★ 自己把「居中位移」补上（作者反复报「只有一个角」的真正原因）=====
+        // ===== ★★ 1.1.0.43：照「上膛的弩的球」那个渲染器对齐 =====
         //
-        // 根因（1.1.0.35 查到，有据可查）：
-        //   `assets/minecraft/models/item/generated.json` 的 `display` 里
-        //   **没有 `gui` 这一项**（只有 ground / head / thirdperson / firstperson / fixed）。
-        //   GUI 下的「居中 + 归一化」来自**代码生成**的 `builtin/generated` 模型，
-        //   而 `ItemDisplayContext.NONE` **不走那套 display 变换**。
+        // 作者的提示：「参考上膛的弩的球当时的贴图代码，我记得当时也是经常偏，
+        // 说不定是同一个原因」—— 照做之后差别很明确：
         //
-        //   ⇒ 用 NONE 时，模型是从 (0,0,0) 画到 (1,1,1) 的立方体，
-        //     在 GUI 坐标系（原点 = 槽位中心）里就是「往右下方画 16 像素」
-        //     ⇒ **只看得见右上角一块** —— 正是作者看到的。
+        //   ComboChargeBallRenderer（能正常显示）的做法是
+        //     submit: pushPose → scale(1/16) → 提交 0..16 的顶点 → popPose
+        //     也就是**自己把外层那个 16 倍抵消掉**，只留物品自己的 GUI 摆法；
+        //     getExtents 报 0..1（几何在 pose 空间确实是 0..1）。
         //
-        // 所以：NONE context 的 state（它自己不做任何 display 变换）+ 我们补一次居中：
-        //   模型是 0..1 的立方体 ⇒ `translate(-0.5, -0.5, 0)` 就把它挪成「以原点居中」。
+        // 我这边留着 ItemStackRenderState（组合球的 composite 模型、附魔光效、
+        // 损坏条都靠它），对应写法就是：**context 用 GUI**（让 state 自己做
+        // 那套居中 + 归一化），**提交前 scale(1/16) 抵消外层**。
         //
-        // （这一步之后，球堆图标的坐标系与普通 `generated` 物品**完全等价**：
-        //   外层给了 scale(16,-16,16)，我们给了居中 —— 两者相乘就是原版 GUI 摆法。）
-        pose.translate(-0.5F, -0.5F, 0.0F);
+        // 之前几版错在哪：
+        //   · GUI + 原样 pose ⇒ 外层的 16 倍与 state 的 GUI 摆法**叠了两层**
+        //     ⇒ 作者看到的「只有一个角」
+        //   · NONE + translate(-0.5) ⇒ 几何留在 0..16 模型单位，外层再 ×16 ⇒ 占 16 格
+        //     ⇒ 槽位里只剩放大后的透明边缘 ⇒ 作者看到的「整个消失」
+        // ★★ 抵消外层的 scale(16, -16, 16) —— 与 ComboChargeBallRenderer 同一个手法。
+        //    这样几何在 pose 空间落回 0..1，state 自己的 GUI 摆法才能正确定位。
+        //    （原来这里写的是 translate(-0.5, -0.5, 0)：那假设几何是 0..16 模型单位、
+        //      只挪半格；实际外层还会再 ×16 ⇒ 几何占 16 格 ⇒ 槽位里只剩放大的透明边缘
+        //      ⇒ 作者看到的「整个消失」。）
+        pose.scale(1.0F / 16.0F, 1.0F / 16.0F, 1.0F / 16.0F);
         if (charge > 0.0F) {
             float s = 1.0F + 0.35F * charge;
             pose.scale(s, s, s);
@@ -245,7 +252,11 @@ public class BallClusterSpecialRenderer implements SpecialModelRenderer<ItemStac
             MoreBalls.LOGGER.info("[球堆][诊断] getExtents 被调用 —— 给出 0..16");
         }
         out.accept(new org.joml.Vector3f(0.0F, 0.0F, 0.0F));
-        out.accept(new org.joml.Vector3f(16.0F, 16.0F, 16.0F));
+        // ★★ 报 0..1 —— 与 ComboChargeBallRenderer 一致。
+        //    它报 0..1 是因为「几何在提交时 poseStack 空间里就是 0..1」；
+        //    我这边 submit 里加了 scale(1/16)，几何同样落到 0..1 ⇒ 报同一个值。
+        //    （原来报 0..16 是「模型单位」口径 —— 那比实际几何大了 16 倍。）
+        out.accept(new org.joml.Vector3f(1.0F, 1.0F, 1.0F));
     }
 
     /**

@@ -134,16 +134,25 @@ public final class MoreBallsClient {
                 clusterModelDiagnosed = false;   // 还没到时候 —— 下一 tick 再看
                 return;
             }
-            net.minecraft.client.renderer.item.ItemStackRenderState state =
-                    new net.minecraft.client.renderer.item.ItemStackRenderState();
-            mc.getItemModelResolver().updateForTopItem(
-                    state,
-                    new ItemStack(com.mcmodworkspace.moreballs.ModItems.BALL_CLUSTER.get()),
-                    net.minecraft.world.item.ItemDisplayContext.NONE, null, null, 0);
-            MoreBalls.LOGGER.info("[球堆][诊断] 模型解析: isEmpty={} oversized={}",
-                    state.isEmpty(), state.isOversizedInGui());
-            state.visitExtents(v -> MoreBalls.LOGGER.info(
-                    "[球堆][诊断] extents 顶点 ({}, {}, {})", v.x(), v.y(), v.z()));
+            // 分别用 GUI 与 NONE 解析一遍，把「实际包围盒」打出来 ——
+            // 这是唯一能不靠肉眼判断「几何到底多大、落在哪」的办法。
+            // 8 个 extents 顶点 + 包围盒放在一起看，就能反推出外层那个 scale(16)
+            // 到底把几何放大了多少倍。
+            for (net.minecraft.world.item.ItemDisplayContext ctx
+                    : new net.minecraft.world.item.ItemDisplayContext[] {
+                            net.minecraft.world.item.ItemDisplayContext.GUI,
+                            net.minecraft.world.item.ItemDisplayContext.NONE }) {
+                net.minecraft.client.renderer.item.ItemStackRenderState st =
+                        new net.minecraft.client.renderer.item.ItemStackRenderState();
+                mc.getItemModelResolver().updateForTopItem(
+                        st,
+                        new ItemStack(com.mcmodworkspace.moreballs.ModItems.BALL_CLUSTER.get()),
+                        ctx, null, null, 0);
+                MoreBalls.LOGGER.info("[球堆][诊断] ctx={} isEmpty={} oversized={} 包围盒={}",
+                        ctx, st.isEmpty(), st.isOversizedInGui(), st.getModelBoundingBox());
+                st.visitExtents(v -> MoreBalls.LOGGER.info(
+                        "[球堆][诊断]   extents 顶点 ({}, {}, {})", v.x(), v.y(), v.z()));
+            }
         } catch (Throwable t) {
             MoreBalls.LOGGER.warn("[球堆][诊断] 探测失败", t);
         }
