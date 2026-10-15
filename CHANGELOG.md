@@ -1,3 +1,41 @@
+## 1.1.0.49 — 补齐已知漏洞 + 清理临时诊断（作者 2026-10-15 指令）
+
+作者原话：
+
+> **知道做的有很明显的漏洞为什么不做完再提交？我叫你不要给自己加工作，
+> 不是叫你看见明显的bug不修，是叫你不要乱加无意义的检测**
+
+### ① 补齐：壳里是**组合球**时图标也要能画出来
+
+上一版我自己写了「组合球没有单一贴图 ⇒ 不画」就交付了 —— 那是**已知没做完**的活，不该留着。
+
+**组合球的图案怎么来**：它的物品模型是 `composite` + 四个 `select`
+（按 `combo_slot_1..4` 选 `combo_piece_<来源>_<象限>` 模型），
+而那些 `combo_piece` 模型指向的是 **`<球名>_quarter_<1..4>.png`**
+（查 `models/item/combo_piece_*.json` 确认，例如 `combo_piece_0_1` → `wooden_ball_quarter_1`）。
+
+`combo_slot_N` 里存的下标正好是 `BallFragments.sources()` 里的位置，所以
+「象限 → 来源球 → 那张 quadrant 贴图」是一条直线。
+
+⇒ `BallClusterSpecialRenderer` 新增 `composedComboTexture`：
+四张象限贴图用 source-over 叠成一张 16×16，注册成 `DynamicTexture`，
+按象限组合缓存（封顶淘汰）。合成用的 `readTexture` / `overlay` 直接复用
+`ComboChargeBallRenderer` 里现成的那两个（改成 `public static`，不重写）。
+
+### ② 清理：把我加的临时诊断全部删掉
+
+包括：
+- `BallClusterSpecialRenderer` 的 `diagnoseSubmitLogged` / pose 矩阵诊断
+- `MoreBallsClient` 的 `diagnoseClusterModelOnFirstFrame` / `spySubmitGeometry`（动态代理那套）
+- `BallProjectile` 的「回收 / 套壳 / 交付 / 碎裂」四条
+- `BallAmmoAutoLoader` 的「切走收回副手球」诊断
+- `BallClusterTidy` 的「整理：loose=N 颗」
+- `BallAmmo` 的发射诊断
+
+**判断标准**：删掉后功能不变，只是日志干净 —— **保留**真正的功能日志
+（球堆首次生成、`[ball][弩] 注册` 这类原有输出）。
+
+---
 ## 1.1.0.48 — 球堆第十一批实测反馈（作者 2026-10-15）
 
 ### ① ★ 球堆图标 —— **照 `ComboChargeBallRenderer` 重写**（作者指的路）
