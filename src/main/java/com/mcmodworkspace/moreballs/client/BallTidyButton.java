@@ -10,6 +10,11 @@ import net.neoforged.api.distmarker.Dist;
 import net.neoforged.bus.api.SubscribeEvent;
 import net.neoforged.fml.common.EventBusSubscriber;
 import net.neoforged.neoforge.client.event.ScreenEvent;
+import net.minecraft.client.KeyMapping;
+import net.minecraft.client.Minecraft;
+import net.minecraft.resources.Identifier;
+import net.neoforged.neoforge.client.event.ClientTickEvent;
+import net.neoforged.neoforge.client.event.RegisterKeyMappingsEvent;
 import net.neoforged.neoforge.client.network.ClientPacketDistributor;
 
 /**
@@ -45,7 +50,43 @@ public final class BallTidyButton {
     /** 按钮与背包面板之间的空隙 */
     private static final int GAP = 2;
 
+    /** 按键分组 —— 和 {@code BallPouchKeys} 用同一个「更多球」分组，设置界面里归在一起 */
+    private static final KeyMapping.Category CATEGORY =
+            new KeyMapping.Category(Identifier.fromNamespaceAndPath(MoreBalls.MOD_ID, "main"));
+
+    /**
+     * <b>鼠标中键 —— 整理球堆</b>（作者 2026-10-15 要求）。
+     *
+     * <p>用标准的 {@link KeyMapping} 而不是自己去拦鼠标事件，有两个好处：
+     * 它能进原版「按键设置」界面（玩家可以改键），而且和游戏里的其它按键走同一套冲突检测。</p>
+     *
+     * <p>类型是 {@code MOUSE} + {@code GLFW_MOUSE_BUTTON_MIDDLE} —— 中键。
+     * 作用与背包界面里那个小按钮完全一样：发 {@link TidyBallsPayload} 给服务端。</p>
+     */
+    public static final KeyMapping TIDY_KEY = new KeyMapping(
+            "key.more_balls.tidy",
+            com.mojang.blaze3d.platform.InputConstants.Type.MOUSE,
+            org.lwjgl.glfw.GLFW.GLFW_MOUSE_BUTTON_MIDDLE,
+            CATEGORY);
+
     private BallTidyButton() {
+    }
+
+    @SubscribeEvent
+    public static void onRegisterKeys(RegisterKeyMappingsEvent event) {
+        event.register(TIDY_KEY);
+    }
+
+    /** 中键按下 → 请求服务端整理（和界面里那个按钮走同一个包） */
+    @SubscribeEvent
+    public static void onClientTick(ClientTickEvent.Post event) {
+        Minecraft minecraft = Minecraft.getInstance();
+        if (minecraft.player == null) {
+            return;   // 不在世界里就不响应
+        }
+        while (TIDY_KEY.consumeClick()) {
+            ClientPacketDistributor.sendToServer(TidyBallsPayload.INSTANCE);
+        }
     }
 
     @SubscribeEvent

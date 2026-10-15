@@ -1,5 +1,7 @@
 {
-        "button.more_balls.tidy": "整理球堆",
+        "key.more_balls.tidy": "整理球堆（中键）",
+  "tooltip.more_balls.cluster.contains": "里面是：%1$s",
+  "button.more_balls.tidy": "整理球堆",
   "message.more_balls.tidy_done": "整理完成：%1$s 颗球收好了",
   "cluster.more_balls.tier.pristine": "完整",
   "cluster.more_balls.tier.flawed": "瑕疵",

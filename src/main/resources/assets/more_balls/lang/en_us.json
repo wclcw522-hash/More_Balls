@@ -1,5 +1,7 @@
 {
-        "button.more_balls.tidy": "Tidy balls",
+        "key.more_balls.tidy": "Tidy balls (MMB)",
+  "tooltip.more_balls.cluster.contains": "Contains: %1$s",
+  "button.more_balls.tidy": "Tidy balls",
   "message.more_balls.tidy_done": "Sorted: %1$s balls bundled",
   "cluster.more_balls.tier.pristine": "Pristine",
   "cluster.more_balls.tier.flawed": "Flawed",

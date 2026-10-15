@@ -119,7 +119,28 @@ public final class BallPickupHandler {
                 return;
             }
         }
-        // 什么都没装进去（身上没袋子 / 袋满）→ 放行，让球正常进背包
+        // 什么都没装进去（身上没袋子 / 袋满）→ 不再直接放行！
+        //
+        // ⚠️ 作者 2026-10-15：「球要在收回或捡起的时候自动进入球堆，而不是要等到手动整理」。
+        //    原先这里直接 return，让原版把球塞进背包 —— 而用过的球耐久各不相同，
+        //    组件不一致就**必然一颗一格**，打完一局背包又被吃满，只能靠「一键整理」手动收。
+        //
+        //    现在改成：**用过的球就地封成壳再交给玩家**。落点规则复用 deliverReturned
+        //    （袋子里转槽 → 背包 → 掉脚下），和弩射完的回收完全一致。
+        //    满耐久的球照旧放行 —— 它们本来就能和同批新球叠成一堆，套壳是画蛇添足。
+        if (BallClusterTier.of(stack).isClustered()) {
+            ItemStack shell = BallClusterItem.clusterize(stack.copy());
+            if (BallClusterItem.isCluster(shell)) {
+                event.setCanPickup(TriState.FALSE);
+                BallPouchHelper.Delivery delivery = BallPouchHelper.deliverReturned(player, shell);
+                if (delivery == BallPouchHelper.Delivery.NOWHERE) {
+                    player.drop(shell, false);   // 实在放不下就掉在脚下，绝不凭空消失
+                }
+                itemEntity.discard();
+                return;
+            }
+        }
+        // 满耐久 / 没耐久概念 → 放行，让球正常进背包（它们本来就叠得起来）
     }
 
     /**

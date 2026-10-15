@@ -359,10 +359,16 @@ public class BallClusterItem extends Item {
             return;
         }
 
-        // 常规栏：数量 + 最低耐久
+        // 常规栏：数量 + **里面是哪种球** + 最低耐久
         tooltip.accept(Component.translatable("tooltip.more_balls.cluster.count", count)
                 .withStyle(ChatFormatting.GOLD));
         if (!lowest.isEmpty()) {
+            // 「球本身的信息也要显示出来」（作者 2026-10-15）——
+            // 壳里的球都是完整栈（耐久、词条都在），把它的显示名摆出来，
+            // 一眼就知道这一堆是什么球、哪一档（名字自带「瑕疵的」「破损的」这类前缀）
+            tooltip.accept(Component.translatable("tooltip.more_balls.cluster.contains",
+                            lowest.getHoverName())
+                    .withStyle(ChatFormatting.WHITE));
             // 带上「这一档有几颗」（作者 2026-10-15 要求）—— 也就是「最低耐久的那一组」的大小，
             // 和 Shift+右键 扔出去的数量是同一个口径
             tooltip.accept(Component.translatable("tooltip.more_balls.cluster.lowest",
