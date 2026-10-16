@@ -6,6 +6,7 @@ import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.inventory.AbstractContainerMenu;
 import net.minecraft.world.inventory.ContainerInput;
 import net.minecraft.world.inventory.Slot;
+import net.minecraft.world.inventory.StonecutterMenu;
 import net.minecraft.world.item.ItemStack;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.injection.At;
@@ -51,14 +52,23 @@ import java.util.List;
 @Mixin(AbstractContainerMenu.class)
 public abstract class AbstractContainerMenuMixin {
 
-    @Inject(method = "clicked", at = @At("HEAD"), cancellable = true)
-    private void moreballs$takeLowestGroup(int slotId, int button, ContainerInput input,
-                                           Player player, CallbackInfo ci) {
-        // ①② 只认「右键拿起」
+    @Inject(method = "clicked", at = @At("HEAD"), cancellable = true, require = 0)
+    private void moreballs$specialClicks(int slotId, int button, ContainerInput input,
+                                         Player player, CallbackInfo ci) {
+        AbstractContainerMenu self = (AbstractContainerMenu) (Object) this;
+
+        // ===== ① 切石机：材料格是球堆时，点产物槽「只消耗里面的一颗」=====
+        // 见 moreballs$cutOneFromCluster 的注释（作者 2026-10-16 的方案）
+        if (moreballs$cutOneFromCluster(self, slotId, input, player)) {
+            ci.cancel();
+            return;
+        }
+
+        // ===== ② 背包里右键球堆 = 取出最低耐久那一组 =====
+        // 只认「右键拿起」
         if (input != ContainerInput.PICKUP || button != 1) {
             return;
         }
-        AbstractContainerMenu self = (AbstractContainerMenu) (Object) this;
 
         // ③ 光标必须空着
         if (!self.getCarried().isEmpty()) {
@@ -106,5 +116,93 @@ public abstract class AbstractContainerMenuMixin {
         self.broadcastChanges();
         slot.onTake(player, taken);
         ci.cancel();              // 挡掉原版的「拿起整个球堆」
+    }
+
+    /**
+     * <b>切石机里的球堆：整堆留在材料格，每取一次产物只消耗里面的一颗球</b>
+     * （作者 2026-10-16 提出的方案）。
+     *
+     * <h2>它解决的问题</h2>
+     * <p>原版切石机一次消耗「1 个物品」（{@code resultSlot.onTake} 里那句
+     * {@code inputSlot.remove(1)}），而球堆 {@code count} 恒为 1 —— 不处理的话
+     * 点一下就整个球堆没了。上一版的做法是把球堆摊成「一叠 N 颗同种球」，
+     * 但那样会**把耐久统一成最低那颗**，损耗明显（作者反馈「损耗严重」）。</p>
+     *
+     * <h2>现在这一版（作者的原话）</h2>
+     * <p>「球堆可以整个放进去，然后，再点击产物拿起的瞬间……球堆回到背包 →
+     * 填充一颗球到材料格 → 选中刚刚选的配方 → 完成一次切球 → 把球堆放回材料格 →
+     * 选中刚刚的配方」—— 也就是在<b>取产物的那一瞬间</b>做一次原子操作：</p>
+     * <ol>
+     *   <li>从壳里取走<b>耐久最低</b>的那一颗（{@link BallClusterItem#takeOne}），
+     *       剩余的壳先攥在局部变量里（不落地、不进背包，免得出现第二份）；</li>
+     *   <li>把那颗球放进材料格、重新选中刚才那条配方 —— 让配方算出正确的产物；</li>
+     *   <li>产物交给玩家（光标空时拿在手上），并清掉产物槽；</li>
+     *   <li>把剩余的壳<b>放回材料格</b>、再选中一次配方 —— 于是可以接着点下一次。</li>
+     * </ol>
+     * <p><b>耐久一点不丢</b>：壳里每颗球都按原样保留，每次只吃掉被切的那一颗。</p>
+     *
+     * <h2>为什么能拦在这里</h2>
+     * <p>{@code AbstractContainerMenu#clicked} 是「玩家点击槽位」的唯一入口，
+     * 而本类早就注入了它的 HEAD（背包右键取一组那个功能）。这里只是多加一个分支，
+     * 用的是原版公开的 {@link StonecutterMenu#getSlot} / {@code clickMenuButton}
+     * —— 不碰原版代码，也不需要新开 Mixin。</p>
+     *
+     * <h2>放行的几种情况</h2>
+     * <p>光标上已经拿着东西时直接不管（免得把玩家手上的东西吞了）；材料格不是球堆、
+     * 或者产物槽是空的（还没选配方）时也原样放行，走原版流程。</p>
+     *
+     * @return true 表示这次点击已被接管（调用方要 {@code ci.cancel()}）
+     */
+    private static boolean moreballs$cutOneFromCluster(AbstractContainerMenu self, int slotId,
+                                                       ContainerInput input, Player player) {
+        if (!(self instanceof StonecutterMenu menu)) {
+            return false;
+        }
+        if (slotId != StonecutterMenu.RESULT_SLOT || input != ContainerInput.PICKUP) {
+            return false;
+        }
+        // 光标必须空着 —— 有东西时不碰，免得把玩家手上的东西吞了
+        if (!self.getCarried().isEmpty()) {
+            return false;
+        }
+
+        Slot inputSlot = menu.getSlot(StonecutterMenu.INPUT_SLOT);
+        ItemStack shell = inputSlot.getItem();
+        if (!BallClusterItem.isCluster(shell)) {
+            return false;   // 材料格不是球堆 → 走原版（普通球本来就是一次切一颗）
+        }
+        ItemStack product = self.getSlot(StonecutterMenu.RESULT_SLOT).getItem();
+        if (product.isEmpty()) {
+            return false;   // 还没选配方
+        }
+        int selected = menu.getSelectedRecipeIndex();
+        if (selected < 0) {
+            return false;
+        }
+
+        // ① 取走耐久最低那一颗；剩余的壳**只留在局部变量里**
+        ItemStack one = BallClusterItem.takeOne(shell);
+        if (one.isEmpty()) {
+            return false;   // 空壳（理论上不会）
+        }
+        ItemStack rest = shell.copy();
+        boolean hasRest = !BallClusterItem.contents(rest).isEmpty();
+
+        // ② 那一颗进材料格，并重新选中刚才那条配方（材料换物品了，配方列表会被重置）
+        inputSlot.set(one);
+        menu.clickMenuButton(player, selected);
+
+        // ③ 完成一次切球 —— 产物槽里那份就是这条配方按这颗球算出来的，直接交给玩家
+        self.setCarried(product.copy());
+        self.getSlot(StonecutterMenu.RESULT_SLOT).set(ItemStack.EMPTY);
+        product.onCraftedBy(player, product.getCount());
+
+        // ④ 剩余的壳放回材料格，再选中一次配方 —— 接着还能继续点
+        if (hasRest) {
+            inputSlot.set(rest);
+            menu.clickMenuButton(player, selected);
+        }
+        self.broadcastChanges();
+        return true;
     }
 }
