@@ -708,9 +708,21 @@ public final class BallFragments {
                 //    去参与「均分 / 相加」，所以读入时（见 of(...) 那行）换成了这个标记值。
                 //    落回 profile 时**必须换回 TOUGH_FOREVER(-1)**，否则组合球的坚固会变成 100000，
                 //    tooltip 走「坚固 100000」那一支，而不是「坚固（永久）」。
+                // 【坚固】—— **作者 2026-10-16 改的规则**：合成后的最终耐久，
+                //    **每带一个四分之一球（也就是每一份）就 ×2** —— 这是累乘：
+                //      · 二合一（2 份）⇒ ×4
+                //      · 四合一（4 份）⇒ ×16
+                //    ⚠️ 两种情况不参与乘法：
+                //      · **永久坚固**（TOUGH_FOREVER_MARK）—— 它本来就是「永不消耗」，
+                //        乘多少倍还是它自己，而且 ×16 会变成天文数字；
+                //      · **不坚固**（0）—— 0 乘任何数还是 0。
                 .withToughness(merged.toughness() >= TOUGH_FOREVER_MARK
                         ? BallBehavior.TOUGH_FOREVER
-                        : (int) merged.toughness())                .withSense((int) merged.sense())
+                        : (merged.toughness() <= 0.0D
+                                ? BallBehavior.NOT_TOUGH
+                                : (int) Math.min(Integer.MAX_VALUE,
+                                        (double) (int) merged.toughness()
+                                                * Math.pow(2.0D, indexes.size()))))                .withSense((int) merged.sense())
                 .withEntityScale(scale)
                 .withRarity(0)
                 .withDrops(List.of());
