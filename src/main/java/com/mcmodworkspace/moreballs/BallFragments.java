@@ -82,7 +82,7 @@ import net.minecraft.world.level.block.Block;
  *   <li><b>例外：【金光闪闪】</b>是金球独占 —— <b>不参与合成</b>，被切开就永久失效，
  *       合回去也不能重新获得（作者 2026-10-09 指定）</li>
  *   <li><b>另一条例外：【忠诚】</b>—— 潮汐球独占，作者 2026-10-13 把它归入
- *       <b>「唯一特殊」</b>这一类：与【金光闪闪】同样的规则，<b>不继承、不参与合成</b>。
+ *       <b>「唯一特性」</b>这一类：与【金光闪闪】同样的规则，<b>不继承、不参与合成</b>。
  *       落地在 {@code of()} 硬写 false、{@code comboProfile} 也硬写 false</li> * </ul>
  *
  * <p>实现落点：{@code Fragment.scaled}（按份数缩放）、{@code Fragment.plus}（叠加）、
@@ -289,7 +289,7 @@ public final class BallFragments {
                            boolean transpose,
                            /** 【潮涌】（「其它特殊」类）—— 入水后不受重力、速度 ×3，并环绕激流纹理 */
                            boolean tidalSurge,
-                           /** 【忠诚】（「其它特殊」类）—— 永远带忠诚附魔，且不会被任何生物捡走 */
+                           /** 【忠诚】—— 「唯一特性」类（只在本体完整球上生效）：永远带忠诚附魔，且不会被任何生物捡走 */
                            boolean loyalty,
                            /**
                             * 【招蜂引蝶N】（蜜饯球）—— **数值类特性**类（作者 2026-10-15 的分类）：
@@ -299,7 +299,7 @@ public final class BallFragments {
                            /**
                             * 【滋养】（蜜饯球）—— <b>组合类特性词条</b>（作者 2026-10-15 定稿的新类别）。
                             *
-                            * <p>与「唯一特殊」正好相反：完整球里携带但<b>不生效</b>；
+                            * <p>与「唯一特性」正好相反：完整球里携带但<b>不生效</b>；
                             * 切开时按份数<b>均分触发概率</b>（每份 1/份数），
                             * 合进组合球后各份相加、≥1 份即生效。</p>
                             *
@@ -395,7 +395,11 @@ public final class BallFragments {
      * （见 {@code comboProfile}），所以这里仍按「是不是完整金球」单独判定。</p>
      */
     public static Fragment of(Item ball) {
-        return of(BallBehavior.profileFor(new ItemStack(ball)), ball == ModItems.GOLD_BALL.get());
+        // ⚠️ 【金光闪闪】是「唯一特性」类 —— **只在本体完整球上生效，切开不继承**
+        //    （2026-10-16 修）。原来第二个参数硬写 `ball == GOLD_BALL`，金球切出来的碎片
+        //    也带着 glint：数据层因为半球不在 OVERRIDES 里不生效，但**半球 tooltip 会显示它**，
+        //    与「不继承」直接矛盾。这里统一给 false，与 comboProfile 里那句 withGlint(false) 一致。
+        return of(BallBehavior.profileFor(new ItemStack(ball)), false);
     }
 
     /**
@@ -429,7 +433,7 @@ public final class BallFragments {
                 // 新增：穿透数值 + 位掩码型词条
                 p.penetration(),
                 p.flags(),
-                p.breaker(), p.transpose(), p.tidalSurge(), false /* 【忠诚】唯一特殊：不继承 */,
+                p.breaker(), p.transpose(), p.tidalSurge(), false /* 【忠诚】唯一特性：不继承 */,
                 // 第十三批：招蜂引蝶（数值类特性）/ 滋养（组合类）。
                 // ⚠️ 组合类的【滋养】在**完整球上携带但不生效** —— 照样读进 Fragment，
                 //    「不生效」是在使用侧判的（见 BallProjectile.deliverToOwner）。
@@ -537,8 +541,14 @@ public final class BallFragments {
                 morphs >= 1,
                 magnets >= 1,
                 glints >= 1,
-                // 【智慧N】是**带数值**的词条：分量够（≥2 份）才保留，保留时给四份之和
-                (wisdoms >= 1) ? (int) Math.max(1, Math.floor(sum.wisdom())) : 0,
+                // 【智慧N】是**带数值**的词条：≥1 份才激活，激活时给四份之和取整。
+                // ⚠️ 2026-10-16 去掉了原先的 Math.max(1, ...)：它与同一位置的三条同伴
+                //    （【穿透】【破坏王】【招蜂引蝶】，见下面几行）口径不一致 ——
+                //    那三条在「份数够、但取整后为 0」时**归零、等于没激活**，
+                //    而【智慧】被强行抬到 1，会凭空多出词条：
+                //    1 个【智慧1】四分之一球（0.25）本该归零，却变成组合球拿到【智慧1】。
+                //    按规格（数值类特性：≥1 份激活后**相加 → 向下取整**）应当允许归零。
+                (wisdoms >= 1) ? (int) Math.floor(sum.wisdom()) : 0,
                 kindnesses >= 1,
                 conductions >= 1,
                 // 【引雷x】是**阈值类特殊**词条（作者 2026-10-10 分类）：
@@ -693,8 +703,14 @@ public final class BallFragments {
                 .withBounce((int) Math.floor(bounce))
                 .withChargeLevels((int) Math.floor(charge))
                 .withInaccuracy((float) Math.floor(inaccuracy))
-                .withToughness((int) merged.toughness())
-                .withSense((int) merged.sense())
+                // ⚠️ 【坚固】要**还原「永久」标记**（2026-10-16 修）：
+                //    Fragment 里永久坚固用 TOUGH_FOREVER_MARK（100000）表示 —— 因为 double 不好拿 -1
+                //    去参与「均分 / 相加」，所以读入时（见 of(...) 那行）换成了这个标记值。
+                //    落回 profile 时**必须换回 TOUGH_FOREVER(-1)**，否则组合球的坚固会变成 100000，
+                //    tooltip 走「坚固 100000」那一支，而不是「坚固（永久）」。
+                .withToughness(merged.toughness() >= TOUGH_FOREVER_MARK
+                        ? BallBehavior.TOUGH_FOREVER
+                        : (int) merged.toughness())                .withSense((int) merged.sense())
                 .withEntityScale(scale)
                 .withRarity(0)
                 .withDrops(List.of());
@@ -754,15 +770,15 @@ public final class BallFragments {
                 .withTranspose(merged.transpose())
                 // 【潮涌】同上：份数判定在 combine* 里做完了，这里写回 profile
                 .withTidalSurge(merged.tidalSurge())
-                // ⚠️ 【忠诚】是「唯一特殊」类 —— **不参与合成**，和【金光闪闪】同样的处理：
+                // ⚠️ 【忠诚】是「唯一特性」类 —— **不参与合成**，和【金光闪闪】同样的处理：
                 //    显式写回 false，而不是沿用 merged.loyalty()。组合球永远拿不到忠诚，
                 //    哪怕四份全是潮汐球。
                 //
-                // ⚠️ 口径已于 2026-10-16 核实过，本工程现行设定确实是「唯一特殊」：
+                // ⚠️ 口径已于 2026-10-16 核实过，本工程现行设定确实是「唯一特性」：
                 //    · BallFragments 的类注释（本文件开头）明确这么写；
-                //    · CHANGELOG 1.0.0.10 记着「【忠诚】改为『唯一特殊』词条」；
-                //    · docs/球与词条.md 同样归为「唯一特殊」；
-                //    · 作者本人 2026-10-16 也这么说：「【忠诚】作为唯一特殊词条根本不会在组合球里出现」
+                //    · CHANGELOG 1.0.0.10 记着「【忠诚】改为『唯一特性』词条」；
+                //    · docs/球与词条.md 同样归为「唯一特性」；
+                //    · 作者本人 2026-10-16 也这么说：「【忠诚】作为唯一特性词条根本不会在组合球里出现」
                 //      —— 那是**澄清**（他紧接着说「我说的是组合球的【潮涌】乱飞」），不是报 bug。
                 //    ⚠️ 而 BallBehavior 里 loyalty 字段的注释一度写成「其它特殊」（笔误，已更正）——
                 //       照着它判断会走弯路，别再看那个。

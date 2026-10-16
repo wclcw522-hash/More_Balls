@@ -185,6 +185,32 @@ public class BallProjectile extends ThrowableItemProjectile {
     /** 【移形换位】珍珠（含带它的组合球）击中其它生物时与它换位 */
     public static final int TRAIT_TRANSPOSE = 1 << 14;
 
+    // ===== 2026-10-16 补：这六条「其它类」词条此前**没进概率系统** =====
+    //
+    // ⚠️ 作者 2026-10-16 指出：**其它类特性词条切开要均分概率、组合时再相加**。
+    //    这条规格本来就实现好了（`traitChance` 按份数现算、`rollTraitsOnce` 发射时判一次），
+    //    但上面那 15 位只覆盖了一部分词条 —— 下面这六条当时是**直接用 `hasFlag` / 字段判**的，
+    //    于是它们**恒为 100%**，切开后不按份数分红。
+    //    （【忠诚】不在此列：它是「唯一特性」，不参与切球。）
+
+    /** 【敛财】绿宝石球 —— 击中时给被击中者挂【腰缠万贯】 */
+    public static final int TRAIT_MONEY = 1 << 15;
+
+    /** 【封印】符箓球 —— 封玩家快捷栏 / 封怪物攻击并打掉它手里的球 */
+    public static final int TRAIT_SEAL = 1 << 16;
+
+    /** 【尖刺】滴水石球 —— 击中 / 碰撞 / 破碎时射出 8 枚滴水石锥 */
+    public static final int TRAIT_SPIKE = 1 << 17;
+
+    /** 【尖啸】回响球 —— 投出后无飞行过程，直接到终点并在路径上炸出监守者音波 */
+    public static final int TRAIT_SHRIEK = 1 << 18;
+
+    /** 【穿甲】回响球 —— 造成的伤害改为「真实物理伤害」（无视护甲、仍吃减伤） */
+    public static final int TRAIT_PIERCE = 1 << 19;
+
+    /** 【潮涌】潮汐球 —— 入水后不受重力、速度 ×3，并环绕激流纹理 */
+    public static final int TRAIT_TIDAL = 1 << 20;
+
     /**
      * 这一颗球允不允许触发「<b>主球专属</b>」的效果。
      *
@@ -238,6 +264,19 @@ public class BallProjectile extends ThrowableItemProjectile {
                 return profile.hasMagnetic();
             case TRAIT_TRANSPOSE:
                 return profile.transpose();
+            // ===== 2026-10-16 补的六条（见位定义处的说明）=====
+            case TRAIT_MONEY:
+                return profile.hasFlag(BallBehavior.BallProfile.FLAG_MONEY);
+            case TRAIT_SEAL:
+                return profile.hasFlag(BallBehavior.BallProfile.FLAG_SEAL);
+            case TRAIT_SPIKE:
+                return profile.hasFlag(BallBehavior.BallProfile.FLAG_SPIKE);
+            case TRAIT_SHRIEK:
+                return profile.hasFlag(BallBehavior.BallProfile.FLAG_SHRIEK);
+            case TRAIT_PIERCE:
+                return profile.hasFlag(BallBehavior.BallProfile.FLAG_PIERCE);
+            case TRAIT_TIDAL:
+                return profile.tidalSurge();
             default:
                 return false;
         }
@@ -246,7 +285,9 @@ public class BallProjectile extends ThrowableItemProjectile {
     /** 这颗球实际带着哪些特性（还没掷概率）。 */
     private int ownedTraits() {
         int bits = 0;
-        for (int bit = 0; bit < 16; bit++) {
+        // ⚠️ 扫描范围必须覆盖**所有已定义的 TRAIT_* 位**（现在最高是 1 << 20）——
+        //    只扫 16 位的话，晚加的词条位永远扫不到，表现就是「携带了但从不触发」。
+        for (int bit = 0; bit < 32; bit++) {
             if (hasTrait(this.profile(), 1 << bit)) {
                 bits |= 1 << bit;
             }
@@ -339,9 +380,10 @@ public class BallProjectile extends ThrowableItemProjectile {
         Entity owner = this.getOwner();
         int[] misses = owner == null
                 ? null
-                : TRAIT_MISS_STREAKS.computeIfAbsent(owner.getUUID(), key -> new int[16]);
+                : TRAIT_MISS_STREAKS.computeIfAbsent(owner.getUUID(), key -> new int[32]);
         int fired = 0;
-        for (int bit = 0; bit < 16; bit++) {
+        // ⚠️ 同 ownedTraits：必须扫全部已定义的位（最高 1 << 20），只扫 16 位会漏掉后加的词条
+        for (int bit = 0; bit < 32; bit++) {
             int unit = 1 << bit;
             if ((owned & unit) == 0) {
                 continue;
@@ -1048,7 +1090,7 @@ public class BallProjectile extends ThrowableItemProjectile {
      * 所以这个速度会一直保持到出水或撞上东西。</p>
      */
     private void tickTidalSurge() {
-        boolean hasSurge = this.profile().tidalSurge();
+        boolean hasSurge = this.traitFired(TRAIT_TIDAL);
         boolean inWater = hasSurge && this.isInWater();
 
         if (inWater && !this.tidalSurgeActive) {
@@ -1319,18 +1361,18 @@ public class BallProjectile extends ThrowableItemProjectile {
         // 投出后的**第一刻**就结算：射线找终点 → 路径与落点两轮效果 → 球瞬移过去并停下。
         // 之后若干刻由球自己把落点那三道扩散音波逐帧画完。
         // 详细规格见 BallExtraTraits 的【尖啸】段。
-        if (this.profile().hasFlag(BallBehavior.BallProfile.FLAG_SHRIEK)
+        if (this.traitFired(TRAIT_SHRIEK)
                 && this.level() instanceof ServerLevel shriekLevel) {
             if (!this.shriekFired) {
                 this.shriekFired = true;
                 this.shriekWaveFrames = BallExtraTraits.shriek(this, shriekLevel,
-                        this.profile().hasFlag(BallBehavior.BallProfile.FLAG_PIERCE));
+                        this.traitFired(TRAIT_PIERCE));
             } else if (this.shriekWaveFrames > 0) {
                 BallExtraTraits.shriekWaves(this, shriekLevel, this.shriekWaveFrames--);
             }
         }
 
-        // 【忠诚】（「其它特殊」类，作者 2026-10-13）——
+        // 【忠诚】—— 「唯一特性」类（切开不继承、不参与合成）——
         // 潮汐球**永远带忠诚附魔**，且这个附魔不能因为球被改变状态而消失。
         //
         // 实现上不逐个改 returnToOwner 的 5 个读取点（homingToOwner + 4 个分支），
@@ -1684,11 +1726,11 @@ public class BallProjectile extends ThrowableItemProjectile {
                 this.settledTicks = 0;
                 this.settleDropTicks = SETTLE_DROP_TICKS;
             } else if (this.returnToOwner && !this.profile().loyalty()
-                    && !this.profile().tidalSurge() && this.tickInWater()) {
+                    && !this.traitFired(TRAIT_TIDAL) && this.tickInWater()) {
                 // 【潮涌】同样不走这条捷径（作者 2026-10-15 实测反馈：
                 //   「潮汐球参与组合球的时候，组合球在入水之后速度方向会偏移，导致到处乱飞」）。
                 //
-                //   根因：【忠诚】是**唯一特殊**类词条，组合球一律写回 false（见 BallFragments.comboProfile），
+                //   根因：【忠诚】是**唯一特性**类词条，组合球一律写回 false（见 BallFragments.comboProfile），
                 //   于是「带【潮涌】的组合球」在这条判据里**通过了** —— 它一进水泡够 20 刻就被当成落定，
                 //   紧接着被 `homingToOwner()` 接管：那里有一句
                 //   `this.setDeltaMovement(this.returnDirection.scale(nextSpeed))`，
@@ -2381,7 +2423,7 @@ public class BallProjectile extends ThrowableItemProjectile {
             // 而且它在穿透 / 反弹那些早退分支之后，不会漏掉一部分命中。
 
             // 【敛财】绿宝石球：给被击中者挂【腰缠万贯】（10 秒）
-            if (this.profile().hasFlag(BallBehavior.BallProfile.FLAG_MONEY)
+            if (this.traitFired(TRAIT_MONEY)
                     && entity instanceof LivingEntity moneyTarget) {
                 BallExtraTraits.applyMoney(moneyTarget,
                         this.getOwner() instanceof LivingEntity moneyOwner ? moneyOwner : null);
@@ -2394,13 +2436,13 @@ public class BallProjectile extends ThrowableItemProjectile {
             }
 
             // 【封印】符箓球：封玩家快捷栏 / 封怪物攻击并打掉它手里的球
-            if (this.profile().hasFlag(BallBehavior.BallProfile.FLAG_SEAL)
+            if (this.traitFired(TRAIT_SEAL)
                     && entity instanceof LivingEntity sealTarget) {
                 BallExtraTraits.seal(serverLevel, sealTarget, this.getOwner());
             }
 
             // 【尖刺】滴水石球：规格里的「击中」那一档 —— 击中生物时同样射一圈锥子
-            if (this.profile().hasFlag(BallBehavior.BallProfile.FLAG_SPIKE)) {
+            if (this.traitFired(TRAIT_SPIKE)) {
                 BallExtraTraits.shootSpikes(serverLevel, this.position(),
                         this.getDeltaMovement(), this.getOwner(), this.piercesArmor());
             }
@@ -2599,7 +2641,7 @@ public class BallProjectile extends ThrowableItemProjectile {
             //    表现就是「因为反弹老是往下掉」。路已经砸开了，直接放它继续往前飞。
             // 【尖刺】滴水石球：规格里的「碰撞」那一档 —— 撞到方块这一下也射一圈锥子。
             // 放在破坏王 / 点金之前：「碰撞」这个时机与「有没有砸掉方块」无关。
-            if (this.profile().hasFlag(BallBehavior.BallProfile.FLAG_SPIKE)
+            if (this.traitFired(TRAIT_SPIKE)
                     && this.level() instanceof ServerLevel spikeLevel) {
                 BallExtraTraits.shootSpikes(spikeLevel, this.position(),
                         this.getDeltaMovement(), this.getOwner(), this.piercesArmor());
@@ -2648,9 +2690,36 @@ public class BallProjectile extends ThrowableItemProjectile {
         this.burst();
     }
 
+    /**
+     * <b>【尖啸】的收尾</b> —— 把球放到射线终点，并按<b>弹射</b>决定它是弹开还是停下。
+     *
+     * <p>⚠️ 作者 2026-10-16 要求「<b>尖啸要能受弹射影响</b>」。原先 {@code BallExtraTraits.shriek}
+     * 收尾是写死的 {@code setDeltaMovement(Vec3.ZERO)} —— 于是**不管球的弹射是多少，
+     * 撞墙一律钉死在原地**，组合球里带着高弹射的部件也白搭。</p>
+     *
+     * <p>现在这里分两种情况：</p>
+     * <ul>
+     *   <li><b>撞到了方块</b>且 {@code bounce > 0} ⇒ 直接调 {@link #bounceOff(Direction)}，
+     *       复用现有那套「镜面反射 + 按 {@code bounce/10} 衰减 + 撞击音 + 扣耐久」，
+     *       与普通球撞墙完全同一条路径；</li>
+     *   <li>没撞到方块（对着天空 / 末地虚空打）或 {@code bounce == 0} ⇒ 停下，维持原行为。
+     *       回响球本体是 <b>弹射 0</b>，所以它自己一点不变。</li>
+     * </ul>
+     *
+     * @param end  射线终点
+     * @param face 撞到的方块面；没撞到传 {@code null}
+     */
+    public void shriekLand(Vec3 end, @Nullable Direction face) {
+        this.setPos(end.x, end.y, end.z);
+        if (face != null && this.getBounce() > 0) {
+            this.bounceOff(face);
+            return;
+        }
+        this.setDeltaMovement(Vec3.ZERO);
+    }
+
     /** 撞方块反弹：先沿碰撞面法线推离，再做镜面反射，最后按弹射衰减 */
-    private void bounceOff(Direction face) {
-        Vec3 vel = this.getDeltaMovement();
+    private void bounceOff(Direction face) {        Vec3 vel = this.getDeltaMovement();
         double nx = face.getStepX();
         double ny = face.getStepY();
         double nz = face.getStepZ();
@@ -3683,7 +3752,7 @@ public class BallProjectile extends ThrowableItemProjectile {
      * 所以「组合球同时带【穿甲】与【尖刺】」时也自动生效，不需要额外接线。</p>
      */
     private boolean piercesArmor() {
-        return this.profile().hasFlag(BallBehavior.BallProfile.FLAG_PIERCE);
+        return this.traitFired(TRAIT_PIERCE);
     }
 
     private DamageSource damageFromOwner() {
@@ -3694,7 +3763,7 @@ public class BallProjectile extends ThrowableItemProjectile {
         // 按作者原话「包括其他词条内未说明伤害类型的伤害」，它**优先于**下面【电击】那条
         // 改类型的逻辑 —— 所以放在最前面。
         // 类型定义与「为什么不能复用原版类型」见 BallDamageTypes 的类注释。
-        if (this.profile().hasFlag(BallBehavior.BallProfile.FLAG_PIERCE)) {
+        if (this.traitFired(TRAIT_PIERCE)) {
             return BallDamageTypes.truePhysical(this.level(), this, owner);
         }
 
@@ -3859,7 +3928,7 @@ public class BallProjectile extends ThrowableItemProjectile {
 
         // 【尖刺】滴水石球：规格里的「破碎」那一档 —— 碎掉之前最后射一圈锥子。
         // 用球当时的最终速度当基准（速度接近 0 时 shootSpikes 内部会退化成竖直方向）。
-        if (this.profile().hasFlag(BallBehavior.BallProfile.FLAG_SPIKE)
+        if (this.traitFired(TRAIT_SPIKE)
                 && this.level() instanceof ServerLevel spikeLevel) {
             BallExtraTraits.shootSpikes(spikeLevel, this.position(),
                     this.getDeltaMovement(), this.getOwner(), this.piercesArmor());

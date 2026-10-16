@@ -272,7 +272,7 @@ public final class BallBehavior {
                         1.0F))
                 // 【穿透5】（作者 2026-10-13 指定）—— 数值类特性：切开均分、合成够份数后相加取整
                 .withPenetration(5)
-                // 【潮涌】【忠诚】—— 两条都是「其它特殊」类：切开原样透传、合成 ≥1 份即携带
+                // 【潮涌】属「其它类」（切开透传、合成 ≥1 份即携带）；【忠诚】属「唯一特性」（切开不继承、不参与合成）。
                 .withTidalSurge(true)
                 .withLoyalty(true));
 
@@ -591,7 +591,7 @@ public final class BallBehavior {
         // 【尖啸】（「其它特殊」类）：投出后**没有飞行过程** —— 无视路径上的生物、直接抵达终点撞墙停下，
         //   沿路炸出一道监守者音波；路径半径 7 格内的生物吃 5 点伤害 + 整套负面效果 + 击飞，
         //   落点半径 7 格内额外再吃 10 点并把部分效果升级 —— 见 BallExtraTraits 的【尖啸】段。
-        // 【忠诚】【封印】—— 两条都是「其它特殊」类。
+        // 【忠诚】属「唯一特性」（不参与合成）；【封印】属「其它类」。
         // 音效：监守者音波（作者指定）；配方 12369874回响碎片 + 5幽匿催发体，一次 1 个。
         override(ModItems.ECHO_BALL.get(), DEFAULT
                 .withDamage(10.0F)
@@ -848,7 +848,7 @@ public final class BallBehavior {
              */
             int beeCount,
             /**
-             * 【滋养】—— <b>组合类特性词条</b>（作者 2026-10-15 定稿的新类别，与「唯一特殊」正好相反）。
+             * 【滋养】—— <b>组合类特性词条</b>（作者 2026-10-15 定稿的新类别，与「唯一特性」正好相反）。
              *
              * <p>完整球里<b>携带但不生效</b>（shift 折叠信息里显示「（当前未生效）」）；
              * 切开时按份数均分触发概率（每份 1/份数），合进组合球后各份相加、≥1 份即生效。
@@ -1234,7 +1234,7 @@ public final class BallBehavior {
                     thunderThreshold, shockDamage, glint, penetration, flags, breaker, transpose, value, loyalty, beeCount, nurture);
         }
 
-        /** 【忠诚】—— 永远带忠诚附魔，且不会被任何生物捡走（潮汐球专属，「唯一特殊」类：切开不继承、不参与合成） */
+        /** 【忠诚】—— 永远带忠诚附魔，且不会被任何生物捡走（潮汐球专属，「唯一特性」类：切开不继承、不参与合成） */
         public BallProfile withLoyalty(boolean value) {
             return new BallProfile(damage, cooldownTicks, velocity, inaccuracy, weight, toughness,
                     bounce, chargeLevels, rarity, sound, drops, sense, meltThreshold, moltenThreshold, magnetRadius,

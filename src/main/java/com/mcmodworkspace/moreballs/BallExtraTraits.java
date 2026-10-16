@@ -310,11 +310,13 @@ public final class BallExtraTraits {
             applyShriekEffects(living, ball, inImpact);
         }
 
-        // ===== ③ 落点音效 + 球瞬移到终点并停下 =====
+        // ===== ③ 落点音效 + 把球交给「落点收尾」 =====
         level.playSound(null, BlockPos.containing(end), SoundEvents.WARDEN_SONIC_BOOM,
                 SoundSource.HOSTILE, 4.0F, 1.0F);
-        ball.setPos(end.x, end.y, end.z);
-        ball.setDeltaMovement(Vec3.ZERO);
+        // ⚠️ 不要在这里写死 setDeltaMovement(ZERO) —— 交给球自己：
+        //    带弹射的球要按弹射弹开（作者 2026-10-16 要求「尖啸要能受弹射影响」），
+        //    bounce == 0（回响球本体）才是停下。没撞到方块时 face 传 null。
+        ball.shriekLand(end, hit.getType() == HitResult.Type.MISS ? null : hit.getDirection());
         return SHRIEK_WAVE_FRAMES;
     }
 
