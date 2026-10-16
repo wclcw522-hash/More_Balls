@@ -208,8 +208,16 @@ public final class BallExtraTraits {
 
     // ===== 【尖啸】（回响球专属，作者 2026-10-16 指定）=====
 
-    /** 【尖啸】：音波的作用半径 —— 作者指定 <b>7 格</b>（路径与落点同值） */
-    public static final double SHRIEK_RADIUS = 7.0D;
+    /**
+     * 【尖啸】：<b>路径上的伤害与击飞</b>生效半径 —— 作者 2026-10-16 改为 <b>3 格</b>
+     * （原先是 7，与落点同值）。
+     */
+    public static final double SHRIEK_PATH_RADIUS = 3.0D;
+
+    /**
+     * 【尖啸】：<b>落点的效果与特效</b>半径 —— 作者 2026-10-16 改为 <b>10 格</b>。
+     */
+    public static final double SHRIEK_IMPACT_RADIUS = 10.0D;
 
     /**
      * 【尖啸】：射线的<b>距离上限</b> —— <b>256 格</b>（作者 2026-10-16 指定）。
@@ -226,8 +234,15 @@ public final class BallExtraTraits {
     /** 【尖啸】：路径伤害（作者指定 5） */
     public static final float SHRIEK_PATH_DAMAGE = 5.0F;
 
-    /** 【尖啸】：落点额外伤害（作者指定 10） */
-    public static final float SHRIEK_IMPACT_DAMAGE = 10.0F;
+    /** 【尖啸】：落点范围伤害 —— 作者 2026-10-16 改为 <b>15</b>（原先是 10） */
+    public static final float SHRIEK_IMPACT_DAMAGE = 15.0F;
+
+    /**
+     * 【尖啸】：击飞力度 —— 作者 2026-10-16 要求「<b>稍微增大</b>」。
+     * 水平分量与竖直分量分开放，方便单独调。
+     */
+    private static final double SHRIEK_KNOCK_HORIZONTAL = 1.35D;
+    private static final double SHRIEK_KNOCK_VERTICAL = 0.70D;
 
     /** 【尖啸】：落点音波扩散的帧数 —— 球每刻推进一帧，走完就停 */
     public static final int SHRIEK_WAVE_FRAMES = 10;
@@ -235,26 +250,27 @@ public final class BallExtraTraits {
     /**
      * <b>【尖啸】</b> —— 回响球投出后的那一下。
      *
-     * <h2>规格（作者 2026-10-16 原话）</h2>
-     * <blockquote>
-     * 扔出（射出）后无飞行过程，无视路径上的生物，直接抵达终点撞墙停下，同时路径上生成一道
-     * 无伤害的监守者音波特效；路径音波周围半径 7 格范围内所有生物受到 5 点伤害，被施加
-     * 黑暗(00:20)／失明2(00:20)／震荡2(00:20)／发光(00:40)／缓慢(00:40)／虚弱2(00:20)／漂浮(00:05)，
-     * 同时被向远离路径的方向击飞；落点半径 7 格内生物额外受到 10 点伤害，并把部分效果升级：
-     * 震荡2→震荡4(00:30)、虚弱2→虚弱5(1:00)、发光→发光(2:00)、缓慢→缓慢3(1:00)；
-     * 落点处有三道向外迅速扩散并逐渐消失的音波。
-     * </blockquote>
+     * <h2>规格（作者 2026-10-16 二次修订后的定稿）</h2>
+     * <ul>
+     *   <li><b>无飞行过程</b>：投出的第一刻就把整条轨迹算完，玩家看到的是「瞬间抵达」；</li>
+     *   <li><b>路径上的生物</b>：只吃 <b>5</b> 点伤害 + 被<b>击飞</b>（力度比原先稍大），
+     *       生效半径 <b>3 格</b>；<b>不再施加任何 debuff</b>
+     *       （作者 2026-10-16：「对路径上的生物不再造成 debuff」）；</li>
+     *   <li><b>每个碰撞点</b>（含最终落点）：半径 <b>10 格</b>内吃 <b>15</b> 点范围伤害，
+     *       并施加这一整套效果 ——
+     *       黑暗 20s、失明2 20s、震荡3 20s、发光 2:00、缓慢3 40s、虚弱4 1:00、漂浮 5s；
+     *       同时播放音效并产生音爆范围；</li>
+     *   <li><b>弹射</b>：球的弹射不为 0 时，撞墙后按弹射反射<b>继续飞</b>，
+     *       整条反弹轨迹<b>一并算完</b>，每一段都走上面那套路径 / 落点判定。</li>
+     * </ul>
      *
      * <h2>实现要点</h2>
      * <ol>
-     *   <li><b>无飞行过程</b>：本方法在球投出后的<b>第一刻</b>就把它直接放到射线终点
-     *       （{@code setPos} + 速度清零），所以玩家看到的是「瞬间抵达」。</li>
-     *   <li><b>无视路径上的生物</b>：射线只取 {@code ClipContext.Block.COLLIDER}，
-     *       完全不参与任何实体碰撞判定。</li>
-     *   <li><b>绝不误伤主人</b>：路径效果会剔除球的 owner ——
-     *       球是在主人身边出手的，他本人必然落在起点那一段的作用范围里。</li>
-     *   <li>判定用的是<b>点到线段的距离</b>，不是包围盒 ——
-     *       路径可以是斜的，包围盒会把范围放大成方形。</li>
+     *   <li><b>迭代射线</b>：一段一段地 {@code clip}，撞到方块就按面法线做镜面反射、
+     *       速度按 {@code bounce / 10} 衰减，继续下一段；反弹次数上限就是弹射档位。</li>
+     *   <li><b>绝不误伤主人</b>：两条判定都剔除球的 owner ——
+     *       球是在主人身边出手的，他本人必然落在起点那一段的范围里。</li>
+     *   <li>路径判定用<b>点到线段的距离</b>，不是包围盒 —— 路径可以是斜的。</li>
      * </ol>
      *
      * @return 落点扩散动画还需要走几帧（0 表示不播）
@@ -265,14 +281,60 @@ public final class BallExtraTraits {
         if (velocity.lengthSqr() < 1.0E-6D) {
             return 0;   // 没速度就不知道该往哪炸
         }
-        Vec3 to = from.add(velocity.normalize().scale(SHRIEK_MAX_RANGE));
-        BlockHitResult hit = level.clip(new ClipContext(from, to,
-                ClipContext.Block.COLLIDER, ClipContext.Fluid.NONE, CollisionContext.empty()));
-        // 「撞墙停下」—— 一路没撞到方块（例如末地的虚空）时，
-        // 就在距离上限那一点（256 格）触发落点判定，避免球被丢到极远处。
-        Vec3 end = hit.getType() == HitResult.Type.MISS ? to : hit.getLocation();
 
-        // ===== ① 路径上的监守者音波（纯特效，无伤害）=====
+        Entity owner = ball.getOwner();
+        // 反弹次数上限 = 弹射档位（回响球本体是 0 ⇒ 不反弹，行为与原先完全一致）
+        int maxBounces = Math.max(0, ball.getBounce());
+        Vec3 cursor = from;
+        Vec3 dir = velocity.normalize();
+
+        Vec3 lastPoint = from;
+        for (int bounce = 0; bounce <= maxBounces; bounce++) {
+            // ① 从当前点朝当前方向射到距离上限
+            Vec3 to = cursor.add(dir.scale(SHRIEK_MAX_RANGE));
+            BlockHitResult hit = level.clip(new ClipContext(cursor, to,
+                    ClipContext.Block.COLLIDER, ClipContext.Fluid.NONE, CollisionContext.empty()));
+            boolean miss = hit.getType() == HitResult.Type.MISS;
+            Vec3 end = miss ? to : hit.getLocation();
+
+            // ② 这一段：路径特效 + 判定，以及「落点」那一整套（音效 / 音爆 / 范围伤害 / 效果）
+            shriekSegment(ball, level, cursor, end, armorPiercing, owner, miss);
+            lastPoint = end;
+
+            if (miss) {
+                break;   // 一路没撞到东西（末地虚空）⇒ 到此为止
+            }
+
+            // ③ 撞墙 ⇒ 按面法线镜面反射后继续飞。
+            //    ⚠️ 方向始终保持**单位向量**（下一段要拿它乘距离上限）；
+            //       反弹次数上限就是弹射档位，所以「弹射 0」= 不反弹 = 与原先行为完全一致。
+            double nx = hit.getDirection().getStepX();
+            double ny = hit.getDirection().getStepY();
+            double nz = hit.getDirection().getStepZ();
+            double dot = dir.x * nx + dir.y * ny + dir.z * nz;
+            Vec3 reflected = new Vec3(dir.x - 2.0D * dot * nx,
+                    dir.y - 2.0D * dot * ny, dir.z - 2.0D * dot * nz);
+            if (reflected.lengthSqr() < 1.0E-9D) {
+                break;   // 正好垂直撞进去，反射不出方向
+            }
+            dir = reflected.normalize();
+            cursor = end;
+        }
+
+        // ④ 整条轨迹已算完 ⇒ 球直接停在最后落点（弹射的效果体现在「轨迹被走完了」这件事上）
+        ball.shriekLand(lastPoint, null);
+        return SHRIEK_WAVE_FRAMES;
+    }
+
+    /**
+     * 【尖啸】的<b>一段</b>：起点 → 终点之间的路径判定 + 终点那一整套落点效果。
+     *
+     * <p>弹射不为 0 时会被逐段调用，所以「音效 + 音爆」在每个碰撞点都会出现
+     * —— 这正是作者 2026-10-16 要求的「像正常发射一样有音波和落点产生音爆范围」。</p>
+     */
+    private static void shriekSegment(BallProjectile ball, ServerLevel level, Vec3 from, Vec3 end,
+                                      boolean armorPiercing, Entity owner, boolean miss) {
+        // ===== ① 这一段路径上的监守者音波（纯特效）=====
         int steps = Math.max(1, (int) (from.distanceTo(end) * 2.0D));
         for (int i = 0; i <= steps; i++) {
             Vec3 point = from.lerp(end, (double) i / steps);
@@ -280,9 +342,8 @@ public final class BallExtraTraits {
                     point.x, point.y + 0.5D, point.z, 1, 0.0D, 0.0D, 0.0D, 0.0D);
         }
 
-        // ===== ② 路径 + 落点：两层效果 =====
-        Entity owner = ball.getOwner();
-        double reach = from.distanceTo(end) / 2.0D + SHRIEK_RADIUS + 2.0D;
+        // ===== ② 路径 + 落点：两种半径、两套待遇 =====
+        double reach = from.distanceTo(end) / 2.0D + SHRIEK_IMPACT_RADIUS + 2.0D;
         Vec3 middle = from.add(end).scale(0.5D);
         List<LivingEntity> nearby = level.getEntitiesOfClass(LivingEntity.class,
                 new AABB(middle, middle).inflate(reach));
@@ -291,33 +352,48 @@ public final class BallExtraTraits {
                 continue;   // 主人豁免
             }
             Vec3 nearest = nearestPointOnSegment(living.position(), from, end);
-            double distance = living.position().distanceTo(nearest);
-            boolean inPath = distance <= SHRIEK_RADIUS;
-            boolean inImpact = living.position().distanceTo(end) <= SHRIEK_RADIUS;
-            if (!inPath && !inImpact) {
-                continue;
-            }
+            boolean inPath = living.position().distanceTo(nearest) <= SHRIEK_PATH_RADIUS;
+            boolean inImpact = living.position().distanceTo(end) <= SHRIEK_IMPACT_RADIUS;
+
             if (inPath) {
+                // 路径上：只有伤害 + 击飞，**不上任何 debuff**（作者 2026-10-16）
                 living.hurtServer(level, shriekDamage(ball, level, armorPiercing), SHRIEK_PATH_DAMAGE);
-                // 「向远离路径的方向击飞」
                 Vec3 away = living.position().subtract(nearest);
                 away = away.lengthSqr() < 1.0E-6D ? new Vec3(0.0D, 1.0D, 0.0D) : away.normalize();
-                living.push(away.x * 1.1D, 0.55D, away.z * 1.1D);
+                living.push(away.x * SHRIEK_KNOCK_HORIZONTAL, SHRIEK_KNOCK_VERTICAL,
+                        away.z * SHRIEK_KNOCK_HORIZONTAL);
             }
             if (inImpact) {
                 living.hurtServer(level, shriekDamage(ball, level, armorPiercing), SHRIEK_IMPACT_DAMAGE);
+                applyShriekEffects(living, ball);
             }
-            applyShriekEffects(living, ball, inImpact);
         }
 
-        // ===== ③ 落点音效 + 把球交给「落点收尾」 =====
+        // ===== ③ 落点音效 + 音爆范围 =====
         level.playSound(null, BlockPos.containing(end), SoundEvents.WARDEN_SONIC_BOOM,
                 SoundSource.HOSTILE, 4.0F, 1.0F);
-        // ⚠️ 不要在这里写死 setDeltaMovement(ZERO) —— 交给球自己：
-        //    带弹射的球要按弹射弹开（作者 2026-10-16 要求「尖啸要能受弹射影响」），
-        //    bounce == 0（回响球本体）才是停下。没撞到方块时 face 传 null。
-        ball.shriekLand(end, hit.getType() == HitResult.Type.MISS ? null : hit.getDirection());
-        return SHRIEK_WAVE_FRAMES;
+        shriekBurst(level, end);
+    }
+
+    /**
+     * 落点那一圈<b>立刻可见</b>的音爆范围（球壳撒点，半径取 {@link #SHRIEK_IMPACT_RADIUS}）。
+     *
+     * <p>与 {@link #shriekWaves}（球每刻推进的扩散动画）分工不同：这个是「碰撞点当场炸开」，
+     * 每个碰撞点都放一次；那个是最终落点的扩散余韵。</p>
+     */
+    private static void shriekBurst(ServerLevel level, Vec3 center) {
+        double golden = Math.PI * (3.0D - Math.sqrt(5.0D));
+        int points = 24;
+        for (int i = 0; i < points; i++) {
+            double y = 1.0D - (i + 0.5D) * 2.0D / points;
+            double ring = Math.sqrt(Math.max(0.0D, 1.0D - y * y));
+            double theta = golden * i;
+            level.sendParticles(ParticleTypes.SONIC_BOOM,
+                    center.x + Math.cos(theta) * ring * SHRIEK_IMPACT_RADIUS,
+                    center.y + 0.5D + y * SHRIEK_IMPACT_RADIUS,
+                    center.z + Math.sin(theta) * ring * SHRIEK_IMPACT_RADIUS,
+                    1, 0.0D, 0.0D, 0.0D, 0.0D);
+        }
     }
 
     /**
@@ -339,30 +415,23 @@ public final class BallExtraTraits {
     }
 
     /**
-     * 给一只生物打上【尖啸】的效果。
+     * 给一只生物打上【尖啸】的<b>落点</b>效果（作者 2026-10-16 二次修订后的完整一套）。
      *
-     * <p>基础套（路径与落点都有）：黑暗 20s、失明 2 级 20s、震荡 2 级 20s、发光 40s、
-     * 缓慢 40s、虚弱 2 级 20s、漂浮 5s。</p>
+     * <p>黑暗 20s、失明 2 级 20s、震荡 3 级 20s、发光 <b>2 分钟</b>、缓慢 3 级 40s、
+     * 虚弱 4 级 1 分钟、漂浮 5s。</p>
      *
-     * <p>落点额外把其中四条<b>升级</b> —— 震荡 4 级 30s、虚弱 5 级 1min、发光 2min、缓慢 3 级 1min。
-     * 先加基础再加升级，靠原版「同效果新实例覆盖旧的」自然生效。</p>
+     * <p>⚠️ 路径上的生物<b>不再吃这一套</b> —— 那一侧只剩伤害与击飞
+     * （作者 2026-10-16：「对路径上的生物不再造成 debuff」）。</p>
      */
-    private static void applyShriekEffects(LivingEntity living, BallProjectile ball, boolean impact) {
+    private static void applyShriekEffects(LivingEntity living, BallProjectile ball) {
         Entity source = ball.getOwner() != null ? ball.getOwner() : ball;
         living.addEffect(new MobEffectInstance(MobEffects.DARKNESS, 20 * 20, 0), source);
         living.addEffect(new MobEffectInstance(MobEffects.BLINDNESS, 20 * 20, 1), source);
-        living.addEffect(new MobEffectInstance(ModEffects.SHOCK, 20 * 20, 1), source);
-        living.addEffect(new MobEffectInstance(MobEffects.GLOWING, 40 * 20, 0), source);
-        living.addEffect(new MobEffectInstance(MobEffects.SLOWNESS, 40 * 20, 0), source);
-        living.addEffect(new MobEffectInstance(MobEffects.WEAKNESS, 20 * 20, 1), source);
-        living.addEffect(new MobEffectInstance(MobEffects.LEVITATION, 5 * 20, 0), source);
-        if (!impact) {
-            return;
-        }
-        living.addEffect(new MobEffectInstance(ModEffects.SHOCK, 30 * 20, 3), source);
-        living.addEffect(new MobEffectInstance(MobEffects.WEAKNESS, 60 * 20, 4), source);
+        living.addEffect(new MobEffectInstance(ModEffects.SHOCK, 20 * 20, 2), source);
         living.addEffect(new MobEffectInstance(MobEffects.GLOWING, 120 * 20, 0), source);
-        living.addEffect(new MobEffectInstance(MobEffects.SLOWNESS, 60 * 20, 2), source);
+        living.addEffect(new MobEffectInstance(MobEffects.SLOWNESS, 40 * 20, 2), source);
+        living.addEffect(new MobEffectInstance(MobEffects.WEAKNESS, 60 * 20, 3), source);
+        living.addEffect(new MobEffectInstance(MobEffects.LEVITATION, 5 * 20, 0), source);
     }
 
     /**
