@@ -119,7 +119,40 @@ public record BallClusterContents(ItemStack icon, List<ItemStack> balls) {
         //    每颗球的精确耐久仍然各自独立保存（balls 里每颗都带自己的 TOUGHNESS_LEFT），
         //    取出时一分不差地还回去 —— 这一点没有变。
         //    档位仍然用于**显示**（壳的名字、「最低耐久」那行 tooltip），只是不再用于分组。
-        return ItemStack.isSameItem(ball, this.balls.get(0));
+        ItemStack first = this.balls.get(0);
+        if (!ItemStack.isSameItem(ball, first)) {
+            return false;
+        }
+
+        // ===== ★ 组合球还要比「构成」（作者 2026-10-16 报的 bug）=====
+        //
+        // ⚠️ 所有组合球**共用同一个物品**（{@code more_balls:combo_ball}）——
+        //    光比物品会把「木 + 铁」和「金 + 钻石」当成同一种球收进同一个壳，
+        //    玩家看到的正是「不同的组合球回收进收纳袋时挤进了同一个球堆」。
+        //
+        //    组合球的真正身份在 {@code combo_slot_1..4} 这四个组件里，必须逐个比。
+        //    普通球根本没有这些组件 —— 两边都取不到值时
+        //    {@code Objects.equals(null, null)} 为真，所以这一段对普通球是**零影响**的。
+        if (isComboBall(first) || isComboBall(ball)) {
+            for (int q = 0; q < 4; q++) {
+                Integer mine = first.get(ModComponents.COMBO_SLOTS.get(q).get());
+                Integer theirs = ball.get(ModComponents.COMBO_SLOTS.get(q).get());
+                if (!java.util.Objects.equals(mine, theirs)) {
+                    return false;   // 象限构成不同 ⇒ 不是同一种组合球
+                }
+            }
+        }
+        return true;
+    }
+
+    /**
+     * 是不是组合球。
+     *
+     * <p>组合球的「身份」不在物品 id 上（所有组合球共用 {@code more_balls:combo_ball}），
+     * 而在 {@code combo_slot_1..4} 组件里 —— 所以 {@link #matches} 光比物品是不够的。</p>
+     */
+    private static boolean isComboBall(ItemStack stack) {
+        return stack.getItem() == com.mcmodworkspace.moreballs.ModItems.COMBO_BALL.get();
     }
 
     /**

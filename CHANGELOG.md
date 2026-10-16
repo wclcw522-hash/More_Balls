@@ -6,6 +6,29 @@
 
 ---
 
+## 1.1.1.21 — 不同组合球被并进同一个球堆（作者 2026-10-16）
+
+作者报：「不同的组合球被回收进收纳袋的时候会错误的进到同一个球堆里」。
+
+根因在 `BallClusterContents.matches` —— 球堆的合并判据是
+`ItemStack.isSameItem(ball, balls.get(0))`，**只比物品**。
+而**所有组合球共用同一个物品** `more_balls:combo_ball`，于是「木 + 铁」和「金 + 钻石」
+在判据眼里就是同一种球，回收时被并进同一个壳。
+
+修法：组合球额外比较**构成** —— `combo_slot_1..4` 四个组件逐个比，任一不同就不算同类。
+普通球没有这些组件，`Objects.equals(null, null)` 为真，所以这一段对普通球**零影响**
+（球堆「同球种即可、不按档位拆」的既有行为一个字没变）。
+
+这一处修完全链路都对了 —— 回收（`BallPouchHelper.deliverReturned0`）、
+一键整理（`BallClusterTidy.putIntoSomeShell`）、袋子塞回（`BallPouchItem.clusterizeSegment`）
+走的都是同一个 `matches`。
+
+**顺带核查**了工程里其它 8 处 `isSameItem*` 判据：其余全部是
+`isSameItemSameComponents`（严格全等比，组合球不会被错并）或与合并无关的用途，
+**只有这一处需要改**。
+
+---
+
 ## 1.1.1.20 — 光标拿着球堆右键空格 = 只落 1 颗球（作者 2026-10-16）
 
 作者要求：光标上拿着球堆时，右键**空的物品栏格**，要在那一格里**只放 1 颗球**。
