@@ -8,28 +8,35 @@ import net.neoforged.fml.common.EventBusSubscriber;
 import net.neoforged.neoforge.event.tick.PlayerTickEvent;
 
 /**
- * <b>球堆进切石机 = 只切里面耐久最低的那一颗</b>（作者 2026-10-16 指定）。
+ * <b>球堆放进取石机 = 摊成「一叠 N 颗」，可以连续点击产物槽依次拿取</b>
+ * （作者 2026-10-16 指定，第二轮修改）。
  *
- * <h2>为什么需要这一层</h2>
- * <p>球堆是个「壳」，里面装着 N 颗同种、耐久档位不同的球。而切石机的机制是
- * <b>消耗 1 个输入物品 → 产出 1 份产物</b>（由 {@code StonecutterMenu} 直接
- * {@code container.removeItem(0, 1)} 完成），配方侧<b>拿不到玩家、也改不了输入槽</b> ——
- * 所以「只切一颗、剩下的留在堆里」这件事没法写在配方里。</p>
+ * <h2>为什么是「摊成一叠」而不是「切一颗」</h2>
+ * <p>原版切石机的消耗写在 {@code resultSlot.onTake} 里，就一句
+ * {@code inputSlot.remove(1)} —— <b>一次减「1 个物品」</b>。所以它天然支持
+ * 「输入槽里放一叠材料 → 选中产物 → 连着点，依次把产物全取出来」。</p>
  *
- * <p>于是这里在玩家开着切石机时做一次<b>摊开</b>：输入槽里是球堆就把耐久最低那颗
- * 取到输入槽上（{@link BallClusterItem#takeOne}），剩下的球堆塞回玩家背包。
- * 之后就是<b>普通的切球流程</b>——配方产出的碎片来源正确，也不需要球堆参与任何额外逻辑。</p>
+ * <p>球堆的问题是：它自己 {@code count} 恒为 1（一格里装 N 颗球），
+ * 不摊开的话点一次就被整个消耗掉了 —— 也就是作者第一轮看到的
+ * 「一次一个填进去，没法连着拿」。</p>
+ *
+ * <p>所以这里在玩家开着切石机、输入槽里是球堆时，把它<b>摊成「一叠同种球」</b>：
+ * 用壳里<b>耐久最低</b>那颗当模板（与「右键取一颗」同一个顺序：最低的先上场），
+ * 数量 = 壳里颗数。之后全程走原版流程，连点产物槽就能依次取完。</p>
  *
  * <h2>为什么不用 Mixin</h2>
- * <p>{@code StonecutterMenu} 的输入容器是 <b>{@code public final Container container}</b>、
- * 槽位索引也公开（{@link StonecutterMenu#INPUT_SLOT}），槽位本身走标准
- * {@code Slot#set} 就能正确同步 —— 也就是说这件事不需要碰原版代码。
- * 触发时机用官方的 {@code PlayerTickEvent}（只在服务端、且只在开着切石机那一刻跑）。</p>
+ * <p>不需要碰原版代码就能做到 —— {@code StonecutterMenu} 的槽位索引公开
+ * （{@link StonecutterMenu#INPUT_SLOT}），槽位走标准 {@code Slot#set} 会正确同步；
+ * 触发时机用官方的 {@code PlayerTickEvent}（只服务端、且只在开着切石机那一刻跑）。</p>
  *
- * <h2>副作用（已知且可接受）</h2>
- * <p>玩家把球堆放进切石机<b>只是想暂存</b>时，它也会被摊开成一颗球 + 背包里剩下的堆。
- * 球堆本来就能随时右键取一颗、也能用整理键重新收堆，所以这个代价换的是
- * 「球堆终于能切、JEI 里也看得到配方」。</p>
+ * <h2>已知的两点代价（都在可接受范围内）</h2>
+ * <ul>
+ *   <li><b>耐久会被统一成「最低那颗」</b>：壳里的球同档位但具体耐久可能差几点，
+ *       摊成一叠只能取一个值。取最低值是刻意的 —— 和切/取的顺序一致，
+ *       而且进切石机的球本来就是要被消耗掉的。</li>
+ *   <li><b>没切完就取回时拿到的是「一叠同种球」</b>而不是球堆：球堆能随时右键收回、
+ *       也能用整理键重新收堆。</li>
+ * </ul>
  */
 @EventBusSubscriber(modid = MoreBalls.MOD_ID)
 public final class BallClusterCutting {
@@ -51,23 +58,16 @@ public final class BallClusterCutting {
         if (!BallClusterItem.isCluster(input)) {
             return;   // 不是球堆（普通球本来就能切）—— 不动
         }
-        if (BallClusterItem.contents(input).isEmpty()) {
+
+        BallClusterContents contents = BallClusterItem.contents(input);
+        int count = contents.balls().size();
+        if (count <= 0) {
             return;   // 空壳：没什么可切的
         }
 
-        // 摊开一颗：takeOne 就地取走耐久最低那颗，壳里剩 N-1（取空了会自己摘掉组件）
-        ItemStack one = BallClusterItem.takeOne(input);
-        if (one.isEmpty()) {
-            return;
-        }
-        ItemStack rest = input.copy();   // takeOne 之后的剩余壳
-
-        // 输入槽换成那一颗球 —— 接下来就是普通的切球流程
-        menu.getSlot(StonecutterMenu.INPUT_SLOT).set(one);
-
-        // 剩余的球堆塞回玩家背包；背包满就掉在脚边（绝不静默丢弃）
-        if (!BallClusterItem.contents(rest).isEmpty() && !player.getInventory().add(rest)) {
-            player.drop(rest, false);
-        }
+        // 摊成一叠：模板 = 壳里耐久最低的那颗（`lowest()` 也是 `takeOne` 取的同一颗）
+        ItemStack stack = contents.lowest().copy();
+        stack.setCount(count);   // MAX_BALLS = 64，正好等于原版一叠的上限
+        menu.getSlot(StonecutterMenu.INPUT_SLOT).set(stack);
     }
 }

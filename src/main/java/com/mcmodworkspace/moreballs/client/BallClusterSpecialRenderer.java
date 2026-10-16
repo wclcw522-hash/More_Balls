@@ -192,9 +192,14 @@ public class BallClusterSpecialRenderer implements SpecialModelRenderer<ItemStac
 
         java.util.List<net.minecraft.world.item.Item> sources =
                 com.mcmodworkspace.moreballs.BallFragments.sources();
+        // ⚠️⚠️ 第三参必须是 **true**（= calloc 清零）。
+        //    这里原来写的是 false —— 那是「不初始化」：拿到的是**没清零的内存**，
+        //    里面残留着显存/堆上的旧像素数据（作者 2026-10-16 截图反馈的
+        //    「球堆贴图后面混进去了什么东西」就是它，一团红紫蓝绿的杂色）。
+        //    下面 overlay() 只覆盖**非透明**像素，所以那些垃圾像素会原样留在底上。
         com.mojang.blaze3d.platform.NativeImage canvas =
                 new com.mojang.blaze3d.platform.NativeImage(
-                        com.mojang.blaze3d.platform.NativeImage.Format.RGBA, 16, 16, false);
+                        com.mojang.blaze3d.platform.NativeImage.Format.RGBA, 16, 16, true);
         for (int q = 0; q < 4; q++) {
             int index = slots[q];
             if (index < 0 || index >= sources.size()) {

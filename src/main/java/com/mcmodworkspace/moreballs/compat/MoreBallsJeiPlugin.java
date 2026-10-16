@@ -211,6 +211,117 @@ public class MoreBallsJeiPlugin implements IModPlugin {
                 // JEI 版本差异导致口子对不上时安静跳过 —— 顶多是列表里多一个条目，不影响游戏
             }
         }
+
+        // 把 runtime 交给「focus 转发器」—— 它要借 JEI 自己的查询接口去查内部球的配方
+        ClusterFocusForwarder.bind(runtime);
+    }
+
+    /**
+     * <b>注册「球堆 → 内部球」的 focus 转发器</b>（作者 2026-10-16）。
+     *
+     * <h2>为什么光注册子类型不够（这是上一版写成错的地方）</h2>
+     * <p>{@link #registerItemSubtypes} 里当时写着「JEI 是按『物品 + 子类型』索引配方的，
+     * 所以想让带组件的球堆查到配方<b>必须</b>把它注册成子类型」—— <b>这个理解是错的</b>，
+     * 而且错得很具体：</p>
+     * <ul>
+     *   <li>子类型只决定「这个物品在 JEI 里算几个条目」，它<b>不会</b>让球堆的配方查询
+     *       落到别的物品身上；</li>
+     *   <li>JEI 查配方用的是<b>物品自己的 uid</b>（item id + 子类型串），球堆的 uid
+     *       前缀永远是 {@code more_balls:ball_cluster}，和木球、铁球那些 uid
+     *       <b>永远不可能相等</b>。</li>
+     * </ul>
+     * <p>所以那条需求（作者 2026-10-14 提、2026-10-15 实测失败）一直是空的 ——
+     * 作者 2026-10-16 的反馈原话是「只能看用途不能看合成表」。</p>
+     *
+     * <h2>正确做法</h2>
+     * <p>JEI 的官方扩展点 {@link mezz.jei.api.recipe.advanced.IRecipeManagerPlugin}：
+     * JEI 在查询时会遍历所有注册的插件并合并结果。这里做的就是
+     * <b>把「球堆」的 focus 换成「壳里那颗球」的 focus，再借 JEI 自己的
+     * {@code createRecipeLookup / createRecipeCategoryLookup} 去查一遍</b> ——
+     * 于是「对着球堆按 R / U」得到的就是内部球的那一套配方。</p>
+     *
+     * <p>不会递归：转发后的 focus 是内部球本身，{@link ClusterFocusForwarder#innerOf}
+     * 对它返回空 ⇒ 插件直接返回空列表，交回给 JEI 原生结果。</p>
+     */
+    @Override
+    public void registerAdvanced(mezz.jei.api.registration.IAdvancedRegistration registration) {
+        registration.addRecipeManagerPlugin(new ClusterFocusForwarder());
+    }
+
+    /**
+     * 把「球堆的 focus」转发成「壳里那颗球的 focus」。
+     *
+     * <p>三个方法的分工见 {@link #registerAdvanced} 的注释：
+     * {@code getRecipeTypes} 决定「这个 focus 涉及哪些配方类型」，
+     * {@code getRecipes(type, focus)} 才是真正把配方捞出来的那一步。</p>
+     */
+    public static final class ClusterFocusForwarder
+            implements mezz.jei.api.recipe.advanced.IRecipeManagerPlugin {
+
+        private static volatile mezz.jei.api.runtime.IJeiRuntime runtime;
+
+        static void bind(mezz.jei.api.runtime.IJeiRuntime jeiRuntime) {
+            runtime = jeiRuntime;
+        }
+
+        /** focus 指向的如果是球堆，返回壳里那颗球；否则返回空 */
+        private static ItemStack innerOf(mezz.jei.api.recipe.IFocus<?> focus) {
+            Object value = focus.getTypedValue().getIngredient();
+            if (value instanceof ItemStack stack
+                    && com.mcmodworkspace.moreballs.BallClusterItem.isCluster(stack)) {
+                return com.mcmodworkspace.moreballs.BallClusterItem.asBall(stack);
+            }
+            return ItemStack.EMPTY;
+        }
+
+        /** 转发成内部球的 focus；不该管的情况返回 null */
+        private static mezz.jei.api.recipe.IFocus<ItemStack> forward(
+                mezz.jei.api.recipe.IFocus<?> focus) {
+            ItemStack inner = innerOf(focus);
+            mezz.jei.api.runtime.IJeiRuntime rt = runtime;
+            if (inner.isEmpty() || rt == null) {
+                return null;
+            }
+            return rt.getJeiHelpers().getFocusFactory()
+                    .createFocus(focus.getRole(),
+                            mezz.jei.api.constants.VanillaTypes.ITEM_STACK, inner);
+        }
+
+        @Override
+        public <V> java.util.List<mezz.jei.api.recipe.types.IRecipeType<?>> getRecipeTypes(
+                mezz.jei.api.recipe.IFocus<V> focus) {
+            mezz.jei.api.recipe.IFocus<ItemStack> inner = forward(focus);
+            if (inner == null) {
+                return java.util.List.of();
+            }
+            return runtime.getRecipeManager()
+                    .createRecipeCategoryLookup()
+                    .limitFocus(java.util.List.of(inner))
+                    .get()
+                    .<mezz.jei.api.recipe.types.IRecipeType<?>>map(
+                            category -> category.getRecipeType())
+                    .toList();
+        }
+
+        @Override
+        public <T, V> java.util.List<T> getRecipes(
+                mezz.jei.api.recipe.types.IRecipeType<T> recipeType,
+                mezz.jei.api.recipe.IFocus<V> focus) {
+            mezz.jei.api.recipe.IFocus<ItemStack> inner = forward(focus);
+            if (inner == null) {
+                return java.util.List.of();
+            }
+            return runtime.getRecipeManager()
+                    .createRecipeLookup(recipeType)
+                    .limitFocus(java.util.List.of(inner))
+                    .get()
+                    .toList();
+        }
+
+        @Override
+        public <T> java.util.List<T> getRecipes(mezz.jei.api.recipe.types.IRecipeType<T> recipeType) {
+            return java.util.List.of();   // 「某类型的全部配方」不归我们管
+        }
     }
 
     // ===== 四个示例物品已在 0.3.3.127 删除（作者指定）=====
