@@ -66,8 +66,8 @@ public class MoneyEffect extends MobEffect {
      */
     public static final int MAX_AMPLIFIER = 0;
 
-    /** 每次受击掉落的概率（作者指定 15%） */
-    public static final float DROP_CHANCE = 0.15F;
+    /** 每次受击掉落的概率（作者 2026-10-16 从 15% 调到 25%） */
+    public static final float DROP_CHANCE = 0.25F;
 
     /** 一次受击掉几个（作者指定 1 个） */
     public static final int DROP_COUNT = 1;
