@@ -57,9 +57,9 @@ public abstract class AbstractContainerMenuMixin {
                                          Player player, CallbackInfo ci) {
         AbstractContainerMenu self = (AbstractContainerMenu) (Object) this;
 
-        // ===== ① 切石机：材料格是球堆时，点产物槽「只消耗里面的一颗」=====
-        // 见 moreballs$cutOneFromCluster 的注释（作者 2026-10-16 的方案）
-        if (moreballs$cutOneFromCluster(self, slotId, input, player)) {
+        // ===== ① 切石机：材料格是球堆 / 组合球时，点产物槽自己接管 =====
+        // 见 moreballs$cutBalls 的注释（作者 2026-10-16 的方案）
+        if (moreballs$cutBalls(self, slotId, button, input, player)) {
             ci.cancel();
             return;
         }
@@ -125,84 +125,199 @@ public abstract class AbstractContainerMenuMixin {
      * <h2>它解决的问题</h2>
      * <p>原版切石机一次消耗「1 个物品」（{@code resultSlot.onTake} 里那句
      * {@code inputSlot.remove(1)}），而球堆 {@code count} 恒为 1 —— 不处理的话
-     * 点一下就整个球堆没了。上一版的做法是把球堆摊成「一叠 N 颗同种球」，
-     * 但那样会**把耐久统一成最低那颗**，损耗明显（作者反馈「损耗严重」）。</p>
+     * 点一下就整个球堆没了。中间试过「摊成一叠 N 颗」，但那会把耐久统一成最低那颗
+     * （作者反馈「损耗严重」），已废弃。</p>
      *
-     * <h2>现在这一版（作者的原话）</h2>
+     * <h2>现在这一版（作者的原话 + 后续两处修正）</h2>
      * <p>「球堆可以整个放进去，然后，再点击产物拿起的瞬间……球堆回到背包 →
      * 填充一颗球到材料格 → 选中刚刚选的配方 → 完成一次切球 → 把球堆放回材料格 →
-     * 选中刚刚的配方」—— 也就是在<b>取产物的那一瞬间</b>做一次原子操作：</p>
-     * <ol>
-     *   <li>从壳里取走<b>耐久最低</b>的那一颗（{@link BallClusterItem#takeOne}），
-     *       剩余的壳先攥在局部变量里（不落地、不进背包，免得出现第二份）；</li>
-     *   <li>把那颗球放进材料格、重新选中刚才那条配方 —— 让配方算出正确的产物；</li>
-     *   <li>产物交给玩家（光标空时拿在手上），并清掉产物槽；</li>
-     *   <li>把剩余的壳<b>放回材料格</b>、再选中一次配方 —— 于是可以接着点下一次。</li>
-     * </ol>
-     * <p><b>耐久一点不丢</b>：壳里每颗球都按原样保留，每次只吃掉被切的那一颗。</p>
+     * 选中刚刚的配方」—— 也就是在<b>取产物的那一瞬间</b>做一次原子操作。</p>
+     *
+     * <p>⚠️ <b>只服务端执行</b>：{@code AbstractContainerMenu#clicked} 在客户端（本地预测）
+     * 与服务端都会跑，两端都做这套操作的话<b>每点一次会消耗两颗</b> ——
+     * 作者实测报的「球堆放进去点了两次产物就给球堆切没了」就是它。</p>
+     *
+     * <p>⚠️ <b>光标上有东西时照样能切</b>（作者的第二个修正）：那时产物直接进背包，
+     * 不再要求光标必须空 —— 手里拿着别的东西时，材料/产物格本来就点不动产物，
+     * 挡掉反而切不了。</p>
+     *
+     * <h2>两种点击</h2>
+     * <ul>
+     *   <li><b>左键</b>（光标空）—— 切一颗，产物拿在光标上（与「拿起产物」一致）；
+     *       光标上有东西时产物进背包</li>
+     *   <li><b>Shift + 左键</b> —— <b>一次做完</b>：能切几颗切几颗，产物全进背包
+     *       （背包塞不下就停手，剩下留在材料格里）</li>
+     * </ul>
      *
      * <h2>为什么能拦在这里</h2>
      * <p>{@code AbstractContainerMenu#clicked} 是「玩家点击槽位」的唯一入口，
      * 而本类早就注入了它的 HEAD（背包右键取一组那个功能）。这里只是多加一个分支，
-     * 用的是原版公开的 {@link StonecutterMenu#getSlot} / {@code clickMenuButton}
+     * 用的是原版公开的 {@link StonecutterMenu} 槽位与 {@code clickMenuButton}
      * —— 不碰原版代码，也不需要新开 Mixin。</p>
-     *
-     * <h2>放行的几种情况</h2>
-     * <p>光标上已经拿着东西时直接不管（免得把玩家手上的东西吞了）；材料格不是球堆、
-     * 或者产物槽是空的（还没选配方）时也原样放行，走原版流程。</p>
      *
      * @return true 表示这次点击已被接管（调用方要 {@code ci.cancel()}）
      */
-    private static boolean moreballs$cutOneFromCluster(AbstractContainerMenu self, int slotId,
-                                                       ContainerInput input, Player player) {
-        if (!(self instanceof StonecutterMenu menu)) {
+    private static boolean moreballs$cutBalls(AbstractContainerMenu self, int slotId, int button,
+                                              ContainerInput input, Player player) {
+        // ★ 只在服务端做（客户端那次只是本地预测，两端都做 = 双倍消耗）
+        if (player.level().isClientSide()) {
             return false;
         }
-        if (slotId != StonecutterMenu.RESULT_SLOT || input != ContainerInput.PICKUP) {
+        if (!(self instanceof StonecutterMenu menu) || slotId != StonecutterMenu.RESULT_SLOT) {
             return false;
         }
-        // 光标必须空着 —— 有东西时不碰，免得把玩家手上的东西吞了
-        if (!self.getCarried().isEmpty()) {
-            return false;
+
+        boolean quickMove = input == ContainerInput.QUICK_MOVE;              // Shift + 左键
+        boolean pickUp = input == ContainerInput.PICKUP && button == 0;      // 普通左键
+        if (!quickMove && !pickUp) {
+            return false;   // 右键 / 中键 / 丢弃一律放行
         }
 
         Slot inputSlot = menu.getSlot(StonecutterMenu.INPUT_SLOT);
-        ItemStack shell = inputSlot.getItem();
-        if (!BallClusterItem.isCluster(shell)) {
-            return false;   // 材料格不是球堆 → 走原版（普通球本来就是一次切一颗）
+        Slot resultSlot = self.getSlot(StonecutterMenu.RESULT_SLOT);
+        ItemStack material = inputSlot.getItem();
+
+        boolean cluster = BallClusterItem.isCluster(material);
+        boolean combo = material.is(com.mcmodworkspace.moreballs.ModItems.COMBO_BALL.get());
+        if (!cluster && !combo) {
+            return false;   // 普通球 → 走原版（本来就是一次切一颗）
         }
-        ItemStack product = self.getSlot(StonecutterMenu.RESULT_SLOT).getItem();
-        if (product.isEmpty()) {
-            return false;   // 还没选配方
+        if (cluster && BallClusterItem.contents(material).isEmpty()) {
+            return false;   // 空壳
         }
+
         int selected = menu.getSelectedRecipeIndex();
-        if (selected < 0) {
-            return false;
+        if (selected < 0 || resultSlot.getItem().isEmpty()) {
+            return false;   // 还没选配方 / 配方算不出东西
         }
 
-        // ① 取走耐久最低那一颗；剩余的壳**只留在局部变量里**
-        ItemStack one = BallClusterItem.takeOne(shell);
-        if (one.isEmpty()) {
-            return false;   // 空壳（理论上不会）
+        // ===== 这个点击该不该「点不动」=====
+        // 作者 2026-10-16 明确：**要像原版那样** ——
+        // 光标上拿着**同种产物**时再点，产物就**叠加上去**；
+        // 光标与产物不一致（或叠了会超上限）时，按原版的「点不动」处理（什么也不发生）。
+        //
+        // ⚠️ 「点不动」必须是**我们接管之后什么都不做**，绝不能 return false 漏给原版 ——
+        //    原版对产物槽的这次点击会把整个球堆消耗掉，那就是作者实测踩到的那个 bug。
+        ItemStack preview = resultSlot.getItem();
+        if (pickUp && !self.getCarried().isEmpty()) {
+            ItemStack cur = self.getCarried();
+            if (!ItemStack.isSameItemSameComponents(cur, preview)
+                    || cur.getCount() + preview.getCount() > cur.getMaxStackSize()) {
+                return true;   // 吞掉这次点击，什么都不做
+            }
         }
-        ItemStack rest = shell.copy();
-        boolean hasRest = !BallClusterItem.contents(rest).isEmpty();
 
-        // ② 那一颗进材料格，并重新选中刚才那条配方（材料换物品了，配方列表会被重置）
-        inputSlot.set(one);
-        menu.clickMenuButton(player, selected);
+        int rounds = quickMove ? com.mcmodworkspace.moreballs.BallClusterContents.MAX_BALLS : 1;
 
-        // ③ 完成一次切球 —— 产物槽里那份就是这条配方按这颗球算出来的，直接交给玩家
-        self.setCarried(product.copy());
-        self.getSlot(StonecutterMenu.RESULT_SLOT).set(ItemStack.EMPTY);
-        product.onCraftedBy(player, product.getCount());
+        int made = 0;
+        for (int n = 0; n < rounds; n++) {
+            // ===== 这一轮消耗的目标 =====
+            //  · 材料是球堆 → 取走壳里耐久最低那一颗，剩余的壳暂存在局部变量里
+            //    （不落地也不进背包 —— 那样会凭空多出第二份）
+            //  · 材料是组合球本体 → 就是它自己，切完材料格清空
+            ItemStack one;
+            ItemStack rest;
+            if (cluster) {
+                ItemStack shell = inputSlot.getItem();
+                if (!BallClusterItem.isCluster(shell)
+                        || BallClusterItem.contents(shell).isEmpty()) {
+                    break;
+                }
+                one = BallClusterItem.takeOne(shell);
+                rest = shell.copy();
+            } else {
+                one = material;
+                rest = ItemStack.EMPTY;
+            }
+            if (one.isEmpty()) {
+                break;
+            }
+            boolean isCombo = one.is(com.mcmodworkspace.moreballs.ModItems.COMBO_BALL.get());
+            boolean hasRest = cluster && !BallClusterItem.contents(rest).isEmpty();
 
-        // ④ 剩余的壳放回材料格，再选中一次配方 —— 接着还能继续点
-        if (hasRest) {
-            inputSlot.set(rest);
+            // ===== 那颗球进材料格 → 重新选中配方 → 算产物 =====
+            // （材料换了物品，原版 slotsChanged 会把配方列表重置，所以必须重选）
+            inputSlot.set(one);
             menu.clickMenuButton(player, selected);
+            ItemStack product = resultSlot.getItem().copy();
+            if (product.isEmpty()) {
+                // 算不出产物（不该发生）→ 把球堆放回去收手，绝不吞球
+                inputSlot.set(hasRest ? rest : ItemStack.EMPTY);
+                break;
+            }
+
+            // ===== 产物交出去 =====
+            // 左键：光标空就拿在手上；光标上已是同种产物就**叠加上去**
+            // （能不能叠上面已经判过，这里直接加）
+            // Shift 左键：直接进背包；背包满了这一份掉脚下然后收手
+            if (pickUp) {
+                ItemStack cur = self.getCarried();
+                if (cur.isEmpty()) {
+                    self.setCarried(product);
+                } else {
+                    cur.grow(product.getCount());
+                    self.setCarried(cur);
+                }
+            } else if (!player.getInventory().add(product)) {
+                // 背包满了：这一份掉脚下，然后收手（剩下的留在材料格里）
+                player.drop(product, false);
+                inputSlot.set(hasRest ? rest : ItemStack.EMPTY);
+                made++;
+                break;
+            }
+
+            // ===== 组合球：另外三个象限各补一份 =====
+            // 产物槽只放得下第一象限那一份（配方给的），其余直接进背包 / 掉地上
+            // （作者 2026-10-16 指定：「产物里就保留 1 个第一象限的切片，其他的直接扔背包」）
+            if (isCombo) {
+                moreballs$giveRestQuadrants(player, one);
+            }
+
+            // ===== 材料复位 =====
+            if (cluster) {
+                inputSlot.set(hasRest ? rest : ItemStack.EMPTY);
+                if (hasRest) {
+                    menu.clickMenuButton(player, selected);
+                }
+            } else {
+                inputSlot.set(ItemStack.EMPTY);
+            }
+            made++;
+            if (!cluster) {
+                break;   // 组合球本体只切一次
+            }
+            if (!hasRest) {
+                break;   // 最后一颗切完 → 收工
+            }
+        }
+
+        if (made == 0) {
+            return false;
         }
         self.broadcastChanges();
         return true;
+    }
+
+    /**
+     * <b>组合球切开的「另外三份」</b>：象限 2 / 3 / 4 各产一份四分之一球，
+     * 来源按各自象限（作者 2026-10-16 指定）。
+     *
+     * <p>产物槽只放得下第一象限那一份，所以这三份直接进背包；
+     * <b>背包也放不下时直接扔在地上</b> —— 作者明确要求「不要让它凭空消失」。</p>
+     */
+    private static void moreballs$giveRestQuadrants(Player player, ItemStack combo) {
+        for (int q = 1; q < 4; q++) {
+            Integer source = combo.get(
+                    com.mcmodworkspace.moreballs.ModComponents.COMBO_SLOTS.get(q).get());
+            if (source == null || source < 0) {
+                continue;   // 这个象限本来就是空的
+            }
+            ItemStack piece = new ItemStack(
+                    com.mcmodworkspace.moreballs.ModItems.BALL_QUARTER.get());
+            piece.set(com.mcmodworkspace.moreballs.ModComponents.FRAGMENT_SOURCE.get(), source);
+            if (!player.getInventory().add(piece)) {
+                player.drop(piece, false);
+            }
+        }
     }
 }

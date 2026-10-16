@@ -92,14 +92,37 @@ public class BallCuttingRecipe extends StonecutterRecipe {
     @Override
     public ItemStack assemble(SingleRecipeInput input) {
         ItemStack product = this.result().create();
-        // ⚠️ 输入可能是**球堆**（作者 2026-10-16 要求球堆也能切）——
-        //    壳里那颗球才是真正的来源，所以先摊开再取下标。
-        //    `asBall` 对不是壳的输入原样返回，所以这里对普通球没有副作用。
-        int sourceIndex = BallFragments.indexOfBall(BallClusterItem.asBall(input.item()).getItem());
+        int sourceIndex = sourceIndexFor(input.item());
         if (sourceIndex >= 0) {
             product.set(ModComponents.FRAGMENT_SOURCE.get(), sourceIndex);
         }
         return product;
+    }
+
+    /**
+     * 「输入 → 碎片来源下标」的真正判据，三层往下降：
+     *
+     * <ol>
+     *   <li><b>球堆</b> → 摊开看壳里那颗球（{@link BallClusterItem#asBall}）</li>
+     *   <li><b>组合球</b> → <b>第一个象限</b>的来源（作者 2026-10-16 指定：
+     *       「产物里就保留 1 个第一象限的切片，其他的直接扔背包」）；
+     *       另外三个象限由 {@code AbstractContainerMenuMixin} 在取产物时补发</li>
+     *   <li><b>普通球</b> → 它在 {@link BallFragments#sources()} 里的位置</li>
+     * </ol>
+     *
+     * <p>公开是为了让取产物那一侧用同一套判据 —— 两边算法必须一致，
+     * 否则产物槽里那份和补发的那几份会对不上号。</p>
+     */
+    public static int sourceIndexFor(ItemStack stack) {
+        ItemStack probe = BallClusterItem.asBall(stack);
+        if (probe.isEmpty()) {
+            return -1;
+        }
+        if (probe.is(ModItems.COMBO_BALL.get())) {
+            Integer first = probe.get(ModComponents.COMBO_SLOTS.get(0).get());
+            return first == null ? -1 : first;
+        }
+        return BallFragments.indexOfBall(probe.getItem());
     }
 
     /**
@@ -119,12 +142,18 @@ public class BallCuttingRecipe extends StonecutterRecipe {
         // ⚠️ **球堆也认**（作者 2026-10-16：「球堆应该能看到合成表，也可以参与合成……不能看配方也不能切球」）。
         //    判据按「壳里那颗球」走 —— 和 assemble 同一口径。
         //
-        //    实际动刀时输入槽其实已经被 BallClusterCutting 摊成一颗球了（球堆只切最低耐久那一颗，
-        //    多出来的自动塞回玩家背包）—— 这里认壳的用途是：
+        //    实际动刀时材料格可能是球堆本身（整堆留在那儿、点产物时只消耗一颗，
+        //    见 AbstractContainerMenuMixin）—— 这里认壳的用途是：
         //      · JEI 的石切分类能列出「球堆 → 半球 / 四分之一球」这条用途，玩家看得到配方；
         //      · 万一那一刻壳还没被摊开（比如别的模组直接调配方），也不会产出没有来源的裸碎片。
         ItemStack probe = BallClusterItem.asBall(input.item());
-        if (probe.isEmpty() || BallFragments.indexOfBall(probe.getItem()) < 0) {
+        if (probe.isEmpty() || sourceIndexFor(probe) < 0) {
+            return false;
+        }
+        // 组合球**不能对半切**（作者 2026-10-16：「4 合一不能对半切（没做这种二合一半球）」）——
+        // 组合球只能走四分之一那条配方，一次拆成四片。
+        if (probe.is(ModItems.COMBO_BALL.get())
+                && this.result().item() == ModItems.BALL_HALF.get()) {
             return false;
         }
         // 【切割门槛】耐久必须 ≥ 80%（作者 2026-10-13 指定）——
