@@ -191,6 +191,18 @@ public abstract class AbstractContainerMenuMixin {
             return false;   // 还没选配方 / 配方算不出东西
         }
 
+        // ===== 耐久门槛：组合球与球堆同样要过 80%（作者 2026-10-16）=====
+        // 球的耐久记在球自己身上（球堆的耐久记在**壳里那颗球**上），所以统一摊开来看。
+        // 球堆里的球都是**同一档位**的（BallClusterContents.matches 要求同档位），
+        // 所以「看最低那颗」就等于看整堆 —— 与 BallCuttingRecipe.matches 同一口径。
+        //
+        // ⚠️ 不达标时必须**吞掉这次点击**（什么都不做），绝不能 return false 漏给原版 ——
+        //    原版对产物槽的这次点击会把整个球堆消耗掉（作者实测踩过这个）。
+        ItemStack peek = cluster ? BallClusterItem.asBall(inputSlot.getItem()) : material;
+        if (peek.isEmpty() || !com.mcmodworkspace.moreballs.BallItem.canBeCut(peek)) {
+            return true;   // 门槛不达标 → 点不动
+        }
+
         // ===== 这个点击该不该「点不动」=====
         // 作者 2026-10-16 明确：**要像原版那样** ——
         // 光标上拿着**同种产物**时再点，产物就**叠加上去**；
