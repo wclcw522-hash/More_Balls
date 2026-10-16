@@ -1234,7 +1234,7 @@ public final class BallBehavior {
                     thunderThreshold, shockDamage, glint, penetration, flags, breaker, transpose, value, loyalty, beeCount, nurture);
         }
 
-        /** 【忠诚】—— 永远带忠诚附魔，且不会被任何生物捡走（潮汐球专属，「其它特殊」类） */
+        /** 【忠诚】—— 永远带忠诚附魔，且不会被任何生物捡走（潮汐球专属，「唯一特殊」类：切开不继承、不参与合成） */
         public BallProfile withLoyalty(boolean value) {
             return new BallProfile(damage, cooldownTicks, velocity, inaccuracy, weight, toughness,
                     bounce, chargeLevels, rarity, sound, drops, sense, meltThreshold, moltenThreshold, magnetRadius,
