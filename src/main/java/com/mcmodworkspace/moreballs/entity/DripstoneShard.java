@@ -4,6 +4,7 @@ import com.mcmodworkspace.moreballs.ModEntities;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.sounds.SoundEvents;
 import net.minecraft.sounds.SoundSource;
+import net.minecraft.world.damagesource.DamageSource;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.entity.LivingEntity;
@@ -98,11 +99,42 @@ public class DripstoneShard extends ThrowableItemProjectile {
         if (entity == this.getOwner()) {
             return;
         }
-        if (this.level() instanceof ServerLevel serverLevel) {
-            if (entity instanceof LivingEntity living) {
-                living.invulnerableTime = 0;   // ← 无视无敌帧，见上面的说明
+        if (!(this.level() instanceof ServerLevel serverLevel)) {
+            return;
+        }
+        DamageSource source = this.damageSources().thrown(this, this.getOwner());
+
+        if (!(entity instanceof LivingEntity living)) {
+            entity.hurtServer(serverLevel, source, BASE_DAMAGE);
+            return;
+        }
+
+        // ===== 🌟 无视无敌帧（作者 2026-10-16）=====
+        //
+        // 原版 hurtServer 在 invulnerableTime > 0 时会把「伤害不超过上一次」的攻击**直接丢掉**，
+        // 而【尖刺】一次射出的 8 枚锥子几乎必然**同一刻**命中同一个目标 ——
+        // 第一枚过后无敌被设成 20，后面几枚就全废。
+        //
+        // 规则（三条都必要）：
+        //   ① **只在目标真的带着无敌帧时才动它** —— 本来就没无敌就完全不碰，零副作用；
+        //   ② 清零必须发生在**出手之前**；
+        //   ③ 这一下没造成伤害就把原值**原样还回去**。
+        //
+        // ⚠️ 为什么不能写成「先正常打、成功后再清零」：那样在目标带着剩余无敌帧时，
+        //    这一下会**先被无敌帧挡掉**（连伤害都不会产生），石锥根本打不进去 ——
+        //    与「不受无敌帧影响」正好相反。
+        //
+        // ⚠️ 也**不能**在成功后清零：原版成功受击后会把无敌重设回 20，把它抹掉等于
+        //    把目标这段时间的保护整体取消 ⇒ 下一 tick 起**别人的**攻击也能连打，
+        //    那才是真正的「开后门」。
+        if (living.invulnerableTime > 0) {
+            int saved = living.invulnerableTime;
+            living.invulnerableTime = 0;
+            if (!living.hurtServer(serverLevel, source, BASE_DAMAGE)) {
+                living.invulnerableTime = saved;   // 没打中 → 原样还回去
             }
-            entity.hurtServer(serverLevel, this.damageSources().thrown(this, this.getOwner()), BASE_DAMAGE);
+        } else {
+            living.hurtServer(serverLevel, source, BASE_DAMAGE);   // 本来就没无敌 → 不碰
         }
     }
 
