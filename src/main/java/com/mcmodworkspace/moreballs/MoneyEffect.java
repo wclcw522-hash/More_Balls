@@ -25,20 +25,22 @@ import java.util.List;
  * <ul>
  *   <li>debuff，<b>最大 1 级</b></li>
  *   <li>持续时间内，效果持有者<b>每次受击</b>都有 <b>15%</b> 概率
- *       掉落一件「**锭 / 宝石**」<b>1 个</b>
- *       （作者 2026-10-16 改口径：原矿、矿石、煤、红石那类不再掉；
+ *       掉落一件「矿物产物」<b>1 个</b>
+ *       （作者 2026-10-16 收窄：(去掉)**原矿与矿石**不再掉，
+ *        锭 / 宝石 / 粒 / 煤 / 红石 / 石英 / 紫水晶这些都留着；
  *        唯独<b>下界合金对应碎片</b>）</li>
  *   <li>图标用作者给的那张图（保留外围闪光、去掉水印），18 × 18 放
  *       {@code textures/mob_effect/money.png}</li>
  * </ul>
  *
- * <h2>「锭与宝石」怎么界定 —— 一条标签，第三方可以往里加</h2>
+ * <h2>「矿物产物」怎么界定 —— 一条标签，第三方可以往里加</h2>
  * <p>作者要求「尽量直接写一个大类，让后续可能加入的 mod 矿物也包含在内」。
  * 所以这里查的是<b>本模组自己的一条物品标签</b>：
- * {@code #more_balls:mineral_products}，它默认只引 NeoForge 的两条通用标签
- * （{@code #c:ingots} 与 {@code #c:gems}）再加一个下界合金碎片。<b>别人家的模组只要把自己的
- * 锭 / 宝石登记进 {@code c:} 那一套（NeoForge 的通行做法），或者用数据包往我们的标签里加，
- * 它就自动进掉落池 —— 本模组一行代码都不用改。</b></p>
+ * {@code #more_balls:mineral_products}，它默认引 NeoForge 的通用标签
+ * （{@code #c:ingots} / {@code #c:gems} / {@code #c:nuggets}）再加原版那几样
+ * —— <b>不含</b> {@code #c:raw_materials} 与 {@code #c:ores}。
+ * <b>别人家的模组只要把自己的矿物登记进 {@code c:} 那一套（NeoForge 的通行做法），
+ * 或者用数据包往我们的标签里加，它就自动进掉落池 —— 本模组一行代码都不用改。</b></p>
  *
  * <p>标签整条为空时（极端精简的整合包）回退到一小撮原版物品，
  * 保证「至少会掉点什么」，而不是安静地什么都不发生。</p>
@@ -91,12 +93,13 @@ public class MoneyEffect extends MobEffect {
             net.minecraft.world.item.Items.DIAMOND,
             net.minecraft.world.item.Items.EMERALD,
             net.minecraft.world.item.Items.LAPIS_LAZULI,
-            net.minecraft.world.item.Items.NETHERITE_SCRAP);
+            net.minecraft.world.item.Items.REDSTONE,
+            net.minecraft.world.item.Items.COAL);
 
     /**
      * <b>下界合金按「碎片」掉</b>（作者 2026-10-16 指定）。
      *
-     * <p>掉落的整体口径已经改成「**锭与宝石**」（原矿、矿石、煤、红石那类不再掉），
+     * <p>掉落池的整体口径是「矿物产物，但**不含原矿与矿石**」，
      * 唯独下界合金是特例 —— 作者要的是<b>碎片</b>（{@code netherite_scrap}）。
      * 而 {@code #c:ingots} 里恰好含有 {@code netherite_ingot}，
      * 所以抽到它的时候在这里换回碎片。</p>

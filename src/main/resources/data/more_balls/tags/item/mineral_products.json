@@ -1,10 +1,20 @@
 {
-  "__comment": "【腰缠万贯】掉落用的「锭与宝石」大类（作者 2026-10-16 改：掉锭 / 宝石，不再掉原矿与矿石）。默认引用 NeoForge 通用标签，第三方模组把自己的锭 / 宝石登记进 c: 那一套，或用数据包往这里加条目，就自动进掉落池。",
-  "__comment_netherite": "下界合金是特例：作者指定它对应**碎片**而不是锭。所以这里列的是 netherite_scrap；万一某个包把 netherite_ingot 塞进了 #c:ingots，代码侧会把它换回碎片（见 MoneyEffect.normalizeLoot）。",
+  "__comment": "【腰缠万贯】掉落用的「矿物产物」大类。默认引用 NeoForge 通用标签，并补上原版那几样不在 c: 里的；第三方模组把自己的矿物登记进 c: 那一套，或用数据包往这里加条目，就自动进掉落池。",
+  "__comment_2026_10_16": "作者 2026-10-16 改动：**只去掉「原矿」与「矿石」**（所以这里没有 #c:raw_materials / #c:ores，也没有 raw_iron / raw_gold / raw_copper），其余（锭 / 宝石 / 粒 / 煤 / 红石 / 石英 / 紫水晶 / 下界合金碎片）全部保留。",
+  "__comment_netherite": "下界合金是特例：作者指定它对应**碎片**。万一某个包把 netherite_ingot 塞进了 #c:ingots，代码侧会把它换回碎片（见 MoneyEffect.normalizeLoot）。",
   "replace": false,
   "values": [
     "#c:ingots",
     "#c:gems",
-    "minecraft:netherite_scrap"
+    "#c:nuggets",
+    "minecraft:coal",
+    "minecraft:charcoal",
+    "minecraft:redstone",
+    "minecraft:lapis_lazuli",
+    "minecraft:quartz",
+    "minecraft:amethyst_shard",
+    "minecraft:netherite_scrap",
+    "minecraft:emerald",
+    "minecraft:diamond"
   ]
 }
