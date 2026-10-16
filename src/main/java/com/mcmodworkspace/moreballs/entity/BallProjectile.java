@@ -1593,7 +1593,12 @@ public class BallProjectile extends ThrowableItemProjectile {
             // 首次初始化剩余次数
             if (this.wisdomUsesLeft < 0) {
                 this.wisdomUsesLeft = this.profile().wisdom();
-                this.wisdomGravityBefore = this.isNoGravity();   // 记下原始重力状态
+                // ⚠️ 这里**必须写 false，不能记当时的 isNoGravity()**（作者 2026-10-16 报的悬空球成因之一）：
+                //    `ballTickPre()` 里先跑了 `tickTidalSurge()`，带【潮涌】的球那一刻**已经**是无重力了，
+                //    于是「最初的重力状态」被记成 true ⇒ 之后每刻 `setNoGravity(true)` 还原回来，
+                //    出水以后仍然无重力 ⇒ 永久悬空。
+                //    球出厂时本来就是受重力的，这里直接以 false 为基准最稳。
+                this.wisdomGravityBefore = false;
             }
             // 【智慧x】的三段式重力（作者 2026-10-09 修正）：
             //   第一次命中**之前** —— 照常受重力（正常弹道，扔出去该抛就该抛）
@@ -1631,7 +1636,17 @@ public class BallProjectile extends ThrowableItemProjectile {
                 }
             }
             boolean tracked = this.wisdomUsesLeft < this.profile().wisdom();   // 已经命中过至少一次
-            if (tracked && this.wisdomUsesLeft > 0) {
+            // ⚠️⚠️ **「还在空追」也要有个头**（作者 2026-10-16 报的「悬在空中的球」成因之一）。
+            //
+            //    原来这里只判 `tracked && usesLeft > 0` —— 于是【智慧】球只要**命中过一次**、
+            //    之后再也锁不到目标，次数就永远扣不完，这个分支每刻都成立 ⇒
+            //    **永远保持无重力**；而 `setSettled()` 在 `isNoGravity()` 时又拒绝进入静止态 ⇒
+            //    球既不落地也不静止、也走不到 2400 刻的自动消失，就那么**永久悬停在半空**。
+            //
+            //    现在加上「最近还在锁目标」这条 —— 空追超过 WISDOM_GIVEUP_TICKS（100 刻）就放开重力，
+            //    球自然掉下来落地。这与「放它回家」那边用的是同一个判据，口径一致。
+            boolean stillHunting = this.wisdomNoTargetTicks < WISDOM_GIVEUP_TICKS;
+            if (tracked && this.wisdomUsesLeft > 0 && stillHunting) {
                 if (!this.isNoGravity()) {
                     this.setNoGravity(true);
                 }

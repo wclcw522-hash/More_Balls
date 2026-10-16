@@ -961,53 +961,118 @@ public final class BallMobAI {
     /** 与 MobBallDisplay.TAG 同一个字符串 */
     private static final String DISPLAY_TAG = "more_balls:mob_ball_display";
 
-    /** 每个维度只扫一次 */
-    private static final java.util.Set<net.minecraft.resources.ResourceKey<net.minecraft.world.level.Level>> DISPLAY_SWEPT =
-            java.util.concurrent.ConcurrentHashMap.newKeySet();
+    /**
+     * 「开服头一次清扫」是否已经做过。
+     *
+     * <p>⚠️ 原来是「每个维度一个标记、只扫一次」—— 那样有两个洞：
+     * ① 那一刻没人的维度，{@code getAllEntities()} 是空的，却把标记用掉了 ⇒ 之后**再也不扫**；
+     * ② 只扫一次 ⇒ 之后运行期间产生的残留（超距 despawn、自爆失败等）**永远没人管**。</p>
+     *
+     * <p>现在拆成两件事：<b>开服头一次全清</b>（上个存档留下的，映射表是内存态，清掉零损失），
+     * <b>之后每 {@link #DISPLAY_SWEEP_INTERVAL} 刻做一次「宿主校验」清扫</b>。</p>
+     */
+    private static volatile boolean displaySweptOnce = false;
+
+    /** 周期性「宿主校验」清扫的间隔（刻）—— 10 秒一次 */
+    private static final int DISPLAY_SWEEP_INTERVAL = 200;
 
     /**
-     * **清掉上次退出游戏时滞留的展示图标**（作者 2026-10-11 报的 bug）。
+     * <b>清掉滞留的展示图标</b>。
      *
-     * <p>展示图标是**真实体**，会跟着区块一起存进存档；而
-     * {@code MobBallDisplay} 里那张「UUID → 实体 id」的映射**只在内存里**。
-     * 于是重进游戏后映射是空的 → 代码按需**新建一批** → 旧的那一批
-     * **永远留在世界上**（幻翼头顶那颗球会一直挂着）。</p>
+     * <p>展示图标（{@code ItemDisplay}）是**真实体**，而不巧的是
+     * {@code Display} 的 {@code isPickable()} 恒为 false（它没有重写原版那个硬返回 false 的实现），
+     * 所以它对 F3 / Jade / 准星**完全隐身**；再加上 {@code Display} 构造里就是 {@code noPhysics = true}、
+     * {@code tick()} 也不吃重力 —— 一旦宿主没了，它就会**永远悬在半空中显示着那颗球的贴图**。
+     * 这正是作者 2026-10-16 报的「悬在空中的球贴图、也没有 id」。</p>
      *
-     * <p><b>所有挂了球图标的怪都有这个问题</b>（蜘蛛 / 幻翼 / 苦力怕 / 嘎枝 /
-     * 史莱姆 / 烈焰人十二肢），不只是幻翼。</p>
+     * <h2>什么时候会留下孤儿图标</h2>
+     * <ul>
+     *   <li><b>超距 despawn</b>：原版 {@code Mob.checkDespawn()} 走的是 {@code discard()}，
+     *       <b>不触发 {@code LivingDeathEvent}</b> —— 而图标的清理原本只挂在那个事件上；</li>
+     *   <li><b>苦力怕自爆</b>：{@code Creeper} 自爆也是 {@code discard()}，同样不走死亡事件；
+     *       若引信点燃后 {@code throwBallOut} 没成功，图标就留在原地；</li>
+     *   <li><b>记录被 LRU 挤出</b>：{@code MobBallDisplay.ensure} 在记录丢失时只新建、不删旧；</li>
+     *   <li><b>开服那一刻没人的维度</b>：那一遍清扫扫了个空。</li>
+     * </ul>
      *
-     * <p>进服第一刻统一清一遍 —— 图标本来就是纯显示、下一 tick 会按需重建，
-     * 清掉不会有任何损失。</p>
+     * <p>所以这里靠图标自带的宿主标签（{@code MobBallDisplay.OWNER_PREFIX + 宿主UUID}）反查：
+     * <b>宿主不在这个世界里了，就把图标清掉</b>。下一 tick 会按需重建，纯显示、没有损失。</p>
      */
     @SubscribeEvent
     public static void onServerTickSweepDisplays(net.neoforged.neoforge.event.tick.ServerTickEvent.Post event) {
         // ⚠️⚠️ **必须等服务器跑一会儿再扫**（0.4.0.24 崩服的原因）：
         //    刚开服那几刻实体还没全加载，`level.getAllEntities()` 会**吐出 null**，
-        //    直接調 `e.entityTags()` 就是
+        //    直接调 `e.entityTags()` 就是
         //    `NullPointerException: ... because "e" is null` → **整个 tick 循环崩掉**。
         if (event.getServer().getTickCount() < DISPLAY_SWEEP_DELAY_TICKS) {
             return;
         }
+
+        boolean sweepAll = !displaySweptOnce;
+        if (sweepAll) {
+            displaySweptOnce = true;
+        } else if (event.getServer().getTickCount() % DISPLAY_SWEEP_INTERVAL != 0L) {
+            return;   // 平时每 200 刻才做一次「宿主校验」
+        }
+
         for (ServerLevel level : event.getServer().getAllLevels()) {
-            if (!DISPLAY_SWEPT.add(level.dimension())) {
-                continue;   // 这个维度已经扫过了
-            }
-            // ⚠️ **先收集成快照，再统一 discard** ——
-            //    绝不能在遍历实体的过程中改实体列表（AGENTS 里「不要在遍历中增删实体」那条）。
-            List<Entity> stranded = new java.util.ArrayList<>();
+            sweepDisplays(level, sweepAll);
+        }
+    }
+
+    /**
+     * 扫一个维度。
+     *
+     * @param sweepAll true = 开服头一次，把 <b>所有</b>展示图标一律清掉（上个存档留下的）；
+     *                 false = 只清「宿主已经不在了」的孤儿图标
+     */
+    private static void sweepDisplays(ServerLevel level, boolean sweepAll) {
+        // ⚠️ **先收集成快照，再统一 discard** ——
+        //    绝不能在遍历实体的过程中改实体列表（AGENTS 里「不要在遍历中增删实体」那条）。
+        java.util.Set<UUID> present = sweepAll
+                ? java.util.Set.of()
+                : new java.util.HashSet<>();
+        if (!sweepAll) {
             for (Entity e : level.getAllEntities()) {
-                // null 守卫：加载中的区块会给出 null（就是上面那次崩服）
-                if (e != null && e.entityTags().contains(DISPLAY_TAG)) {
-                    stranded.add(e);
+                if (e != null) {
+                    present.add(e.getUUID());
                 }
             }
-            for (Entity e : stranded) {
-                e.discard();
+        }
+
+        List<Entity> stranded = new java.util.ArrayList<>();
+        for (Entity e : level.getAllEntities()) {
+            // null 守卫：加载中的区块会给出 null（就是上面那次崩服）
+            if (e == null || !e.entityTags().contains(DISPLAY_TAG)) {
+                continue;
             }
-            if (!stranded.isEmpty()) {
-                MoreBalls.LOGGER.info("[ball] 清掉 {} 个遗留的展示图标（上个存档留下的）", stranded.size());
+            if (sweepAll || !hasPresentHost(e, present)) {
+                stranded.add(e);
             }
         }
+        for (Entity e : stranded) {
+            e.discard();
+        }
+        if (!stranded.isEmpty()) {
+            MoreBalls.LOGGER.info("[ball] 清掉 {} 个滞留的展示图标（{}）",
+                    stranded.size(), sweepAll ? "上个存档留下的" : "宿主已不在");
+        }
+    }
+
+    /** 图标的宿主是否还在这个维度里 —— 靠图标自带的宿主 UUID 标签反查 */
+    private static boolean hasPresentHost(Entity icon, java.util.Set<UUID> present) {
+        for (String tag : icon.entityTags()) {
+            if (tag == null || !tag.startsWith(MobBallDisplay.OWNER_PREFIX)) {
+                continue;
+            }
+            try {
+                UUID owner = UUID.fromString(tag.substring(MobBallDisplay.OWNER_PREFIX.length()));
+                return present.contains(owner);
+            } catch (IllegalArgumentException malformed) {
+                return false;   // 标签坏了 ⇒ 当孤儿处理
+            }
+        }
+        return false;   // 没带宿主标签（老版本留下的）⇒ 一律当孤儿
     }
 
     // ===== 【烈焰人】的球袋 =====
