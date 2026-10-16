@@ -92,11 +92,56 @@ public class BallCuttingRecipe extends StonecutterRecipe {
     @Override
     public ItemStack assemble(SingleRecipeInput input) {
         ItemStack product = this.result().create();
+        ItemStack probe = BallClusterItem.asBall(input.item());
+        if (probe.is(ModItems.COMBO_BALL.get())) {
+            // ===== 组合球（作者 2026-10-16 的规则）=====
+            // 产物槽里**只放「与第一份同来源的那几份」**（同来源可以叠成一栈），
+            // 来源不同的那几份由取产物那一侧补进背包（见 AbstractContainerMenuMixin）。
+            //
+            // 例：二合一的组合球切四分之一 —— 上半两个象限同来源、下半两个同来源，
+            //     于是产物槽显示「上半那份材料的四分之一球 ×2」，下半那两份塞背包。
+            boolean quarter = this.result().item() == ModItems.BALL_QUARTER.get();
+            int firstSource = comboPieceSource(probe, 0, quarter);
+            if (firstSource >= 0) {
+                int total = quarter ? 4 : 2;
+                int same = 0;
+                for (int i = 0; i < total; i++) {
+                    if (comboPieceSource(probe, i, quarter) == firstSource) {
+                        same++;
+                    }
+                }
+                product.set(ModComponents.FRAGMENT_SOURCE.get(), firstSource);
+                product.setCount(Math.max(1, same));
+            }
+            return product;
+        }
         int sourceIndex = sourceIndexFor(input.item());
         if (sourceIndex >= 0) {
             product.set(ModComponents.FRAGMENT_SOURCE.get(), sourceIndex);
         }
         return product;
+    }
+
+    /**
+     * 组合球切开时，<b>第 {@code piece} 份</b>碎片来自哪个象限。
+     *
+     * <p>份与象限的对应关系随模板走：</p>
+     * <ul>
+     *   <li><b>四分之一</b>（4 份）—— 一份对一个象限：份 0/1/2/3 → 象限 0/1/2/3</li>
+     *   <li><b>半球</b>（2 份）—— 一份对「一半」：份 0 → 象限 0（上半），
+     *       份 1 → 象限 2（下半）。半球本身不分上下（同一个物品），
+     *       所以这里只需要「上半那份材料」和「下半那份材料」各出一次</li>
+     * </ul>
+     *
+     * @return 该份对应的来源下标；那个象限是空的时返回 -1
+     */
+    public static int comboPieceSource(ItemStack combo, int piece, boolean quarter) {
+        int quadrant = quarter ? piece : (piece == 0 ? 0 : 2);
+        if (quadrant < 0 || quadrant > 3) {
+            return -1;
+        }
+        Integer source = combo.get(ModComponents.COMBO_SLOTS.get(quadrant).get());
+        return source == null ? -1 : source;
     }
 
     /**

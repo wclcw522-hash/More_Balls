@@ -266,11 +266,11 @@ public abstract class AbstractContainerMenuMixin {
                 break;
             }
 
-            // ===== 组合球：另外三个象限各补一份 =====
-            // 产物槽只放得下第一象限那一份（配方给的），其余直接进背包 / 掉地上
-            // （作者 2026-10-16 指定：「产物里就保留 1 个第一象限的切片，其他的直接扔背包」）
+            // ===== 组合球：把「来源与产物槽不同的那几份」补进背包 =====
+            // 产物槽里只放得下「与第一份同来源的那几份」（同来源可以叠），
+            // 其余份在这里发出去；背包塞不下就直接扔地上（作者指定）。
             if (isCombo) {
-                moreballs$giveRestQuadrants(player, one);
+                moreballs$giveRestPieces(player, one, product);
             }
 
             // ===== 材料复位 =====
@@ -299,21 +299,33 @@ public abstract class AbstractContainerMenuMixin {
     }
 
     /**
-     * <b>组合球切开的「另外三份」</b>：象限 2 / 3 / 4 各产一份四分之一球，
-     * 来源按各自象限（作者 2026-10-16 指定）。
+     * <b>组合球切开的「其余份」</b>（作者 2026-10-16 定稿的规则）。
      *
-     * <p>产物槽只放得下第一象限那一份，所以这三份直接进背包；
-     * <b>背包也放不下时直接扔在地上</b> —— 作者明确要求「不要让它凭空消失」。</p>
+     * <p>产物槽里那份代表「与第一份同来源的那几份」（同来源可以叠成一栈，
+     * 数量由 {@code BallCuttingRecipe.assemble} 算好），所以这里只发
+     * <b>来源与它不同的份</b>，直接进背包；<b>背包也放不下就扔在地上</b> ——
+     * 作者明确要求不让它凭空消失。</p>
+     *
+     * <p>份数随模板走：四分之一 4 份、半球 2 份（见
+     * {@link com.mcmodworkspace.moreballs.BallCuttingRecipe#comboPieceSource}）。</p>
      */
-    private static void moreballs$giveRestQuadrants(Player player, ItemStack combo) {
-        for (int q = 1; q < 4; q++) {
-            Integer source = combo.get(
-                    com.mcmodworkspace.moreballs.ModComponents.COMBO_SLOTS.get(q).get());
-            if (source == null || source < 0) {
+    private static void moreballs$giveRestPieces(Player player, ItemStack combo, ItemStack product) {
+        Integer keptSource = product.get(
+                com.mcmodworkspace.moreballs.ModComponents.FRAGMENT_SOURCE.get());
+        boolean quarter = product.is(com.mcmodworkspace.moreballs.ModItems.BALL_QUARTER.get());
+        int total = quarter ? 4 : 2;
+        for (int i = 0; i < total; i++) {
+            int source = com.mcmodworkspace.moreballs.BallCuttingRecipe
+                    .comboPieceSource(combo, i, quarter);
+            if (source < 0) {
                 continue;   // 这个象限本来就是空的
             }
-            ItemStack piece = new ItemStack(
-                    com.mcmodworkspace.moreballs.ModItems.BALL_QUARTER.get());
+            if (keptSource != null && source == keptSource) {
+                continue;   // 产物槽里那几份已经代表它了
+            }
+            ItemStack piece = new ItemStack(quarter
+                    ? com.mcmodworkspace.moreballs.ModItems.BALL_QUARTER.get()
+                    : com.mcmodworkspace.moreballs.ModItems.BALL_HALF.get());
             piece.set(com.mcmodworkspace.moreballs.ModComponents.FRAGMENT_SOURCE.get(), source);
             if (!player.getInventory().add(piece)) {
                 player.drop(piece, false);
