@@ -200,6 +200,7 @@
   "item.more_balls.talisman_ball": "Talisman Ball",
   "effect.more_balls.money": "Wealthy",
   "message.more_balls.sealed": "Sealed! You cannot use items for a moment",
+  "message.more_balls.cut_gate": "Durability below 80% (pristine or flawed tier only) - this ball cannot go into the stonecutter",
   "tooltip.more_balls.entry.money": "[Avarice] Gimme that",
   "tooltip.more_balls.desc.money": "Applies %1$s to whatever it hits",
   "tooltip.more_balls.entry.spike": "[Spikes] Wait... I think I have seen this before...",

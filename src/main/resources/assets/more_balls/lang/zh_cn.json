@@ -200,6 +200,7 @@
   "item.more_balls.talisman_ball": "符箓球",
   "effect.more_balls.money": "腰缠万贯",
   "message.more_balls.sealed": "被封印了！一时半会儿用不了东西",
+  "message.more_balls.cut_gate": "耐久不足 80%（满耐久或瑕疵档）—— 这颗球放不进切石机",
   "tooltip.more_balls.entry.money": "【敛财】拿来吧你",
   "tooltip.more_balls.desc.money": "对被击中者施加%1$s",
   "tooltip.more_balls.entry.spike": "【尖刺】这玩意我是不是在哪见过……",
