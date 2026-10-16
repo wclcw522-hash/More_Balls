@@ -6,6 +6,52 @@
 
 ---
 
+## 1.1.1.39 — 悬空图标的**真正残留**：苦力怕那套图标根本不在清扫范围里（作者 2026-10-17 点出）
+
+### 主人的历史线索一击命中
+
+作者原话：「**这个很久很久之前修过一次，在刚加苦力怕的机制那一块，有一部分被修好了。但是还是有残留**」
+
+顺着这条线索去读 `CreeperBallBehavior`，问题立刻明了 ——
+**本模组的「头顶球图标」有两套各自独立的实现，标签完全不同**：
+
+| 谁在用 | 实体标签 | 宿主标签前缀 |
+|---|---|---|
+| `MobBallDisplay`（蜘蛛 / 洞穴蜘蛛 / 幻翼 / 史莱姆 / 嘎枝） | `more_balls:mob_ball_display` | `more_balls:ball_display_owner:` |
+| `CreeperBallBehavior`（**苦力怕头顶那颗**） | `more_balls:creeper_head_icon` | `more_balls:head_of:` |
+
+而 1.1.1.35 / 1.1.1.38 的清扫**只认第一套**（判据是 `contains("more_balls:mob_ball_display")`）
+—— 苦力怕那套图标**连扫描都进不去**，所以它留下的孤儿图标从来没被扫到过。
+这正是主人说的「一部分被修好了、还是有残留」：修好的是 `MobBallDisplay` 那半边。
+
+### 修法
+
+`BallMobAI` 的清扫改成**两套标签都认**：
+
+```java
+private static final String[] DISPLAY_TAGS = {
+        "more_balls:mob_ball_display",
+        "more_balls:creeper_head_icon",
+};
+private static final String[] DISPLAY_OWNER_PREFIXES = {
+        "more_balls:ball_display_owner:",
+        "more_balls:head_of:",
+};
+```
+
+宿主校验 `hasLivingHost` 也改成**两个前缀都试**（苦力怕那套是 `more_balls:head_of:`），
+再用 `level.getEntity(uuid)` 确认宿主真的还活着。
+
+### 苦力怕为什么会留下孤儿图标（读代码得到的因果链）
+
+苦力怕自爆走的是 `Creeper.explodeCreeper()` 里的 `discard()`，**不触发 `LivingDeathEvent`** ——
+而 `CreeperBallBehavior.onCreeperDeath` 挂在那个事件上，所以不会执行。
+它的唯一清理口是 `throwBallOut` 成功后调 `removeHeadIcon`；
+若引信已点燃但 `throwBallOut` 提前返回（主手不是球 / 找不到目标），
+**图标就留在原地，随后苦力怕自爆消失** ⇒ 悬空图标。
+
+---
+
 ## 1.1.1.38 — 悬空图标扫得动它了：清扫周期 10 秒 → 1 秒，宿主判据补「真的还活着吗」（作者 2026-10-17）
 
 ### 主人这次的判断是关键

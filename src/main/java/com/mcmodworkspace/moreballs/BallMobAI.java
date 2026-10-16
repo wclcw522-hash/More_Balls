@@ -962,6 +962,45 @@ public final class BallMobAI {
     private static final String DISPLAY_TAG = "more_balls:mob_ball_display";
 
     /**
+     * <b>要清扫的图标标签 —— 两套，缺一不可</b>（作者 2026-10-17 指出「苦力怕那块以前修过一次、还有残留」）。
+     *
+     * <p>本模组的「怪物头顶球图标」有<b>两套各自独立的实现</b>，标签完全不一样：</p>
+     * <table border="1">
+     *   <caption>两套图标</caption>
+     *   <tr><th>谁在用</th><th>实体标签</th><th>宿主标签前缀</th></tr>
+     *   <tr><td>{@code MobBallDisplay}（蜘蛛 / 幻翼 / 史莱姆等）</td>
+     *       <td>{@code more_balls:mob_ball_display}</td>
+     *       <td>{@code more_balls:ball_display_owner:}</td></tr>
+     *   <tr><td>{@code CreeperBallBehavior}（苦力怕头顶那颗）</td>
+     *       <td>{@code more_balls:creeper_head_icon}</td>
+     *       <td>{@code more_balls:head_of:}</td></tr>
+     * </table>
+     *
+     * <p>⚠️ 原来的清扫<b>只认第一套</b> —— 苦力怕那套连扫描都扫不到，所以它留下的孤儿图标
+     * 一直是「扫不掉」的那部分残留。<b>这里两套都要认。</b></p>
+     */
+    private static final String[] DISPLAY_TAGS = {
+            DISPLAY_TAG,
+            "more_balls:creeper_head_icon",
+    };
+
+    /** 两套图标各自的「宿主 UUID」标签前缀 —— 与 {@link #DISPLAY_TAGS} 一一对应（顺序都要遍历） */
+    private static final String[] DISPLAY_OWNER_PREFIXES = {
+            "more_balls:ball_display_owner:",
+            "more_balls:head_of:",
+    };
+
+    /** 这个实体是不是「某个怪的头顶球图标」 */
+    private static boolean isBallDisplay(Entity e) {
+        for (String tag : DISPLAY_TAGS) {
+            if (e.entityTags().contains(tag)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
      * 「开服头一次清扫」是否已经做过。
      *
      * <p>⚠️ 原来是「每个维度一个标记、只扫一次」—— 那样有两个洞：
@@ -1038,7 +1077,7 @@ public final class BallMobAI {
         List<Entity> stranded = new java.util.ArrayList<>();
         for (Entity e : level.getAllEntities()) {
             // null 守卫：加载中的区块会给出 null（就是上面那次崩服）
-            if (e == null || !e.entityTags().contains(DISPLAY_TAG)) {
+            if (e == null || !isBallDisplay(e)) {
                 continue;
             }
             if (sweepAll || !hasLivingHost(level, e)) {
@@ -1062,21 +1101,26 @@ public final class BallMobAI {
      * <b>不一定立刻从集合里消失</b> —— 于是「集合里还有它」会被误判成「宿主还在」，
      * 图标就一直挂着。所以这里再拿 {@code level.getEntity(uuid)} 确认一次：
      * <b>查不到、或者查到了但已经死了/被移除，都算宿主不在。</b></p>
+     *
+     * <p>⚠️ 两套标签的前缀都要试 —— 苦力怕那套用的是 {@code more_balls:head_of:}。</p>
      */
     private static boolean hasLivingHost(ServerLevel level, Entity icon) {
-        for (String tag : icon.entityTags()) {
-            if (tag == null || !tag.startsWith(MobBallDisplay.OWNER_PREFIX)) {
-                continue;
-            }
-            try {
-                UUID owner = UUID.fromString(tag.substring(MobBallDisplay.OWNER_PREFIX.length()));
-                Entity host = level.getEntity(owner);
-                return host != null && !host.isRemoved() && host.isAlive();
-            } catch (IllegalArgumentException malformed) {
-                return false;   // 标签坏了 ⇒ 当孤儿处理
+        java.util.Set<String> tags = icon.entityTags();
+        for (String prefix : DISPLAY_OWNER_PREFIXES) {
+            for (String tag : tags) {
+                if (tag == null || !tag.startsWith(prefix)) {
+                    continue;
+                }
+                try {
+                    UUID owner = UUID.fromString(tag.substring(prefix.length()));
+                    Entity host = level.getEntity(owner);
+                    return host != null && !host.isRemoved() && host.isAlive();
+                } catch (IllegalArgumentException malformed) {
+                    return false;   // 标签坏了 ⇒ 当孤儿处理
+                }
             }
         }
-        return false;   // 没带宿主标签（老版本留下的）⇒ 一律当孤儿
+        return false;   // 没带任何宿主标签（老版本留下的）⇒ 一律当孤儿
     }
 
     // ===== 【烈焰人】的球袋 =====
