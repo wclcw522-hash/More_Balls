@@ -94,6 +94,17 @@ public final class BallExtraTraits {
     private static final int BEE_ANGER_REFRESH_TICKS = 10;
 
     /**
+     * 【招蜂引蝶】召唤出来的蜜蜂<b>存活时长</b>：<b>8 秒</b>（作者 2026-10-16 指定）。
+     *
+     * <p>到点自动死亡（走一次致命伤害，有正常的死亡表现），免得蜂群一直挂在那儿
+     * 把战场搅成一锅粥。</p>
+     */
+    public static final int BEE_LIFETIME_TICKS = 8 * 20;
+
+    /** 被召唤的蜜蜂 → 它的「到点时刻」（游戏刻） */
+    private static final Map<UUID, Long> SUMMONED_BEE_DEADLINE = new ConcurrentHashMap<>();
+
+    /**
      * 【招蜂引蝶】召唤出来的蜜蜂身上的标记（记分板标签）。
      *
      * <p>两个用途：<br>
@@ -205,6 +216,9 @@ public final class BallExtraTraits {
             bee.setPersistenceRequired();
             level.addFreshEntity(bee);
             SUMMONED_BEE_TARGETS.put(bee.getUUID(), victim.getUUID());
+            // 寿命 8 秒（作者 2026-10-16 指定）—— 到点自动死亡，见 maintainSummonedBee
+            SUMMONED_BEE_DEADLINE.put(bee.getUUID(),
+                    level.getGameTime() + BEE_LIFETIME_TICKS);
             // 仇恨反向转移：让被击中的目标去咬蜜蜂
             if (victim instanceof Mob mob) {
                 mob.setTarget(bee);
@@ -228,15 +242,33 @@ public final class BallExtraTraits {
      */
     private static void maintainSummonedBee(ServerLevel level, Bee bee) {
         UUID ownerId = SUMMONED_BEE_TARGETS.get(bee.getUUID());
+
+        // ===== ① 寿命：8 秒到点就死（作者 2026-10-16 指定）=====
+        // ⚠️ 这一条**每刻都要判**，不能并进下面那个「每 10 刻」的节拍里 ——
+        //    否则实际存活会多出最多半秒，而且随机。
+        Long deadline = SUMMONED_BEE_DEADLINE.get(bee.getUUID());
+        if (deadline != null && level.getGameTime() >= deadline) {
+            SUMMONED_BEE_DEADLINE.remove(bee.getUUID());
+            SUMMONED_BEE_TARGETS.remove(bee.getUUID());
+            // 走一次致命伤害而不是 discard()：这样有正常的死亡表现（死亡粒子/音效、掉落结算）
+            // ⚠️ 它刚被打过时可能正处在无敌帧里、这一下会被忽略 —— 那就直接移除，
+            //    保证「到点一定消失」这条硬约束不会被无敌帧破坏。
+            if (!bee.hurtServer(level, bee.damageSources().generic(), Float.MAX_VALUE)) {
+                bee.discard();
+            }
+            return;
+        }
+
         if (ownerId == null) {
             return;   // 不是我们召唤的（或记录已清）
         }
         if (!bee.isAlive()) {
             SUMMONED_BEE_TARGETS.remove(bee.getUUID());
+            SUMMONED_BEE_DEADLINE.remove(bee.getUUID());
             return;
         }
         if (bee.tickCount % BEE_ANGER_REFRESH_TICKS != 0) {
-            return;
+            return;   // 下面那两件事每 10 刻做一次就够
         }
         Entity target = level.getEntity(ownerId);
         if (!(target instanceof LivingEntity living) || !living.isAlive()) {
