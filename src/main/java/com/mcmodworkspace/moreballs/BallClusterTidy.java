@@ -82,10 +82,6 @@ public final class BallClusterTidy {
             }
             inventory.setItem(i, ItemStack.EMPTY);
         }
-        if (loose.isEmpty()) {
-            return 0;
-        }
-
         // ===== 顺带：收纳袋的转运段也就地整理一遍 =====
         //
         // ⚠️ 作者 2026-10-15 反馈「整理键仅对当前背包生效」。
@@ -95,6 +91,12 @@ public final class BallClusterTidy {
         //    这里不把袋子里的球搬到背包再搬回去（那会打乱两段的分工），
         //    而是**就地收成壳** —— 复用 BallPouchItem 里回收流程用的同一段逻辑，
         //    保证「进袋的球」和「整理后的球」有完全一样的形态。
+        //
+        // ⚠️⚠️ 这一段**必须排在下面那句 `if (loose.isEmpty()) return 0;` 之前**。
+        //    作者 2026-10-16 报的「收纳袋里的整理按钮失效」，就是那句提前返回造成的：
+        //    背包 + 快捷栏里没有散球时直接 return，**袋子里那一段根本不会执行** ——
+        //    玩家在收纳袋界面里点按钮，自然一点动静都没有。
+        boolean pouchTouched = false;
         for (ItemStack pouch : BallPouchHelper.allPouchStacks(player)) {
             BallPouchContents pouchNow = BallPouchItem.contents(pouch);
             // ⚠️ 两处必须做对，否则这段是**静默无效**的：
@@ -106,7 +108,14 @@ public final class BallClusterTidy {
             if (BallPouchItem.clusterizeSegment(transitNow)) {
                 BallPouchItem.setContents(pouch,
                         new BallPouchContents(pouchNow.ammo(), transitNow));
+                pouchTouched = true;
             }
+        }
+
+        if (loose.isEmpty()) {
+            // 袋子里整理过也算「干了活」—— 调用方（TidyBallsPayload）只在 moved > 0 时给提示，
+            // 老是返回 0 的话玩家点一下依然毫无反馈，这就是「按钮失效」的观感来源。
+            return pouchTouched ? 1 : 0;
         }
 
         // ===== 第二趟：逐颗塞进壳 =====

@@ -59,6 +59,23 @@ public final class BallAmmoAutoLoader {
     public static void onPlayerTick(PlayerTickEvent.Post event) {
         Player player = event.getEntity();
 
+        // ⚠️⚠️ **整段只在服务端跑**（作者 2026-10-16 报的「副手的球收不回收纳袋、只是隐藏」的根因）。
+        //
+        //    这个类用 `WAS_HOLDING_CROSSBOW`（**静态** map）记「上一刻主手是不是弩」，
+        //    而 `PlayerTickEvent.Post` **两端都会触发** —— 单人存档又是「客户端与服务端同一个 JVM」，
+        //    两边**共用同一张 map**、互相踩：
+        //      · 客户端先 tick：它那边主手已经本地预测切走了 → 写入 `false`，
+        //        并且自己也把回收走了一遍（本地清空副手 + 顺手改了客户端那份袋子副本）；
+        //      · 服务端紧接着 tick 时读到的 `wasHolding` 已经是客户端刚写进去的 `false`
+        //        ⇒ **认不出「刚从弩切走」这回事 ⇒ 服务端压根没收那颗球**。
+        //    现象就是主人看到的那样：副手看着空了（客户端自己清的），
+        //    权威数据里那颗球还挂在手上；按一下切换副手触发同步，球又冒出来。
+        //
+        //    限定在服务端之后：map 只有服务端维护、判定可靠，客户端看到什么完全由同步包决定。
+        if (player.level().isClientSide()) {
+            return;
+        }
+
         ItemStack mainHand = player.getMainHandItem();
 
         // ===== ⓪ 主手**从弩切走**的那一刻 → 把副手那颗球收回收纳袋（作者 2026-10-15 要求）=====

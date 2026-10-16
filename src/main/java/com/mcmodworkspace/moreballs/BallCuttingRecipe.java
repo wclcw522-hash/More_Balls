@@ -92,7 +92,10 @@ public class BallCuttingRecipe extends StonecutterRecipe {
     @Override
     public ItemStack assemble(SingleRecipeInput input) {
         ItemStack product = this.result().create();
-        int sourceIndex = BallFragments.indexOfBall(input.item().getItem());
+        // ⚠️ 输入可能是**球堆**（作者 2026-10-16 要求球堆也能切）——
+        //    壳里那颗球才是真正的来源，所以先摊开再取下标。
+        //    `asBall` 对不是壳的输入原样返回，所以这里对普通球没有副作用。
+        int sourceIndex = BallFragments.indexOfBall(BallClusterItem.asBall(input.item()).getItem());
         if (sourceIndex >= 0) {
             product.set(ModComponents.FRAGMENT_SOURCE.get(), sourceIndex);
         }
@@ -113,14 +116,22 @@ public class BallCuttingRecipe extends StonecutterRecipe {
      */
     @Override
     public boolean matches(SingleRecipeInput input, Level level) {
-        if (BallFragments.indexOfBall(input.item().getItem()) < 0) {
+        // ⚠️ **球堆也认**（作者 2026-10-16：「球堆应该能看到合成表，也可以参与合成……不能看配方也不能切球」）。
+        //    判据按「壳里那颗球」走 —— 和 assemble 同一口径。
+        //
+        //    实际动刀时输入槽其实已经被 BallClusterCutting 摊成一颗球了（球堆只切最低耐久那一颗，
+        //    多出来的自动塞回玩家背包）—— 这里认壳的用途是：
+        //      · JEI 的石切分类能列出「球堆 → 半球 / 四分之一球」这条用途，玩家看得到配方；
+        //      · 万一那一刻壳还没被摊开（比如别的模组直接调配方），也不会产出没有来源的裸碎片。
+        ItemStack probe = BallClusterItem.asBall(input.item());
+        if (probe.isEmpty() || BallFragments.indexOfBall(probe.getItem()) < 0) {
             return false;
         }
         // 【切割门槛】耐久必须 ≥ 80%（作者 2026-10-13 指定）——
         // 球的耐久记在自定义组件 TOUGHNESS_LEFT 上（不是原版 MAX_DAMAGE），
         // 所以走 BallItem 的口径；具体算法见 BallItem.canBeCut。
         // 表现上：耐久条掉到 80% 以下时，这颗球就放不进切石机了。
-        if (!BallItem.canBeCut(input.item())) {
+        if (!BallItem.canBeCut(probe)) {
             return false;
         }
         return super.matches(input, level);
