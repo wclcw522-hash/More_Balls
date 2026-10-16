@@ -973,8 +973,14 @@ public final class BallMobAI {
      */
     private static volatile boolean displaySweptOnce = false;
 
-    /** 周期性「宿主校验」清扫的间隔（刻）—— 10 秒一次 */
-    private static final int DISPLAY_SWEEP_INTERVAL = 200;
+    /**
+     * 周期性「宿主校验」清扫的间隔（刻）—— <b>1 秒一次</b>。
+     *
+     * <p>⚠️ 原来是 200 刻（10 秒），**太慢了**：作者 2026-10-17 报「怪都没了，图标还挂在天上」，
+     * 就是因为图标最长能存在 10 秒才被扫掉。Display 是纯显示实体、又没有任何自毁机制，
+     * 所以这里有责任扫得勤一点。开销是 O(图标数)，很轻。</p>
+     */
+    private static final int DISPLAY_SWEEP_INTERVAL = 20;
 
     /**
      * <b>清掉滞留的展示图标</b>。
@@ -1029,24 +1035,13 @@ public final class BallMobAI {
     private static void sweepDisplays(ServerLevel level, boolean sweepAll) {
         // ⚠️ **先收集成快照，再统一 discard** ——
         //    绝不能在遍历实体的过程中改实体列表（AGENTS 里「不要在遍历中增删实体」那条）。
-        java.util.Set<UUID> present = sweepAll
-                ? java.util.Set.of()
-                : new java.util.HashSet<>();
-        if (!sweepAll) {
-            for (Entity e : level.getAllEntities()) {
-                if (e != null) {
-                    present.add(e.getUUID());
-                }
-            }
-        }
-
         List<Entity> stranded = new java.util.ArrayList<>();
         for (Entity e : level.getAllEntities()) {
             // null 守卫：加载中的区块会给出 null（就是上面那次崩服）
             if (e == null || !e.entityTags().contains(DISPLAY_TAG)) {
                 continue;
             }
-            if (sweepAll || !hasPresentHost(e, present)) {
+            if (sweepAll || !hasLivingHost(level, e)) {
                 stranded.add(e);
             }
         }
@@ -1059,15 +1054,24 @@ public final class BallMobAI {
         }
     }
 
-    /** 图标的宿主是否还在这个维度里 —— 靠图标自带的宿主 UUID 标签反查 */
-    private static boolean hasPresentHost(Entity icon, java.util.Set<UUID> present) {
+    /**
+     * 图标的宿主<b>是否还活着</b> —— 靠图标自带的宿主 UUID 标签反查。
+     *
+     * <p>⚠️⚠️ <b>不能只判「UUID 在不在本维度实体集合里」</b>（作者 2026-10-17 报的漏网就是这个）：
+     * {@code level.getAllEntities()} <b>只含已加载的实体</b>，而且实体 {@code discard()} 之后
+     * <b>不一定立刻从集合里消失</b> —— 于是「集合里还有它」会被误判成「宿主还在」，
+     * 图标就一直挂着。所以这里再拿 {@code level.getEntity(uuid)} 确认一次：
+     * <b>查不到、或者查到了但已经死了/被移除，都算宿主不在。</b></p>
+     */
+    private static boolean hasLivingHost(ServerLevel level, Entity icon) {
         for (String tag : icon.entityTags()) {
             if (tag == null || !tag.startsWith(MobBallDisplay.OWNER_PREFIX)) {
                 continue;
             }
             try {
                 UUID owner = UUID.fromString(tag.substring(MobBallDisplay.OWNER_PREFIX.length()));
-                return present.contains(owner);
+                Entity host = level.getEntity(owner);
+                return host != null && !host.isRemoved() && host.isAlive();
             } catch (IllegalArgumentException malformed) {
                 return false;   // 标签坏了 ⇒ 当孤儿处理
             }

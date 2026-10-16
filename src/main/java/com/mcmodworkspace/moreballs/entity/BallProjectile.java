@@ -554,6 +554,63 @@ public class BallProjectile extends ThrowableItemProjectile {
     private static final int RETURN_RETARGET_INTERVAL = 5;
 
     /**
+     * 「悬空」总兜底的计时上限（刻）。
+     *
+     * <p>见 {@link #tickNoGravityStall()}。取 <b>100 刻 = 5 秒</b>。</p>
+     */
+    private static final int NO_GRAVITY_STALL_LIMIT = 100;
+
+    /** 「无重力 + 完全静止」已经持续了多少刻（见 {@link #tickNoGravityStall()}） */
+    private int noGravityStallTicks;
+
+    /**
+     * <b>悬空总兜底</b> —— 无重力 + 完全静止持续 {@value #NO_GRAVITY_STALL_LIMIT} 刻就强制放开重力。
+     *
+     * <h2>为什么要一条「与具体路径无关」的兜底</h2>
+     * <p>球一共有 <b>5 条</b>会 {@code setNoGravity(true)} 的路径：
+     * 【潮涌】（{@code tickTidalSurge}）、【智慧】（追踪中 + 初始化）、回归（起飞 + 每刻维持）。
+     * 它们各自都配了「还原重力」，但只要<b>任何一条因为某个没预料到的条件没走到还原</b>，
+     * 球就会永久悬停在半空 —— 更麻烦的是 {@code setSettled()} 在 {@code isNoGravity()} 时
+     * <b>拒绝进入静止态</b>，于是它既不落地、也不静止、也走不到 2400 刻的自动消失。</p>
+     *
+     * <p>作者 2026-10-17 报「还是有悬空的球」，而那颗球是<b>空心铜球</b>（没有【智慧】词条）——
+     * 说明智慧那段的还原压根不会执行。逐条去堵已经被证明会漏，所以这里改成
+     * <b>与路径无关的总兜底</b>：只要球「无重力 + 完全静止」撑够 5 秒，一律强制放开重力。</p>
+     *
+     * <h2>为什么不会误伤</h2>
+     * <ul>
+     *   <li><b>尖啸飞行中</b>（{@link #isShriekFlying()}）—— 速度是 32，不静止，排除；</li>
+     *   <li><b>回归途中</b>（{@code homingBack}）—— 每刻都在加速，且它自己有超时兜底，排除；</li>
+     *   <li><b>【潮涌】入水</b> —— 水里球会被水流推、且在浮沉，另外下面还单独用
+     *       {@code isInWater()} 挡了一层。</li>
+     * </ul>
+     * <p>真正会命中这条的，是<b>那些「既无重力又不动」的球</b> —— 也就是玩家看到的悬空球。</p>
+     */
+    private void tickNoGravityStall() {
+        if (!(this.level() instanceof ServerLevel)) {
+            return;   // 客户端不参与判定
+        }
+        boolean hovering = this.isNoGravity()
+                && !this.isShriekFlying()
+                && !this.homingBack
+                && !this.isInWater()
+                && this.getDeltaMovement().lengthSqr() < 0.0025D;   // 速度 < 0.05 格/刻
+        if (!hovering) {
+            this.noGravityStallTicks = 0;
+            return;
+        }
+        if (++this.noGravityStallTicks < NO_GRAVITY_STALL_LIMIT) {
+            return;
+        }
+        this.noGravityStallTicks = 0;
+        this.setNoGravity(false);
+        // 放开重力后**必须放掉落定**：正常物理接管，球下一 tick 就会开始下落。
+        this.setSettled(false);
+        MoreBalls.LOGGER.info("[ball] 悬空兜底：无重力且静止已满 {} 刻，强制放开重力（位置 {}）",
+                NO_GRAVITY_STALL_LIMIT, this.position());
+    }
+
+    /**
      * 回归的<b>时间上限</b>（刻）—— 超过就放弃回归、还原「恼鬼三件套」。
      *
      * <p>作者 2026-10-16 报的「偶尔出现悬在空中的球」：回归期间球是 noPhysics + 无重力的，
@@ -1422,6 +1479,10 @@ public class BallProjectile extends ThrowableItemProjectile {
                 shriekFlightStep();
             }
         }
+
+        // ===== 悬空总兜底（放在最末，覆盖上面所有分支）=====
+        // 见 tickNoGravityStall() 的说明：无重力 + 完全静止撑满 5 秒就强制放开重力。
+        this.tickNoGravityStall();
     }
 
     /** tick 的前半段：上限检查、回归开关、票据 */
