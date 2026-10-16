@@ -364,22 +364,36 @@ public final class BallExtraTraits {
     }
 
     /**
-     * 落点那<b>三道向外迅速扩散并逐渐消失</b>的音波。
+     * 落点那三道向外扩散并逐渐消失的音波。
      *
-     * <p>由球自己每刻推进一帧（{@code frame} 从 {@link #SHRIEK_WAVE_FRAMES} 递减）。
-     * 半径随帧数增大、粒子密度随半径变稀，到最后一帧自然变淡消失。</p>
+     * <p>由球自己每刻推进一帧（{@code frame} 从 {@link #SHRIEK_WAVE_FRAMES} 递减）。</p>
+     *
+     * <h2>⚠️ 改版（作者 2026-10-16）</h2>
+     * <p>原先是在水平面上按角度撒点（<b>平面</b>），而且密度是 {@code 半径 × 6} ——
+     * 半径 8 时一圈 48 个点、三层就是 144 个，太密。作者要求「<b>稀疏一点、半径控制在 6~8、
+     * 改成球壳</b>」。</p>
+     *
+     * <p>现在按<b>球面</b>撒点：用黄金角（{@code π(3−√5)}）保证点在球面上均匀分布，
+     * 每层只有 <b>8</b> 个点（三层共 24 个/帧）；半径随帧数从 <b>6 涨到 8</b>，
+     * 三层之间再错开一点，看起来就是三片向外扩的球壳。</p>
      */
     public static void shriekWaves(BallProjectile ball, ServerLevel level, int frame) {
         Vec3 center = ball.position().add(0.0D, 0.5D, 0.0D);
-        for (int ring = 0; ring < 3; ring++) {
-            double radius = (SHRIEK_WAVE_FRAMES - frame) * 0.9D + 1.0D + ring * 1.6D;
-            int points = Math.max(6, (int) (radius * 6.0D));
+        // 半径区间 6..8（作者指定）：随帧数从 6 扩到约 7.6，三层再各自错开
+        double progress = (double) (SHRIEK_WAVE_FRAMES - frame) / SHRIEK_WAVE_FRAMES;
+        double golden = Math.PI * (3.0D - Math.sqrt(5.0D));
+        for (int shell = 0; shell < 3; shell++) {
+            double radius = 6.0D + progress * 1.6D + shell * 0.2D;
+            int points = 8;
             for (int i = 0; i < points; i++) {
-                double angle = Math.PI * 2.0D * i / points;
+                // 球面均匀撒点：y 从小到大取均匀层，方位角按黄金角错开
+                double y = 1.0D - (i + 0.5D) * 2.0D / points;
+                double ring = Math.sqrt(Math.max(0.0D, 1.0D - y * y));
+                double theta = golden * i + shell * 0.7D;
                 level.sendParticles(ParticleTypes.SONIC_BOOM,
-                        center.x + Math.cos(angle) * radius,
-                        center.y,
-                        center.z + Math.sin(angle) * radius,
+                        center.x + Math.cos(theta) * ring * radius,
+                        center.y + y * radius,
+                        center.z + Math.sin(theta) * ring * radius,
                         1, 0.0D, 0.0D, 0.0D, 0.0D);
             }
         }
