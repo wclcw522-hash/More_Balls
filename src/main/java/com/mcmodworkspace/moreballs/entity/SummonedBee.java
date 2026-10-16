@@ -192,6 +192,33 @@ public class SummonedBee extends Bee {
         }
         if (--this.life <= 0) {
             this.poof();
+            return;
+        }
+        this.forceAggroOnMe();
+    }
+
+    /**
+     * <b>仇恨强制转移</b>（作者 2026-10-15 的规格；2026-10-16 补上「持续」这一层）。
+     *
+     * <p>⚠️ 原先只在召唤那一刻 {@code victim.setTarget(bee)} 设一次 —— <b>那不够</b>：
+     * 怪的目标会被它自己的 AI 很快改掉（看见玩家就转头回去），
+     * 结果就是「强制转移」根本没生效。</p>
+     *
+     * <p>所以改成在寿命内<b>每刻把它钉回来</b>：只要我还活着、被击中者还活着，
+     * 而它当前的目标不是我，就重新设成我。这才是「强制」。</p>
+     *
+     * <p>例外：<b>召唤者不在此列</b> —— 这只蜜蜂是它的宠物，不拉着自己的主人来挨打
+     * （而且玩家本来也不接受被强制设目标）。</p>
+     */
+    private void forceAggroOnMe() {
+        if (!(this.getTarget() instanceof Mob mob) || !mob.isAlive()) {
+            return;   // 被打中者不是怪（比如玩家），或者已经死了 → 没什么可转移的
+        }
+        if (this.isSummoner(mob)) {
+            return;   // 主人豁免
+        }
+        if (mob.getTarget() != this) {
+            mob.setTarget(this);
         }
     }
 

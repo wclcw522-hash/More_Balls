@@ -187,7 +187,8 @@ public final class BallExtraTraits {
             bee.resetLife();                    // 8 秒寿命从头算
             bee.setTarget(victim);
             level.addFreshEntity(bee);
-            // 仇恨反向转移：让被击中的目标去咬蜜蜂
+            // 仇恨反向转移的**第一次**设置；之后由 SummonedBee.tick() 每刻维持 ——
+            // 只设一次是不够的：怪的目标会被它自己的 AI 很快改掉（作者 2026-10-16 指出）。
             if (victim instanceof Mob mob) {
                 mob.setTarget(bee);
             }
