@@ -1,5 +1,6 @@
 package com.mcmodworkspace.moreballs.entity;
 
+import com.mcmodworkspace.moreballs.BallDamageTypes;
 import com.mcmodworkspace.moreballs.ModEntities;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.sounds.SoundEvents;
@@ -44,6 +45,19 @@ public class DripstoneShard extends ThrowableItemProjectile {
 
     /** 基础伤害（作者指定 3） */
     public static final float BASE_DAMAGE = 3.0F;
+
+    /**
+     * 是不是由带【穿甲】的球射出来的 —— 决定这一下伤害走不走「真实物理伤害」。
+     *
+     * <p>⚠️ 锥子本身<b>拿不到「自己是哪颗球派生的」</b>，所以只能由【尖刺】在生成时把
+     * 源球的词条状态<b>打标</b>过来。这样组合球把【穿甲】与【尖刺】合在一起时也能自动生效。</p>
+     */
+    private boolean truePhysical;
+
+    /** 由【尖刺】调用：把源球带不带【穿甲】告诉它 */
+    public void setTruePhysical(boolean value) {
+        this.truePhysical = value;
+    }
 
     /**
      * 生存时间（刻）—— 飞够这么久还没命中就自己消失。
@@ -102,7 +116,9 @@ public class DripstoneShard extends ThrowableItemProjectile {
         if (!(this.level() instanceof ServerLevel serverLevel)) {
             return;
         }
-        DamageSource source = this.damageSources().thrown(this, this.getOwner());
+        DamageSource source = this.truePhysical
+                ? BallDamageTypes.truePhysical(serverLevel, this, this.getOwner())
+                : this.damageSources().thrown(this, this.getOwner());
 
         if (!(entity instanceof LivingEntity living)) {
             entity.hurtServer(serverLevel, source, BASE_DAMAGE);

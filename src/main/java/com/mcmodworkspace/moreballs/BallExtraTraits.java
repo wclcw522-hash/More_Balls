@@ -175,7 +175,7 @@ public final class BallExtraTraits {
      * <p>这里只剩「摆位置、设召唤者、设目标」三件事。</p>
      */
     public static void summonBees(ServerLevel level, LivingEntity victim, int count,
-                                  net.minecraft.world.entity.Entity summoner) {
+                                  net.minecraft.world.entity.Entity summoner, boolean truePhysical) {
         if (count <= 0) {
             return;
         }
@@ -191,6 +191,8 @@ public final class BallExtraTraits {
                     victim.getYRot(), 0.0F);
             bee.setHealth(BEE_HEALTH);          // 属性里已经给了 3 点，这里只是补齐当前血量
             bee.setSummoner(summoner);          // 召唤者 = 球的主人（它绝不打他）
+            // 【穿甲】联动：源球带【穿甲】时，蜜蜂咬的这一口也走「真实物理伤害」
+            bee.setTruePhysical(truePhysical);
             bee.resetLife();                    // 8 秒寿命从头算
             bee.setTarget(victim);
             level.addFreshEntity(bee);
@@ -419,7 +421,8 @@ public final class BallExtraTraits {
      * @param position 出手点（球当时的位置）
      * @param velocity 球当时的最终速度
      */
-    public static void shootSpikes(ServerLevel level, Vec3 position, Vec3 velocity, Entity owner) {
+    public static void shootSpikes(ServerLevel level, Vec3 position, Vec3 velocity, Entity owner,
+                                   boolean truePhysical) {
         Vec3 dir = velocity.lengthSqr() < 1.0E-6D
                 ? new Vec3(0.0D, -1.0D, 0.0D) : velocity.normalize();
 
@@ -447,7 +450,10 @@ public final class BallExtraTraits {
             double speed = apexVy / Math.max(0.3D, shoot.y);
             speed = Mth.clamp(speed, SPIKE_MIN_SPEED, SPIKE_MAX_SPEED);
 
-            level.addFreshEntity(new DripstoneShard(level, position, shoot.scale(speed), shooter));
+            DripstoneShard shard = new DripstoneShard(level, position, shoot.scale(speed), shooter);
+            // 【穿甲】联动：源球带【穿甲】时，锥子的伤害也走「真实物理伤害」
+            shard.setTruePhysical(truePhysical);
+            level.addFreshEntity(shard);
         }
 
         level.sendParticles(ParticleTypes.CRIT,

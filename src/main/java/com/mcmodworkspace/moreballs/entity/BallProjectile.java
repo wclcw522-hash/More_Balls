@@ -2390,7 +2390,7 @@ public class BallProjectile extends ThrowableItemProjectile {
             // 【招蜂引蝶N】蜜饯球（数值类特性）：召唤 N 只仇恨目标、血量 5 的蜜蜂
             if (this.profile().hasBees() && entity instanceof LivingEntity beeTarget) {
                 BallExtraTraits.summonBees(serverLevel, beeTarget, this.profile().beeCount(),
-                        this.getOwner());   // 召唤者 = 球的主人（蜜蜂绝不打他）
+                        this.getOwner(), this.piercesArmor());   // 召唤者 = 球的主人（蜜蜂绝不打他）
             }
 
             // 【封印】符箓球：封玩家快捷栏 / 封怪物攻击并打掉它手里的球
@@ -2402,7 +2402,7 @@ public class BallProjectile extends ThrowableItemProjectile {
             // 【尖刺】滴水石球：规格里的「击中」那一档 —— 击中生物时同样射一圈锥子
             if (this.profile().hasFlag(BallBehavior.BallProfile.FLAG_SPIKE)) {
                 BallExtraTraits.shootSpikes(serverLevel, this.position(),
-                        this.getDeltaMovement(), this.getOwner());
+                        this.getDeltaMovement(), this.getOwner(), this.piercesArmor());
             }
         }
     }
@@ -2602,7 +2602,7 @@ public class BallProjectile extends ThrowableItemProjectile {
             if (this.profile().hasFlag(BallBehavior.BallProfile.FLAG_SPIKE)
                     && this.level() instanceof ServerLevel spikeLevel) {
                 BallExtraTraits.shootSpikes(spikeLevel, this.position(),
-                        this.getDeltaMovement(), this.getOwner());
+                        this.getDeltaMovement(), this.getOwner(), this.piercesArmor());
             }
 
             // 【破坏王】触发概率（当前 100% 必触发；以后调这个常量即可）
@@ -3344,7 +3344,7 @@ public class BallProjectile extends ThrowableItemProjectile {
         // 【引雷】触发概率（当前 100% 必触发；以后调这个常量即可）
         if (profile.hasThunder() && this.heat >= profile.thunderThreshold()) {
             this.heat = 0;
-            BallThunder.release(serverLevel, this);
+            BallThunder.release(serverLevel, this, this.piercesArmor());
         }
     }
 
@@ -3671,6 +3671,21 @@ public class BallProjectile extends ThrowableItemProjectile {
      *   <li>各类「玩家击杀」「生物击杀」的判定与成就也才能正常触发</li>
      * </ul>
      */
+    /**
+     * 本球是否带【穿甲】—— <b>派生伤害的联动开关</b>。
+     *
+     * <p>【尖啸】之外，本模组还有几条伤害是<b>由球派生出去的东西</b>造成的：
+     * 【尖刺】的滴水石锥、【招蜂引蝶】的蜜蜂、【引雷】的雷击。
+     * 那些实体自己<b>拿不到「我是哪颗球派生的」</b>（球可能早被回收了），
+     * 所以在生成时把这里的结果<b>打标</b>给它们；它们结算伤害时照着选类型。</p>
+     *
+     * <p>词条是读 {@code profile()} 的，而组合球的 profile 是<b>合成后</b>的 ——
+     * 所以「组合球同时带【穿甲】与【尖刺】」时也自动生效，不需要额外接线。</p>
+     */
+    private boolean piercesArmor() {
+        return this.profile().hasFlag(BallBehavior.BallProfile.FLAG_PIERCE);
+    }
+
     private DamageSource damageFromOwner() {
         Entity owner = this.getOwner();
 
@@ -3847,7 +3862,7 @@ public class BallProjectile extends ThrowableItemProjectile {
         if (this.profile().hasFlag(BallBehavior.BallProfile.FLAG_SPIKE)
                 && this.level() instanceof ServerLevel spikeLevel) {
             BallExtraTraits.shootSpikes(spikeLevel, this.position(),
-                    this.getDeltaMovement(), this.getOwner());
+                    this.getDeltaMovement(), this.getOwner(), this.piercesArmor());
         }
 
         BallBehavior.BallProfile profile = this.profile();

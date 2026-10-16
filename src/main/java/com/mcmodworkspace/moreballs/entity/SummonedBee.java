@@ -76,6 +76,18 @@ public class SummonedBee extends Bee {
     /** 剩余存活刻数 */
     private int life = LIFETIME_TICKS;
 
+    /**
+     * 是不是由带【穿甲】的球召唤的 —— 决定它咬的这一口走不走「真实物理伤害」。
+     *
+     * <p>同上：蜜蜂也拿不到「自己是哪颗球召唤的」，由【招蜂引蝶】在生成时打标过来。</p>
+     */
+    private boolean truePhysical;
+
+    /** 由【招蜂引蝶】调用：把源球带不带【穿甲】告诉它 */
+    public void setTruePhysical(boolean value) {
+        this.truePhysical = value;
+    }
+
     public SummonedBee(EntityType<? extends SummonedBee> type, Level level) {
         super(type, level);
         // 8 秒的临时战斗单位：别被原版的「自然清除」（远离玩家就消失）提前收走，
@@ -149,7 +161,9 @@ public class SummonedBee extends Bee {
      */
     @Override
     public boolean doHurtTarget(ServerLevel level, Entity target) {
-        DamageSource source = this.damageSources().sting(this);
+        DamageSource source = this.truePhysical
+                ? com.mcmodworkspace.moreballs.BallDamageTypes.truePhysical(level, this, null)
+                : this.damageSources().sting(this);
         boolean hurt = target.hurtServer(level, source,
                 (int) this.getAttributeValue(Attributes.ATTACK_DAMAGE));
         if (hurt) {
