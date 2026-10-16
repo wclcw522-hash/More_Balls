@@ -80,6 +80,16 @@ public class DripstoneShard extends ThrowableItemProjectile {
      * 命中生物：结算 3 点基础伤害。
      *
      * <p>不伤害射手自己 —— 锥子是从球的位置朝四面炸开的，球的主人很可能就站在旁边。</p>
+     *
+     * <h2>🌟 无视无敌帧（作者 2026-10-16 要求）</h2>
+     * <p>原版 {@code LivingEntity.hurtServer} 在 {@code invulnerableTime > 0} 时会把
+     * 「伤害不超过上一次」的攻击<b>直接丢掉</b> —— 这就是无敌帧。而【尖刺】一次射出
+     * <b>8 枚</b>锥子，它们几乎必然在<b>同一刻</b>命中同一个目标：不清零的话只有第一枚算数，
+     * 另外七枚全被吃掉。</p>
+     *
+     * <p>做法是在出手前把目标的 {@code invulnerableTime} 清零。
+     * <b>它只影响这一下</b> —— 命中成功后原版自己会把无敌时间重设回 20，
+     * 所以不会给别的伤害开后门（不会出现「别人也能连打」的副作用）。</p>
      */
     @Override
     protected void onHitEntity(EntityHitResult hitResult) {
@@ -89,6 +99,9 @@ public class DripstoneShard extends ThrowableItemProjectile {
             return;
         }
         if (this.level() instanceof ServerLevel serverLevel) {
+            if (entity instanceof LivingEntity living) {
+                living.invulnerableTime = 0;   // ← 无视无敌帧，见上面的说明
+            }
             entity.hurtServer(serverLevel, this.damageSources().thrown(this, this.getOwner()), BASE_DAMAGE);
         }
     }
