@@ -64,7 +64,37 @@ public abstract class AbstractContainerMenuMixin {
             return;
         }
 
-        // ===== ② 背包里右键球堆 = 取出最低耐久那一组 =====
+        // ===== ② 光标上拿着球堆 + 右键空格 = 只放出 **1 颗球**（作者 2026-10-16）=====
+        //
+        // ⚠️ 这是在**改造原版行为**：原版「光标上有物品 + 右键空格」会把光标上那一份
+        //    **整个放进去 1 份** —— 而球堆的 count 恒为 1（一格里装着 N 颗球），
+        //    于是「整个壳」会被塞进那一格。作者要的是「只落 1 颗球，壳留在光标上」。
+        //
+        // 只在服务端干：这一段会改球堆的组件（取走一颗），是持久状态变更；
+        // 客户端那份由同步包刷回来。
+        if (input == ContainerInput.PICKUP && button == 1
+                && !player.level().isClientSide()
+                && slotId >= 0 && slotId < self.slots.size()
+                && BallClusterItem.isCluster(self.getCarried())) {
+            Slot target = self.slots.get(slotId);
+            if (target.getItem().isEmpty() && target.mayPlace(self.getCarried())) {
+                ItemStack carried = self.getCarried();
+                // takeOne 就地取走壳里**耐久最低**那颗（与右键取一颗、切石机同一条口径）
+                ItemStack one = BallClusterItem.takeOne(carried);
+                if (!one.isEmpty()) {
+                    target.set(one);
+                    // 壳被掏空时 takeOne 已经把组件摘干净了 —— 那光标上就该真的空掉
+                    self.setCarried(BallClusterItem.contents(carried).isEmpty()
+                            ? ItemStack.EMPTY
+                            : carried);
+                    self.broadcastChanges();
+                    ci.cancel();
+                    return;
+                }
+            }
+        }
+
+        // ===== ③ 背包里右键球堆 = 取出最低耐久那一组 =====
         // 只认「右键拿起」
         if (input != ContainerInput.PICKUP || button != 1) {
             return;
