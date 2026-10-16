@@ -248,6 +248,23 @@ public final class BallExtraTraits {
     public static final int SHRIEK_WAVE_FRAMES = 10;
 
     /**
+     * 【尖啸】期间给球用的<b>极高速度</b> —— 目的是让「按速度缩放」的词条吃到高倍率
+     * （作者 2026-10-16 要求「把路径与数值的计算一并纳入」）。
+     *
+     * <p>最直接的一个是【感应】：积热效率 = {@code 速度 / physicalVelocity()}
+     * （见 {@code BallProjectile.heatEfficiency()}，出手速度约 1.5 格/刻），
+     * 取 <b>32</b> 就是约 <b>21 倍</b>效率 —— 一步就把范围内目标的温度顶到阈值以上。</p>
+     *
+     * <p>⚠️ 它必须与 {@link #SHRIEK_SUBSTEPS} 一起看：<b>一步的位移 = 速度 × 1 刻</b>，
+     * 两者相乘才是这一趟飞出的距离。<b>32 × 8 = 256 格</b>，正好等于
+     * {@link #SHRIEK_MAX_RANGE} —— 也就是「一 tick 内飞满射程」，视觉上仍是「瞬间抵达」，
+     * 但又不会一步跨出世界、也不会跳过薄墙。</p>
+     *
+     * <p>⚠️ 它<b>只活在这一趟尖啸里</b>：球落地后由正常的落定体系接管，不会留下「极速球」。</p>
+     */
+    private static final double SHRIEK_SPEED_FOR_TRAITS = 32.0D;
+
+    /**
      * <b>【尖啸】</b> —— 回响球投出后的那一下。
      *
      * <h2>规格（作者 2026-10-16 二次修订后的定稿）</h2>
@@ -276,54 +293,51 @@ public final class BallExtraTraits {
      * @return 落点扩散动画还需要走几帧（0 表示不播）
      */
     public static int shriek(BallProjectile ball, ServerLevel level, boolean armorPiercing) {
-        Vec3 from = ball.position();
         Vec3 velocity = ball.getDeltaMovement();
         if (velocity.lengthSqr() < 1.0E-6D) {
-            return 0;   // 没速度就不知道该往哪炸
+            return 0;   // 没速度就不知道该往哪飞
         }
 
-        Entity owner = ball.getOwner();
-        // 反弹次数上限 = 弹射档位（回响球本体是 0 ⇒ 不反弹，行为与原先完全一致）
-        int maxBounces = Math.max(0, ball.getBounce());
-        Vec3 cursor = from;
+        // ===== 【尖啸】= 让球「按极速真的飞一趟」 =====
+        //
+        // ⚠️⚠️ 作者 2026-10-16 追加要求：**所有受速度 / 方向影响的词条都要一并纳入**
+        //     （【智慧】索敌转向、【感应】积热、【磁吸】牵引、【磁性】偏航、【潮涌】入水、
+        //      【照明】【透镜】下方积热……）。逐个去接是接不全的。
+        //
+        //     所以这里**不再做几何瞬移**，改成两件事：
+        //       ① 把速度拉到极大 —— 视觉上依旧是「瞬间抵达」，同时让「按速度缩放」的词条
+        //          （最典型是【感应】的 heatEfficiency = 速度 / 出手速度）直接吃到满值；
+        //       ② 请球在**同一 tick 内多跑若干步**（{@link BallProjectile#setShriekFlight}）——
+        //          球于是真的按物理飞、真的撞墙、真的被【智慧】改向。
+        //
+        //     路径伤害 / 击飞在 shriekFlightTick 里按每步的实际位移判定；
+        //     每个碰撞点的音效 + 音爆在 onHit 的方块分支里补。
         Vec3 dir = velocity.normalize();
-
-        Vec3 lastPoint = from;
-        for (int bounce = 0; bounce <= maxBounces; bounce++) {
-            // ① 从当前点朝当前方向射到距离上限
-            Vec3 to = cursor.add(dir.scale(SHRIEK_MAX_RANGE));
-            BlockHitResult hit = level.clip(new ClipContext(cursor, to,
-                    ClipContext.Block.COLLIDER, ClipContext.Fluid.NONE, CollisionContext.empty()));
-            boolean miss = hit.getType() == HitResult.Type.MISS;
-            Vec3 end = miss ? to : hit.getLocation();
-
-            // ② 这一段：路径特效 + 判定，以及「落点」那一整套（音效 / 音爆 / 范围伤害 / 效果）
-            shriekSegment(ball, level, cursor, end, armorPiercing, owner, miss);
-            lastPoint = end;
-
-            if (miss) {
-                break;   // 一路没撞到东西（末地虚空）⇒ 到此为止
-            }
-
-            // ③ 撞墙 ⇒ 按面法线镜面反射后继续飞。
-            //    ⚠️ 方向始终保持**单位向量**（下一段要拿它乘距离上限）；
-            //       反弹次数上限就是弹射档位，所以「弹射 0」= 不反弹 = 与原先行为完全一致。
-            double nx = hit.getDirection().getStepX();
-            double ny = hit.getDirection().getStepY();
-            double nz = hit.getDirection().getStepZ();
-            double dot = dir.x * nx + dir.y * ny + dir.z * nz;
-            Vec3 reflected = new Vec3(dir.x - 2.0D * dot * nx,
-                    dir.y - 2.0D * dot * ny, dir.z - 2.0D * dot * nz);
-            if (reflected.lengthSqr() < 1.0E-9D) {
-                break;   // 正好垂直撞进去，反射不出方向
-            }
-            dir = reflected.normalize();
-            cursor = end;
-        }
-
-        // ④ 整条轨迹已算完 ⇒ 球直接停在最后落点（弹射的效果体现在「轨迹被走完了」这件事上）
-        ball.shriekLand(lastPoint, null);
+        ball.setShriekFlight(SHRIEK_SUBSTEPS);
+        ball.setDeltaMovement(dir.scale(SHRIEK_SPEED_FOR_TRAITS));
         return SHRIEK_WAVE_FRAMES;
+    }
+
+    /**
+     * 【尖啸】一 tick 内多跑的步数。
+     *
+     * <p>⚠️ 与 {@link #SHRIEK_SPEED_FOR_TRAITS} 相乘 = 这一趟飞出的距离：
+     * <b>32 × 8 = 256 格</b>，正好等于 {@link #SHRIEK_MAX_RANGE}。
+     * 步数不能再小（一步会跨过薄墙），速度也不能再大（会越过射程）。</p>
+     */
+    private static final int SHRIEK_SUBSTEPS = 8;
+
+    /**
+     * 【尖啸】飞行中的<b>每一步</b>：把「这一步走过的位移」当成一段路径做判定。
+     *
+     * <p>由球在极速飞行的每个子步里调用（见 {@code BallProjectile.shriekFlightStep}）。
+     * 直接复用 {@link #shriekSegment}：中途音波特效、路径半径 3 的伤害与击飞、
+     * 终点半径 10 的范围伤害与那一套效果、以及音效 + 音爆范围，
+     * 于是<b>每个碰撞点都像正常发射一样</b>（作者 2026-10-16 的要求）。</p>
+     */
+    public static void shriekFlightTick(BallProjectile ball, ServerLevel level, boolean armorPiercing,
+                                        Vec3 from, Vec3 end) {
+        shriekSegment(ball, level, from, end, armorPiercing, ball.getOwner(), false);
     }
 
     /**

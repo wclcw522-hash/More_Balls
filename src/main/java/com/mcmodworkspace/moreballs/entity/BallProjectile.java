@@ -1345,14 +1345,71 @@ public class BallProjectile extends ThrowableItemProjectile {
     /** 【尖啸】落点扩散动画的剩余帧数；<= 0 表示不在播 */
     private int shriekWaveFrames;
 
+    /**
+     * <b>【尖啸】飞行期间的「一 tick 多步」步数</b>（作者 2026-10-16 要求）。
+     *
+     * <p>作者要的是「把路径与数值的计算一并纳入」—— 也就是【尖啸】飞出去的那一趟里，
+     * <b>所有受速度 / 方向影响的词条都要照常参与</b>：【智慧】的索敌转向、【感应】的积热、
+     * 【磁吸】的牵引、【磁性】的偏航、【潮涌】的入水、【照明】【透镜】的下方积热……
+     * 逐个去接是不可能接全的。</p>
+     *
+     * <p>所以改成：<b>尖啸期间把速度拉到极大，然后在同一 tick 内把
+     * {@code super.tick() + ballTickPost()} 多跑若干遍</b> ——
+     * 球就是<b>真的在按物理飞</b>，该撞墙撞墙、该转向转向，词的逻辑一条都不用另写。
+     * 速度足够大时视觉上仍然是「瞬间抵达」。</p>
+     */
+    private int shriekExtraSteps;
+
+    /** 由 {@link BallExtraTraits} 在尖啸起飞时调用：本趟要在一 tick 内多跑几步 */
+    public void setShriekFlight(int extraSteps) {
+        this.shriekExtraSteps = Math.max(0, extraSteps);
+    }
+
+    /** 【尖啸】飞行中「上一步的位置」—— 用来把每步的位移当成一段路径做判定 */
+    private Vec3 shriekStepFrom;
+
+    /** 【尖啸】是否正在「极速飞行」中（每步都要补路径判定） */
+    public boolean isShriekFlying() {
+        return this.shriekFired && this.shriekExtraSteps > 0;
+    }
+
+    /** 尖啸飞行时每步调一次：把「上一步 → 当前位置」这一段交给路径判定 */
+    private void shriekFlightStep() {
+        if (!(this.level() instanceof ServerLevel level)) {
+            return;
+        }
+        Vec3 now = this.position();
+        Vec3 fromPos = this.shriekStepFrom == null ? now : this.shriekStepFrom;
+        if (fromPos.distanceToSqr(now) > 1.0E-9D) {
+            BallExtraTraits.shriekFlightTick(this, level, this.traitFired(TRAIT_PIERCE), fromPos, now);
+        }
+        this.shriekStepFrom = now;
+    }
+
     @Override
     public void tick() {
         ballTickPre();
 
         // 父类 tick —— 物理、移动、碰撞检测都在里面
         super.tick();
-
         ballTickPost();
+
+        // ===== 【尖啸】的「一 tick 多步」（作者 2026-10-16）=====
+        // 同一 tick 内继续把「物理 + 后段逻辑」跑几遍：
+        // 球按极速飞，途中该撞墙撞墙、该由【智慧】改向就改向、该由【感应】积热就积热。
+        // 每跑一步都要判一下「是不是已经不该继续了」（被移除 / 已落定 / 尖啸收尾完毕）。
+        if (this.shriekExtraSteps > 0 && !this.isRemoved()) {
+            int steps = this.shriekExtraSteps;
+            this.shriekExtraSteps = 0;   // 只在起飞那一 tick 用一次，之后恢复普通飞行
+            for (int i = 0; i < steps; i++) {
+                if (this.isRemoved() || this.isSettled()) {
+                    break;
+                }
+                super.tick();
+                ballTickPost();
+                shriekFlightStep();
+            }
+        }
     }
 
     /** tick 的前半段：上限检查、回归开关、票据 */
@@ -3133,6 +3190,41 @@ public class BallProjectile extends ThrowableItemProjectile {
      */
     private boolean wisdomStillTracking() {
         return this.profile().wisdom() > 0 && this.wisdomUsesLeft > 0;
+    }
+
+    /**
+     * <b>【尖啸】整合用</b>：【智慧】在尖啸轨迹里参与一次索敌（作者 2026-10-16 要求）。
+     *
+     * <p>【尖啸】把整条轨迹一次算完，球的正常 tick 不再跑，于是【智慧】原本根本来不及索敌。
+     * 这里让尖啸的每一段都问一次「有没有可锁的目标」：锁到就 <b>改写航向</b>，
+     * 于是轨迹自己拐向目标 —— 也就是作者描述的「直线飞出 → 空中索敌转向 → 延伸一段后再拐回来」。</p>
+     *
+     * <p>复用 {@link #tryWisdomLock()} 本体（它只找目标 + 调 {@code lockOnto}，观感与正常飞行一致），
+     * 通过「次数有没有被扣」判断这次到底锁没锁到 —— 与球自己的重锁循环同一套判据。</p>
+     *
+     * @return true 表示这次锁到了目标（航向已被改写）
+     */
+    public boolean shriekWisdomStep() {
+        if (this.profile().wisdom() <= 0 || this.wisdomUsesLeft <= 0) {
+            return false;
+        }
+        int before = this.wisdomUsesLeft;
+        this.tryWisdomLock();
+        return this.wisdomUsesLeft < before;
+    }
+
+    /**
+     * <b>【尖啸】整合用</b>：【感应】在尖啸轨迹里参与一次积热（作者 2026-10-16 要求）。
+     *
+     * <p>积热效率就是 {@code 速度 / physicalVelocity()}（见 {@link #heatEfficiency()}）——
+     * 尖啸把速度拉到极大时，这一步自然就是<b>满效率</b>：自身与范围内满足条件的金属目标
+     * 一次吃满热量。直接复用正常的 {@link #prospectingTick()}，不另写一套公式。</p>
+     */
+    public void shriekHeatStep() {
+        if (!(this.level() instanceof ServerLevel level) || !this.profile().hasSense()) {
+            return;
+        }
+        this.prospectingTick();
     }
 
     /**
