@@ -554,6 +554,18 @@ public class BallProjectile extends ThrowableItemProjectile {
     private static final int RETURN_RETARGET_INTERVAL = 5;
 
     /**
+     * 回归的<b>时间上限</b>（刻）—— 超过就放弃回归、还原「恼鬼三件套」。
+     *
+     * <p>作者 2026-10-16 报的「偶尔出现悬在空中的球」：回归期间球是 noPhysics + 无重力的，
+     * 而且拒绝进入静止态；一旦回归卡住不结束（在障碍里打转、方向一直选不通），
+     * 它就会<b>永远悬空飞、永不落定也不消失</b>。</p>
+     *
+     * <p>取 <b>600 刻（30 秒）</b>：正常回归几秒内就该到主人手里，30 秒还没到必然是卡住了 ——
+     * 这时宁可让它掉下来落地，也不要留一颗飘着的球。</p>
+     */
+    private static final int RETURN_GIVE_UP_TICKS = 600;
+
+    /**
      * 球在水里泡这么多刻，就当它「落定」了。
      *
      * <p>水里的球被浮力托着，速度永远压不到静止阈值以下，正常那套落定判定根本走不到 ——
@@ -1727,10 +1739,22 @@ public class BallProjectile extends ThrowableItemProjectile {
         }
 
         if (this.homingBack) {
-            if (this.homingToOwner()) {
+            // ⚠️⚠️ **超时兜底**（作者 2026-10-16 报的「偶尔出现悬在空中的球」）。
+            //
+            //    回归期间球带着「恼鬼三件套」：noPhysics（穿墙）+ setNoGravity(true)（不吃重力），
+            //    而且 setSettled() 在 isNoGravity() 时会**拒绝进入静止态**。
+            //    这三条合起来的后果是：**只要回归一直不结束，球就永远悬在空中飞、永不落定、也不消失。**
+            //
+            //    而回归的出口原本只有两个 —— 到达主人（deliverToOwner）/ 主人已不在。
+            //    球如果在障碍里打转、或者方向一直选不出通的路，homingToOwner() 就会**恒为真**，
+            //    于是下面这三行还原永远执行不到，球就一直飘着（玩家看到的就是「悬在空中的球」）。
+            //
+            //    这里补一条时间上限：飞够了就放弃回归、把三件套还原，球自然会掉下来落地。
+            boolean giveUp = this.homingTicks > RETURN_GIVE_UP_TICKS;
+            if (!giveUp && this.homingToOwner()) {
                 return;
             }
-            // 主人已不在（下线 / 换维度 / 已死），放弃回归 ——
+            // 主人已不在（下线 / 换维度 / 已死），或回归超时 ——
             // 必须把「恼鬼三件套」和记账状态一起还原，否则球会一直穿墙飘着
             this.homingBack = false;
             this.noPhysics = false;
