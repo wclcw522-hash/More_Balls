@@ -753,7 +753,15 @@ public class BallPouchItem extends Item {
                             // 界面顶部那条标题写「备用区」—— 不再用物品名，
                             // 因为下面还有第二个标题区写「中转区」，两个标题各管一段
                             Component.translatable("container.more_balls.ball_pouch")),
-                    buffer -> ItemStack.STREAM_CODEC.encode(buffer, pouch));
+                    // ⚠️ 先写一个**版本标记字节**（作者 2026-10-16 报的联机崩溃）：
+                    //    NeoForge 的 openMenu 在「额外数据为空」时会退回原版 ClientboundOpenScreenPacket，
+                    //    而那条路径客户端工厂拿到的是 **null** buf ⇒ 客户端一句 decode 就 NPE，
+                    //    并且会被 disconnect（表现为「非主机玩家一开袋子就崩/掉线」）。
+                    //    写一个字节就彻底堵死这条路径；读侧在 BallPouchMenu.decodePouch 里对称处理。
+                    buffer -> {
+                        buffer.writeByte(BallPouchMenu.POUCH_MENU_DATA_VERSION);
+                        ItemStack.STREAM_CODEC.encode(buffer, pouch);
+                    });
         }
         return InteractionResult.SUCCESS;
     }

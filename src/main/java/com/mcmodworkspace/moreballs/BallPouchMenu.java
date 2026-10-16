@@ -71,9 +71,38 @@ public class BallPouchMenu extends AbstractContainerMenu {
     /** 转运段的实际行数 */
     private final int transitRows;
 
-    /** 客户端构造：从网络包读回袋子物品堆 */
+    /**
+     * 客户端构造：从网络包读回袋子物品堆。
+     *
+     * <h2>⚠️ 为什么要读一个「版本标记字节」并判空（作者 2026-10-16 报的联机崩溃）</h2>
+     * <p>NeoForge 的 {@code ServerPlayer.openMenu(provider, extraDataWriter)} 在
+     * <b>额外数据为空</b>时会退回原版 {@code ClientboundOpenScreenPacket} ——
+     * 那条路径下客户端工厂拿到的是 <b>{@code null}</b>（见 {@code IContainerFactory.create}
+     * 的默认实现），这里一句 {@code decode(buf)} 就是 NPE。</p>
+     *
+     * <p>而且客户端处理失败时 NeoForge 走的是 {@code context.disconnect(...)}
+     * —— 表现就是玩家被踢回主菜单、且<b>不产生带堆栈的崩溃报告</b>。
+     * 这与作者看到的「联机时只有非主机玩家出事、主机没事」正好吻合。</p>
+     *
+     * <p>所以两侧都上保险：<b>写侧</b>先写一个版本标记字节（保证额外数据永远非空），
+     * <b>读侧</b>先判空再读标记，读不到就退回空栈而不是崩。</p>
+     */
     public BallPouchMenu(int windowId, Inventory inventory, RegistryFriendlyByteBuf buf) {
-        this(windowId, inventory, ItemStack.STREAM_CODEC.decode(buf));
+        this(windowId, inventory, decodePouch(buf));
+    }
+
+    /** 收纳袋菜单额外数据的版本标记（写侧第一个字节，读侧先消费掉） */
+    public static final byte POUCH_MENU_DATA_VERSION = 1;
+
+    /** 从额外数据里读回袋子；数据缺失时退回空栈（宁可是空袋子，也不要 NPE 掉线） */
+    private static ItemStack decodePouch(RegistryFriendlyByteBuf buf) {
+        if (buf == null || buf.readableBytes() <= 0) {
+            MoreBalls.LOGGER.warn("[pouch] 打开菜单时没有收到袋子数据 —— "
+                    + "退回空袋子。若频繁出现，请检查 ServerPlayer.openMenu 的额外数据是否为空。");
+            return ItemStack.EMPTY;
+        }
+        buf.readByte();   // 版本标记（当前恒为 1；将来协议变了可以在这里分流）
+        return ItemStack.STREAM_CODEC.decode(buf);
     }
 
     /** 服务端构造（打开界面时用） */

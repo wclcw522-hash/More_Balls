@@ -6,6 +6,44 @@
 
 ---
 
+## 1.1.1.32 — 修「联机打开收纳袋导致非主机玩家崩 / 掉线」（作者 2026-10-16 报的恶性 bug）
+
+### 根因（读了 NeoForge 与 patched MC 26.2 的源码才定下来）
+
+NeoForge 的 `ServerPlayer.openMenu(provider, extraDataWriter)` 里有一处分流：
+
+```java
+var extraData = FriendlyByteBufUtil.writeCustomData(...);
+if (extraData.length != 0) {
+    send(new AdvancedOpenScreenPayload(..., extraData));   // 带数据
+} else {
+    send(new ClientboundOpenScreenPacket(...));            // ← 退回原版包，不带任何数据
+}
+```
+
+而**原版那条路径下，客户端菜单工厂拿到的是 `null`** —— `IContainerFactory.create(id, inv)`
+的默认实现里写死了 `create(id, inv, null)`。我们菜单的客户端构造第一句就是
+`ItemStack.STREAM_CODEC.decode(buf)`，于是直接 NPE。
+
+**为什么「只有非主机玩家出事、主机没事」**：客户端处理 `AdvancedOpenScreenPayload` 失败时，
+NeoForge 走的是 `context.disconnect(...)` —— 只记一行 error 日志、**不产生带堆栈的崩溃报告**。
+远程客户端表现为被踢回主菜单（玩家会称作「崩」）；连本机时这个后果不明显。
+这也解释了为什么翻遍 crash-reports 都找不到对应的堆栈。
+
+### 修法（两侧都上保险）
+
+1. **写侧** —— `BallPouchItem.use` 与 `BallPouchCurios.openWornPouch` 两处 writer，
+   在 encode 之前先 `writeByte(POUCH_MENU_DATA_VERSION)`：**保证额外数据永远非空**，
+   从源头堵死「退回原版包」这条路；
+2. **读侧** —— `BallPouchMenu.decodePouch(buf)` 先判 `buf == null || readableBytes() <= 0`，
+   读不到就退回空栈并打一条 warning，而不是 NPE。
+
+> ⚠️ **仍需作者复验**：本次是**纯代码级定位**（证据链完整，但没拿到那台客户端的日志）。
+> 如果重现时在最上层日志里看到 `Failed to handle advanced open screen from server.`，
+> 那就完全坐实了。这条修好后该报错不应再出现。
+
+---
+
 ## 1.1.1.31 — 【尖啸】按新规格重做 + 【穿甲】修复（作者 2026-10-16）
 
 ### ① 【尖啸】按新规格重做
