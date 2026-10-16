@@ -2367,7 +2367,8 @@ public class BallProjectile extends ThrowableItemProjectile {
 
             // 【招蜂引蝶N】蜜饯球（数值类特性）：召唤 N 只仇恨目标、血量 5 的蜜蜂
             if (this.profile().hasBees() && entity instanceof LivingEntity beeTarget) {
-                BallExtraTraits.summonBees(serverLevel, beeTarget, this.profile().beeCount());
+                BallExtraTraits.summonBees(serverLevel, beeTarget, this.profile().beeCount(),
+                        this.getOwner());   // 召唤者 = 球的主人（蜜蜂绝不打他）
             }
 
             // 【封印】符箓球：封玩家快捷栏 / 封怪物攻击并打掉它手里的球

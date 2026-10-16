@@ -72,54 +72,22 @@ public final class BallExtraTraits {
     /** 【滋养】：生命恢复的时长 —— 60 刻 = 3 秒 */
     public static final int NURTURE_TICKS = 60;
 
-    /** 【招蜂引蝶】：蜜蜂的血量（作者 2026-10-15 下调：5 → 3） */
-    public static final float BEE_HEALTH = 3.0F;
+    /** 【招蜂引蝶】：蜜蜂的血量 —— 单一真源在 {@code SummonedBee.HEALTH}（作者 2026-10-15 下调：5 → 3） */
+    public static final float BEE_HEALTH = (float) com.mcmodworkspace.moreballs.entity.SummonedBee.HEALTH;
 
     /** 【招蜂引蝶】：蜜蜂的召唤半径 */
     private static final double BEE_SPAWN_RADIUS = 1.6D;
 
     /**
-     * 蜜蜂的「愤怒持续时长」（刻）—— 每隔 {@link #BEE_ANGER_REFRESH_TICKS} 刻给它顶到这个值。
+     * 这只蜜蜂是不是【招蜂引蝶】召唤出来的。
      *
-     * <p>作者 2026-10-15 实测反馈「召唤的蜜蜂仇恨不持久」：光靠 {@code setTarget}
-     * 是留不住目标的 —— 原版蜜蜂的反击 AI（{@code BeeHurtByOtherGoal}）在
-     * {@code canContinueToUse()} 里要求 {@code isAngry()}，而 {@code isAngry()}
-     * 看的是中立怪那套「愤怒截止时刻」。所以这里改用
-     * {@code setPersistentAngerTarget} + {@code setTimeToRemainAngry} 持续续期，
-     * 蜜蜂才会真的咬住被击中者不放。</p>
+     * <p>⚠️ 作者 2026-10-16 把它<b>做成了独立生物</b>（{@code more_balls:summoned_bee}，
+     * 见 {@link com.mcmodworkspace.moreballs.entity.SummonedBee}）—— 所以判据从原来的
+     * 「记分板标签」换成了<b>实体类型</b>，一劳永逸：不用再在生成时打标签、
+     * 也不用担心标签丢失。{@code BallProjectile.canHitEntity} 靠它做到「球不打自己召唤的蜂」。</p>
      */
-    public static final int BEE_ANGER_TICKS = 400;
-
-    /** 续期间隔（刻）—— 每 10 刻刷一次就够，不必逐刻 */
-    private static final int BEE_ANGER_REFRESH_TICKS = 10;
-
-    /**
-     * 【招蜂引蝶】召唤出来的蜜蜂<b>存活时长</b>：<b>8 秒</b>（作者 2026-10-16 指定）。
-     *
-     * <p>到点自动死亡（走一次致命伤害，有正常的死亡表现），免得蜂群一直挂在那儿
-     * 把战场搅成一锅粥。</p>
-     */
-    public static final int BEE_LIFETIME_TICKS = 8 * 20;
-
-    /** 被召唤的蜜蜂 → 它的「到点时刻」（游戏刻） */
-    private static final Map<UUID, Long> SUMMONED_BEE_DEADLINE = new ConcurrentHashMap<>();
-
-    /**
-     * 【招蜂引蝶】召唤出来的蜜蜂身上的标记（记分板标签）。
-     *
-     * <p>两个用途：<br>
-     * ① 球<b>不命中</b>这些蜜蜂（见 {@code BallProjectile#canHitEntity}）——
-     *    否则球回头打中蜜蜂，蜜蜂的仇恨就跑到同伴身上去了（作者 2026-10-15 实测）；<br>
-     * ② 每 10 刻给它们续愤怒时长、并把跑偏的目标拨回来。</p>
-     */
-    public static final String SUMMONED_BEE_TAG = "more_balls.summoned_bee";
-
-    /** 被召唤的蜜蜂 → 它该咬的那个目标（UUID） */
-    private static final Map<UUID, UUID> SUMMONED_BEE_TARGETS = new ConcurrentHashMap<>();
-
-    /** 这只蜜蜂是不是【招蜂引蝶】召唤出来的 */
     public static boolean isSummonedBee(Entity entity) {
-        return entity != null && entity.entityTags().contains(SUMMONED_BEE_TAG);
+        return entity instanceof com.mcmodworkspace.moreballs.entity.SummonedBee;
     }
 
     /** 蜜蜂血量在 tooltip 里的显示文本（3.0 → "3"） */
@@ -181,18 +149,31 @@ public final class BallExtraTraits {
     // ===== 【招蜂引蝶 N】=====
 
     /**
-     * 召唤 {@code count} 只对被击中者有仇恨的蜜蜂（血量 5）。
+     * 召唤 {@code count} 只「被召唤的蜜蜂」，全部锁定 {@code victim}。
      *
      * <p>作者要求「这些蜜蜂会强制转移目标的仇恨到他们身上」——
      * 所以既让蜜蜂锁定目标，也主动把目标当前的攻击目标设成蜜蜂，
      * 保证仇恨立刻转移过去，而不是等它挨一下才反应。</p>
+     *
+     * <h2>2026-10-16 起改用独立生物</h2>
+     * <p>作者要求把它做成独立生物 {@code more_balls:summoned_bee}
+     * （见 {@link com.mcmodworkspace.moreballs.entity.SummonedBee}）——
+     * 于是这里<b>不需要</b>再维护任何静态状态：</p>
+     * <ul>
+     *   <li>名字：实体类型自带（{@code entity.more_balls.summoned_bee}）</li>
+     *   <li>8 秒寿命 + 烟雾 + 无掉落：实体自己的 {@code tick()}</li>
+     *   <li>无限攻击：实体覆写的 {@code doHurtTarget}</li>
+     *   <li>不仇恨召唤者：实体覆写的 {@code canAttack}</li>
+     * </ul>
+     * <p>这里只剩「摆位置、设召唤者、设目标」三件事。</p>
      */
-    public static void summonBees(ServerLevel level, LivingEntity victim, int count) {
+    public static void summonBees(ServerLevel level, LivingEntity victim, int count,
+                                  net.minecraft.world.entity.Entity summoner) {
         if (count <= 0) {
             return;
         }
         for (int i = 0; i < count; i++) {
-            Bee bee = EntityTypes.BEE.create(level, EntitySpawnReason.MOB_SUMMONED);
+            var bee = ModEntities.SUMMONED_BEE.get().create(level, EntitySpawnReason.MOB_SUMMONED);
             if (bee == null) {
                 continue;
             }
@@ -201,24 +182,11 @@ public final class BallExtraTraits {
                     victim.getY() + 1.0D,
                     victim.getZ() + Math.sin(angle) * BEE_SPAWN_RADIUS,
                     victim.getYRot(), 0.0F);
-            // 生命上限也跟着压 —— 否则「血量 N」只在生成那一刻成立
-            var maxHealth = bee.getAttribute(Attributes.MAX_HEALTH);
-            if (maxHealth != null) {
-                maxHealth.setBaseValue(BEE_HEALTH);
-            }
-            bee.setHealth(BEE_HEALTH);
-            // 打标记：球不命中它、每 10 刻给它续愤怒（见 SUMMONED_BEE_TAG 的说明）
-            bee.addTag(SUMMONED_BEE_TAG);
-            // 用原版中立怪的愤怒机制接管仇恨 —— 光 setTarget 留不住（作者实测「仇恨不持久」）
-            bee.setPersistentAngerTarget(EntityReference.of(victim));
-            bee.setTimeToRemainAngry(BEE_ANGER_TICKS);
+            bee.setHealth(BEE_HEALTH);          // 属性里已经给了 3 点，这里只是补齐当前血量
+            bee.setSummoner(summoner);          // 召唤者 = 球的主人（它绝不打他）
+            bee.resetLife();                    // 8 秒寿命从头算
             bee.setTarget(victim);
-            bee.setPersistenceRequired();
             level.addFreshEntity(bee);
-            SUMMONED_BEE_TARGETS.put(bee.getUUID(), victim.getUUID());
-            // 寿命 8 秒（作者 2026-10-16 指定）—— 到点自动死亡，见 maintainSummonedBee
-            SUMMONED_BEE_DEADLINE.put(bee.getUUID(),
-                    level.getGameTime() + BEE_LIFETIME_TICKS);
             // 仇恨反向转移：让被击中的目标去咬蜜蜂
             if (victim instanceof Mob mob) {
                 mob.setTarget(bee);
@@ -226,62 +194,6 @@ public final class BallExtraTraits {
         }
         level.playSound(null, victim.blockPosition(), SoundEvents.BEE_LOOP,
                 SoundSource.NEUTRAL, 1.0F, 1.0F);
-    }
-
-    /**
-     * 被召唤蜜蜂的仇恨维护 —— 每 10 刻一次：续期、纠偏、清理。
-     *
-     * <p>作者 2026-10-15 的两条反馈都落在这里：</p>
-     * <ul>
-     *   <li><b>「仇恨不持久」</b>：续 {@code setTimeToRemainAngry}，让原版那套
-     *       {@code isAngry()} 判定一直成立（蜜蜂的反击 AI 靠它才持续）</li>
-     *   <li><b>「仇恨跑到蜜蜂身上」</b>：目标被改成别的生物（尤其是同伴蜜蜂）时
-     *       <b>拨回</b>它该咬的那个目标 —— 蜜蜂挨打会通过 {@code BeeHurtByOtherGoal}
-     *       通知同伴，一来一回就容易内讧，这里每 10 刻纠一次偏</li>
-     * </ul>
-     */
-    private static void maintainSummonedBee(ServerLevel level, Bee bee) {
-        UUID ownerId = SUMMONED_BEE_TARGETS.get(bee.getUUID());
-
-        // ===== ① 寿命：8 秒到点就死（作者 2026-10-16 指定）=====
-        // ⚠️ 这一条**每刻都要判**，不能并进下面那个「每 10 刻」的节拍里 ——
-        //    否则实际存活会多出最多半秒，而且随机。
-        Long deadline = SUMMONED_BEE_DEADLINE.get(bee.getUUID());
-        if (deadline != null && level.getGameTime() >= deadline) {
-            SUMMONED_BEE_DEADLINE.remove(bee.getUUID());
-            SUMMONED_BEE_TARGETS.remove(bee.getUUID());
-            // 走一次致命伤害而不是 discard()：这样有正常的死亡表现（死亡粒子/音效、掉落结算）
-            // ⚠️ 它刚被打过时可能正处在无敌帧里、这一下会被忽略 —— 那就直接移除，
-            //    保证「到点一定消失」这条硬约束不会被无敌帧破坏。
-            if (!bee.hurtServer(level, bee.damageSources().generic(), Float.MAX_VALUE)) {
-                bee.discard();
-            }
-            return;
-        }
-
-        if (ownerId == null) {
-            return;   // 不是我们召唤的（或记录已清）
-        }
-        if (!bee.isAlive()) {
-            SUMMONED_BEE_TARGETS.remove(bee.getUUID());
-            SUMMONED_BEE_DEADLINE.remove(bee.getUUID());
-            return;
-        }
-        if (bee.tickCount % BEE_ANGER_REFRESH_TICKS != 0) {
-            return;   // 下面那两件事每 10 刻做一次就够
-        }
-        Entity target = level.getEntity(ownerId);
-        if (!(target instanceof LivingEntity living) || !living.isAlive()) {
-            // 目标没了 → 收工，把记录清掉（它自己会回去采蜜）
-            SUMMONED_BEE_TARGETS.remove(bee.getUUID());
-            bee.setTarget(null);
-            return;
-        }
-        bee.setPersistentAngerTarget(EntityReference.of(living));
-        bee.setTimeToRemainAngry(BEE_ANGER_TICKS);
-        if (bee.getTarget() != living) {
-            bee.setTarget(living);
-        }
     }
 
     // ===== 【尖刺】=====
@@ -456,13 +368,9 @@ public final class BallExtraTraits {
             return;
         }
 
-        // 【招蜂引蝶】召唤出来的蜜蜂：续愤怒时长 + 把跑偏的目标拨回来
-        // （参数收 Bee 而不是 Mob —— setTimeToRemainAngry / setPersistentAngerTarget
-        //   是 NeutralMob 接口的方法，Mob 上并没有）
-        if (mob instanceof Bee bee && isSummonedBee(bee)
-                && bee.level() instanceof ServerLevel beeLevel) {
-            maintainSummonedBee(beeLevel, bee);
-        }
+        // ⚠️ 被召唤的蜜蜂**不再需要在这里维护**了 —— 它 2026-10-16 起是独立生物，
+        //    寿命、无限攻击、不仇恨召唤者全都收进了 SummonedBee 自己的代码里。
+        //    （原来这里有一整套「续愤怒 + 每刻纠偏」的静态 map 逻辑，随那次改造一起删掉。）
 
         if (!isSealed(mob)) {
             return;

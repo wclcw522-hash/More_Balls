@@ -1,3 +1,41 @@
+## 1.1.1.14 — 【招蜂引蝶】改成独立生物「被召唤的蜜蜂」（作者 2026-10-16）
+
+作者要求：不要把原版蜜蜂打补丁，而是**做成本模组自己的生物**。新增
+`more_balls:summoned_bee`（类 `entity/SummonedBee`），行为一次到位：
+
+- **名字**「被召唤的蜜蜂」—— 用实体类型自带的名字（`entity.more_balls.summoned_bee`），
+  不再需要 `setCustomName`；
+- **8 秒后直接消失、无掉落**（`discard()`，没有死亡动画、没有掉落物、不给经验），
+  消失时放一团**烟雾**（`LARGE_SMOKE` + `CLOUD`）；
+- **可以无限攻击** —— 覆写 `doHurtTarget`，砍掉父类结尾那两句
+  `setHasStung(true)` / `stopBeingAngry()`（那正是「蜇一次就废 + 1200 刻后自灭」的来源）；
+- **不仇恨召唤者** —— 覆写 `canAttack` 把召唤者挡掉。
+  挡在 `canAttack` 这一层而不是每刻纠偏：原版 `Mob.setTarget` 内部会走
+  `asValidTarget → canAttack`，所以「被打就反击把主人当目标」这类路径在设置的那一刻就被拒；
+- 血量 3（作者指定），走实体属性注册（本模组第一个真正的生物实体）。
+
+### 两个关键实现判断（都在正文里说过）
+
+1. **继承 `Bee` 而不是把 `Bee.java` 抄一份**：蜜蜂的飞行是父类构造函数里配的私有内部类
+   （`BeeMoveControl` + `FlyingPathNavigation`），抄一份就得连它一起写；而且客户端可以直接
+   复用原版 `BeeRenderer`（构造公开、泛型绑 `Bee`），**模型贴图零新素材**。
+2. ⚠️ **`registerGoals()` 里必须先调 `super`**：父类的 `beePollinateGoal` 等字段是在它自己的
+   `registerGoals` 里赋值的，不调就会保持 `null` —— 而 `Bee.hurtServer()` 里有一句
+   `this.beePollinateGoal.stopPollinating()`，**这只蜜蜂第一次挨打就会 NPE 崩服**，
+   编译期完全看不出来。所以顺序是：先 `super.registerGoals()` 让字段赋好值，
+   再 `goalSelector/targetSelector` 整个清空，最后只加 `FloatGoal` + `MeleeAttackGoal`。
+
+### 顺带清掉的东西
+
+- 改造前那套「静态 map 记目标/召唤者/到点时刻 + 每刻纠偏」的逻辑**全部删除**；
+- 1.1.1.13 为「无限攻击」临时加的那条 **Access Transformer 也一并撤掉**
+  （独立生物在自己的 `doHurtTarget` 里绕开原版限制，不再需要放宽原版方法的可见性）。
+
+> 说明：改用通用的 `MeleeAttackGoal` 之后，这只蜜蜂**不依赖原版中立怪那套「愤怒」机制**
+> （`setTimeToRemainAngry` / `persistentAngerTarget` 都不需要），目标由召唤方直接维持。
+
+---
+
 ## 1.1.1.13 — 招蜂引蝶的蜜蜂 8 秒后自动死亡（作者 2026-10-16）
 
 【招蜂引蝶 x】召唤出来的蜜蜂现在**存活 8 秒**（`BallExtraTraits.BEE_LIFETIME_TICKS = 160`），

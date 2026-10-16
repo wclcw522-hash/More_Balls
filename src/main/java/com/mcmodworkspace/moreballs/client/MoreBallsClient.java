@@ -94,6 +94,11 @@ public final class MoreBallsClient {
         event.registerEntityRenderer(ModEntities.DRIPSTONE_SHARD.get(),
                 context -> new ThrownItemRenderer<com.mcmodworkspace.moreballs.entity.DripstoneShard>(
                         context, 0.6F, true));
+        // 被召唤的蜜蜂 —— **直接复用原版蜜蜂的渲染器**。
+        // 它泛型绑的就是 Bee，而我们的实体继承自 Bee，所以模型、贴图、愤怒时的变体
+        // 全都白拿，不需要任何新美术素材（作者 2026-10-16 指定做成独立生物）。
+        event.registerEntityRenderer(ModEntities.SUMMONED_BEE.get(),
+                net.minecraft.client.renderer.entity.BeeRenderer::new);
     }
 
     /** 把收纳袋的菜单绑到界面上 */

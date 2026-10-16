@@ -3,6 +3,7 @@ package com.mcmodworkspace.moreballs;
 import com.mcmodworkspace.moreballs.entity.BallEnderpearl;
 import com.mcmodworkspace.moreballs.entity.BallProjectile;
 import com.mcmodworkspace.moreballs.entity.DripstoneShard;
+import com.mcmodworkspace.moreballs.entity.SummonedBee;
 import net.minecraft.core.registries.Registries;
 import net.minecraft.resources.Identifier;
 import net.minecraft.resources.ResourceKey;
@@ -76,4 +77,45 @@ public final class ModEntities {
                     .updateInterval(10)
                     .build(ResourceKey.create(Registries.ENTITY_TYPE,
                             Identifier.fromNamespaceAndPath(MoreBalls.MOD_ID, "dripstone_shard"))));
+
+    /**
+     * {@code more_balls:summoned_bee} —— 【招蜂引蝶 x】召唤出来的<b>战斗宠物蜜蜂</b>
+     * （作者 2026-10-16 指定做成独立生物）。
+     *
+     * <p>它继承原版 {@code Bee}（飞行、模型、贴图全部复用），只改三件事：
+     * 可以无限攻击、不仇恨召唤者、8 秒后直接消失。
+     * 详见 {@link com.mcmodworkspace.moreballs.entity.SummonedBee}。</p>
+     *
+     * <p>判定盒与追踪参数照抄原版蜜蜂（0.7 × 0.6 / 追踪 8 / 同步间隔 3）——
+     * 让它在网络上的表现与真蜜蜂一致。名字走语言键
+     * {@code entity.more_balls.summoned_bee}（「被召唤的蜜蜂」），不需要 {@code setCustomName}。</p>
+     */
+    public static final DeferredHolder<EntityType<?>, EntityType<SummonedBee>> SUMMONED_BEE =
+            ENTITIES.register("summoned_bee", () -> EntityType.Builder
+                    .<SummonedBee>of(SummonedBee::new, MobCategory.CREATURE)
+                    .sized(0.7F, 0.6F)
+                    .clientTrackingRange(8)
+                    .updateInterval(3)
+                    .build(ResourceKey.create(Registries.ENTITY_TYPE,
+                            Identifier.fromNamespaceAndPath(MoreBalls.MOD_ID, "summoned_bee"))));
+
+    /**
+     * 生物的<b>属性注册</b>。
+     *
+     * <p>⚠️ 这是本模组第一次注册「真正的生物」（前面几个都是投射物
+     * {@code MobCategory.MISC}，不需要属性）—— 所以这个事件订阅也是新加的。
+     * 不加的话实体会创建失败并抛「未注册属性」。</p>
+     */
+    @net.neoforged.fml.common.EventBusSubscriber(modid = MoreBalls.MOD_ID)
+    public static final class Attributes {
+
+        private Attributes() {
+        }
+
+        @net.neoforged.bus.api.SubscribeEvent
+        public static void onAttributeCreation(
+                net.neoforged.neoforge.event.entity.EntityAttributeCreationEvent event) {
+            event.put(SUMMONED_BEE.get(), SummonedBee.createAttributes().build());
+        }
+    }
 }
