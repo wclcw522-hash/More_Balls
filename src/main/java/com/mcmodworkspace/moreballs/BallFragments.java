@@ -432,7 +432,11 @@ public final class BallFragments {
                 p.shockDamage(),
                 // 新增：穿透数值 + 位掩码型词条
                 p.penetration(),
-                p.flags(),
+                // ⚠️ 【坚固】（永久）的**隐藏词条**（作者 2026-10-16）：永久坚固本身不继承，
+                //    但**由这颗球切出来的每一份**都带上 FLAG_TOUGH_MULTIPLY ——
+                //    它不提供耐久数值，只让组合球的最终耐久 ×2（每份一次，见 comboProfile）。
+                p.flags() | (p.toughness() == BallBehavior.TOUGH_FOREVER
+                        ? BallBehavior.BallProfile.FLAG_TOUGH_MULTIPLY : 0),
                 p.breaker(), p.transpose(), p.tidalSurge(), false /* 【忠诚】唯一特性：不继承 */,
                 // 第十三批：招蜂引蝶（数值类特性）/ 滋养（组合类）。
                 // ⚠️ 组合类的【滋养】在**完整球上携带但不生效** —— 照样读进 Fragment，
@@ -708,21 +712,25 @@ public final class BallFragments {
                 //    去参与「均分 / 相加」，所以读入时（见 of(...) 那行）换成了这个标记值。
                 //    落回 profile 时**必须换回 TOUGH_FOREVER(-1)**，否则组合球的坚固会变成 100000，
                 //    tooltip 走「坚固 100000」那一支，而不是「坚固（永久）」。
-                // 【坚固】—— **作者 2026-10-16 改的规则**：合成后的最终耐久，
-                //    **每带一个四分之一球（也就是每一份）就 ×2** —— 这是累乘：
-                //      · 二合一（2 份）⇒ ×4
-                //      · 四合一（4 份）⇒ ×16
-                //    ⚠️ 两种情况不参与乘法：
-                //      · **永久坚固**（TOUGH_FOREVER_MARK）—— 它本来就是「永不消耗」，
-                //        乘多少倍还是它自己，而且 ×16 会变成天文数字；
-                //      · **不坚固**（0）—— 0 乘任何数还是 0。
-                .withToughness(merged.toughness() >= TOUGH_FOREVER_MARK
-                        ? BallBehavior.TOUGH_FOREVER
-                        : (merged.toughness() <= 0.0D
-                                ? BallBehavior.NOT_TOUGH
-                                : (int) Math.min(Integer.MAX_VALUE,
-                                        (double) (int) merged.toughness()
-                                                * Math.pow(2.0D, indexes.size()))))                .withSense((int) merged.sense())
+                // 【坚固】落回 profile 要处理两件事：
+                //
+                // ① **还原「永久」标记**（2026-10-16 修）：Fragment 里永久坚固用
+                //    TOUGH_FOREVER_MARK（100000）表示 —— 因为 double 不好拿 -1 去参与「均分 / 相加」，
+                //    所以读入时（见 of(...) 那行）换成了这个标记值。落回时必须换回
+                //    TOUGH_FOREVER(-1)，否则组合球的坚固会变成 100000，
+                //    tooltip 走「坚固 100000」那一支而不是「坚固（永久）」。
+                //
+                // ② **【坚固】（永久）的隐藏词条**（作者 2026-10-16 指定）：
+                //    「【坚固】切开之后不继承，但由这颗球切出来的**每个四分之一球**
+                //      都带一个隐藏词条，效果是把组合球的**最终耐久 ×2**。」
+                //    ⇒ 所以这里数**带该位的份数 n**，最终耐久 ×2^n：
+                //       · 4 份全来自带【坚固】的球 ⇒ ×16
+                //       · 只有 1 份来自它          ⇒ ×2
+                //    ⚠️ 它自己**不贡献耐久数值**（那一份的「永久」本来就不继承），
+                //       只把**其它份提供的耐久**放大。该位是切球临时标记 ——
+                //       不写回组合球、不进 tooltip（见下面那句 withFlags 的按位与取反）。
+                .withToughness(toughAfterCombine(merged.toughness(), toughDoublersOf(frags)))
+                .withSense((int) merged.sense())
                 .withEntityScale(scale)
                 .withRarity(0)
                 .withDrops(List.of());
@@ -774,7 +782,10 @@ public final class BallFragments {
         //    但组合时**没有任何一行把它们写回 profile**。以后加新词条必须回来补这里。
         out = out
                 .withPenetration((int) merged.penetration())
-                .withFlags(merged.flags())
+                // ⚠️ 按位与取反：把【坚固】（永久）的**隐藏词条位**清掉（见 FLAG_TOUGH_MULTIPLY）——
+                //    它只是切球这一趟的临时标记，已经在上面用于算倍数了，
+                //    绝不能跟着组合球存档、也不该出现在 tooltip 里。
+                .withFlags(merged.flags() & ~BallBehavior.BallProfile.FLAG_TOUGH_MULTIPLY)
                 .withBreaker((int) merged.breaker())
                 // 【移形换位】（「其它特殊」类）：切开原样透传、合成 ≥1 份即携带 ——
                 // 份数判定在 combineQuad（transposes >= 1）/ combinePair（plus 取或）里做完了，
@@ -841,6 +852,42 @@ public final class BallFragments {
         return best;
     }
     /** 数值向下取整（特质原样透传） */
+    /** 数一数「带【坚固】（永久）隐藏词条」的份数（见 {@code FLAG_TOUGH_MULTIPLY}）。 */
+    private static int toughDoublersOf(List<Fragment> frags) {
+        int count = 0;
+        for (Fragment f : frags) {
+            if ((f.flags() & BallBehavior.BallProfile.FLAG_TOUGH_MULTIPLY) != 0) {
+                count++;
+            }
+        }
+        return count;
+    }
+
+    /**
+     * 【坚固】（永久）的隐藏词条落回 profile 时的最终值。
+     *
+     * <p>作者 2026-10-16 的规则：「【坚固】切开之后不继承，但由这颗球切出来的每个四分之一球
+     * 都带一个隐藏词条，效果是把组合球的最终耐久 ×2。」
+     * ⇒ 最终耐久 = 各份之和 × 2^n（n = 带该隐藏位的份数）。</p>
+     *
+     * <p>两种例外：</p>
+     * <ul>
+     *   <li>合并结果本身是<b>永久</b>（{@code TOUGH_FOREVER_MARK}）⇒ 直接还原成永久、
+     *       不参与乘法（×16 会变成天文数字）；</li>
+     *   <li>没有耐久（≤0）或没有任何一份带隐藏位（{@code doublers <= 0}）⇒ 原样向下取整。</li>
+     * </ul>
+     */
+    private static int toughAfterCombine(double merged, int doublers) {
+        if (merged >= TOUGH_FOREVER_MARK) {
+            return BallBehavior.TOUGH_FOREVER;
+        }
+        if (merged <= 0.0D || doublers <= 0) {
+            return (int) Math.floor(merged);
+        }
+        return (int) Math.min(Integer.MAX_VALUE,
+                Math.floor(merged) * Math.pow(2.0D, doublers));
+    }
+
     private static Fragment floor(Fragment f) {
         return new Fragment(
                 Math.floor(f.toughness()), Math.floor(f.sense()),

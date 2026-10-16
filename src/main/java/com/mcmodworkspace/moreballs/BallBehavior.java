@@ -893,6 +893,23 @@ public final class BallBehavior {
          */
         public static final int FLAG_PIERCE = 1 << 9;
 
+        /**
+         * <b>【坚固】（永久）的隐藏词条</b> —— 「组合球最终耐久 ×2」，作者 2026-10-16 指定。
+         *
+         * <p>它不是给玩家看的词条，只活在<b>切球</b>这一趟里：</p>
+         * <ul>
+         *   <li>带【坚固】（永久）的球被切开时，<b>每一份碎片</b>都带上这一位
+         *       （见 {@code BallFragments.of(BallProfile, boolean)}）；</li>
+         *   <li>合成时<b>数带这一位的份数 n</b>，把组合球的最终耐久 <b>× 2^n</b>
+         *       （见 {@code comboProfile}）—— 所以 4 份全带是 ×16，只有 1 份带就是 ×2；</li>
+         *   <li>它<b>自己不贡献耐久数值</b>（那一份的「永久」本身并不继承），
+         *       只负责把**其它份提供的耐久**放大；</li>
+         *   <li>合成后<b>必须从 flags 里清掉</b>（{@code merged.flags() & ~FLAG_TOUGH_MULTIPLY}）——
+         *       它是切球临时标记，不该跟着组合球存档，也<b>不进 tooltip</b>。</li>
+         * </ul>
+         */
+        public static final int FLAG_TOUGH_MULTIPLY = 1 << 10;
+
         /** 是否为坚固球（含永久坚固与限次坚固）；不坚固的球碰到就碎，也不会反弹 */
         public boolean isTough() {
             return toughness != NOT_TOUGH;
