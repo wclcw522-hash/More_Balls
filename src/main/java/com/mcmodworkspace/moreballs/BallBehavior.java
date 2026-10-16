@@ -585,6 +585,28 @@ public final class BallBehavior {
                         SoundEvents.BOOK_PAGE_TURN,
                         SoundEvents.BOOK_PAGE_TURN,
                         1.0F)));
+
+        // 回响球：幽匿主题（作者 2026-10-16 指定）。
+        // 数值：伤害 10、重量 0、坚固 400、弹射 0、蓄力 10。
+        // 【尖啸】（「其它特殊」类）：投出后**没有飞行过程** —— 无视路径上的生物、直接抵达终点撞墙停下，
+        //   沿路炸出一道监守者音波；路径半径 7 格内的生物吃 5 点伤害 + 整套负面效果 + 击飞，
+        //   落点半径 7 格内额外再吃 10 点并把部分效果升级 —— 见 BallExtraTraits 的【尖啸】段。
+        // 【忠诚】【封印】—— 两条都是「其它特殊」类。
+        // 音效：监守者音波（作者指定）；配方 12369874回响碎片 + 5幽匿催发体，一次 1 个。
+        override(ModItems.ECHO_BALL.get(), DEFAULT
+                .withDamage(10.0F)
+                .withWeight(0)
+                .withToughness(400)
+                .withBounce(0)
+                .withChargeLevels(10)
+                .withFlag(BallProfile.FLAG_SHRIEK)
+                .withFlag(BallProfile.FLAG_SEAL)
+                .withFlag(BallProfile.FLAG_PIERCE)
+                .withLoyalty(true)
+                .withSound(BallSound.of(
+                        SoundEvents.WARDEN_SONIC_BOOM,
+                        SoundEvents.WARDEN_SONIC_BOOM,
+                        1.0F)));
     }
 
     public static void override(Item item, BallProfile profile) {
@@ -857,6 +879,19 @@ public final class BallBehavior {
         public static final int FLAG_SPIKE = 1 << 6;
         /** 【封印】符箓球 —— 封玩家快捷栏 / 封怪物攻击并打掉它手里的球 */
         public static final int FLAG_SEAL = 1 << 7;
+        /**
+         * 【尖啸】回响球 —— 投出后无飞行过程，直接到终点并在路径上炸出一道监守者音波。
+         *
+         * <p>见 {@code BallExtraTraits} 的【尖啸】段（作者 2026-10-16 指定）。</p>
+         */
+        public static final int FLAG_SHRIEK = 1 << 8;
+        /**
+         * 【穿甲】回响球 —— 携带本词条的球造成的所有伤害都变成「无视护甲值、但仍受物理减伤减免」。
+         *
+         * <p>作者原话：「葡萄美酒夜光杯，你和盔甲一起飞（shift）无视护甲」——
+         * 注意它<b>只无视护甲值</b>，保护附魔 / 抗性那条减免照常生效。</p>
+         */
+        public static final int FLAG_PIERCE = 1 << 9;
 
         /** 是否为坚固球（含永久坚固与限次坚固）；不坚固的球碰到就碎，也不会反弹 */
         public boolean isTough() {

@@ -59,8 +59,8 @@ public final class BallPouchKeys {
             com.mojang.blaze3d.platform.InputConstants.KEY_R,
             CATEGORY);
 
-    /** 长按判定门槛（毫秒）—— 作者指定 0.2 秒 */
-    private static final long HOLD_MILLIS = 200L;
+    /** 长按判定门槛（毫秒）—— 作者 2026-10-16 从 0.2 秒改为 **3 刻** */
+    private static final long HOLD_MILLIS = 150L;   // 3 刻 × 50ms = 150ms
 
     /** 按下 R 的时刻，-1 表示没按 */
     private static long radialPressedAt = -1L;

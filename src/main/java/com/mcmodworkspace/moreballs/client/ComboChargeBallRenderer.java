@@ -60,21 +60,41 @@ public class ComboChargeBallRenderer implements SpecialModelRenderer<int[]> {
     /** 模型空间 → 物品空间（原版物品几何是 0..16） */
     private static final float MODEL_SCALE = 1.0F / 16.0F;
 
-    /** 贴图平面。原版物品贴图在 z=7.5，这里取 7.4，压在弩身前面 */
     /**
-     * 正面的 z（原版 2D 贴片的正面在 8.5 —— {@code from=(0,0,7.5)} / {@code to=(16,16,8.5)}）。
+     * 本渲染器的几何整体相对原版贴片<b>往前挪的偏移</b>。
      *
-     * <p>⚠️ 原来写的是 {@code 7.4}，那个值<b>小于背面的 7.5</b>，也就是贴在贴片<b>之后</b>，
-     * 会被弩身挡住 —— 注释里「压在弩身前面」的说法是反的。</p>
+     * <p>⚠️ 作者 2026-10-16 报「组合球上膛贴图有异常像素」，查下来有一条是
+     * <b>三套几何完全同深度共面</b>：本渲染器的正面写死 8.5、背面 7.5，
+     * 而 base 模型 {@code minecraft:item/crossbow_pulling_2}（→ {@code item/crossbow}
+     * → {@code item/generated}）的贴片正面<b>也</b>在 8.5、背面 7.5。</p>
+     *
+     * <p>同深度 ⇒ 浮点精度内谁在前不确定 ⇒ <b>条纹 / 闪烁</b>。
+     * 整体往前挪一点点即可根除，视觉上完全看不出来（0.01 / 16 格）。</p>
      */
-    private static final float PLANE_Z_FRONT = 8.5F;
+    private static final float Z_BIAS = 0.01F;
 
-    /** 背面的 z（略微靠后，避免与正面共面导致 z-fighting） */
-    private static final float PLANE_Z_BACK = 7.5F;   // 照原版：from z=7.5F
+    /**
+     * 正面的 z（原版 2D 贴片的正面在 8.5 —— {@code from=(0,0,7.5)} / {@code to=(16,16,8.5)}），
+     * 再往前挪 {@link #Z_BIAS} 避开与 base 同深度。
+     */
+    private static final float PLANE_Z_FRONT = 8.5F + Z_BIAS;
+
+    /** 背面的 z（照原版 {@code from z=7.5}，同样挪 {@link #Z_BIAS}，厚度不变） */
+    private static final float PLANE_Z_BACK = 7.5F + Z_BIAS;
 
     /** 侧壁的 z 范围 —— 照原版 bakeSideFaces 的 from.z / to.z */
-    private static final float SIDE_Z_FROM = 7.5F;
-    private static final float SIDE_Z_TO = 8.5F;
+    private static final float SIDE_Z_FROM = 7.5F + Z_BIAS;
+    private static final float SIDE_Z_TO = 8.5F + Z_BIAS;
+
+    /**
+     * 球区在 16×16 贴图里的范围（含端点）—— 与 {@code charge_piece_*} 的覆盖范围一致。
+     *
+     * <p>见 {@link #clearBallArea} 的说明。</p>
+     */
+    private static final int BALL_X0 = 2;
+    private static final int BALL_Y0 = 2;
+    private static final int BALL_X1 = 7;
+    private static final int BALL_Y1 = 7;
 
     private static final float MIN = 0.0F;
     private static final float MAX = 16.0F;
@@ -616,6 +636,9 @@ public class ComboChargeBallRenderer implements SpecialModelRenderer<int[]> {
             return null;
         }
 
+        // ★ 先清空底图的球区 —— 见 clearBallArea 的说明（作者 2026-10-16 报的异常像素）
+        clearBallArea(canvas);
+
         if (slots != null) {
             // 二合一还是四合一？判据是「上半两象限的来源是不是同一个」——
             // 二合一时 0/1 同源、2/3 同源；四合一时四格互不相同（同种球会例外，见下）。
@@ -713,9 +736,42 @@ public class ComboChargeBallRenderer implements SpecialModelRenderer<int[]> {
         }
     }
 
+    /**
+     * <b>清空底图上的球区</b>（作者 2026-10-16 报「组合球上膛贴图有异常像素」后的修复）。
+     *
+     * <h2>问题</h2>
+     * <p>底图 {@code charge_base_crossbow.png} 是原版满弦弩的<b>精确复制</b> ——
+     * 而原版弩的球区 {@code (2..7)²} 里<b>本来就有 30 个非透明像素</b>（弦、机件、木身）。
+     * 四张 {@code charge_piece} 的并集只覆盖 32 个像素，于是球的<b>圆角缺口</b>处
+     * —— 左下 {@code (2,7)}、右上 {@code (7,2)}、右下 {@code (7,7)} ——
+     * 会把这 3 个弩身像素<b>露出来</b>，看着就是「球角上多了一小块棕 / 灰」。</p>
+     *
+     * <h2>为什么清掉是安全的</h2>
+     * <p>那些像素本来就该由 <b>base 模型</b> 提供 ——
+     * {@code crossbow.json} 里组合球那条 case 的 {@code base} 是
+     * {@code minecraft:item/crossbow_pulling_2}，也就是<b>同一把弩</b>。
+     * 球角变透明后，透过它看到的就是 base 的弩身，<b>视觉完全一样</b>。</p>
+     *
+     * <h2>顺带解决的两件事</h2>
+     * <ol>
+     *   <li>{@code drawSideFaces} 会把合成图里<b>每一个不透明像素</b>做成 1 像素小立方体 ——
+     *       清空后这些立方体从「整把弩」缩到「只剩球」，边缘被 UV 拉成色条的面积大幅减少；</li>
+     *   <li>与 base 同深度共面的面积，从「整张图」缩到「只剩球」，配合 {@link #Z_BIAS}
+     *       把 z-fighting 压到看不见。</li>
+     * </ol>
+     */
+    private static void clearBallArea(NativeImage image) {
+        for (int y = BALL_Y0; y <= BALL_Y1; y++) {
+            for (int x = BALL_X0; x <= BALL_X1; x++) {
+                if (x < image.getWidth() && y < image.getHeight()) {
+                    image.setPixel(x, y, 0);   // ARGB 全 0 = 完全透明
+                }
+            }
+        }
+    }
+
     /** 无状态，共用一个实例 */
     public static final ComboChargeBallRenderer INSTANCE = new ComboChargeBallRenderer();
-
     /**
      * 包围盒 —— 必须与 {@link #submit} 里**实际提交的几何**处在同一空间。
      *

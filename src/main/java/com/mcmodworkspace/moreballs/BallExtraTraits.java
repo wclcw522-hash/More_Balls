@@ -1,5 +1,6 @@
 package com.mcmodworkspace.moreballs;
 
+import com.mcmodworkspace.moreballs.entity.BallProjectile;
 import com.mcmodworkspace.moreballs.entity.DripstoneShard;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.particles.ParticleTypes;
@@ -8,6 +9,7 @@ import net.minecraft.server.level.ServerLevel;
 import net.minecraft.sounds.SoundEvents;
 import net.minecraft.sounds.SoundSource;
 import net.minecraft.util.Mth;
+import net.minecraft.world.damagesource.DamageSource;
 import net.minecraft.world.effect.MobEffectInstance;
 import net.minecraft.world.effect.MobEffects;
 import net.minecraft.world.entity.Entity;
@@ -22,7 +24,12 @@ import net.minecraft.world.entity.item.ItemEntity;
 import net.minecraft.world.entity.monster.Enemy;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.level.ClipContext;
+import net.minecraft.world.phys.AABB;
+import net.minecraft.world.phys.BlockHitResult;
+import net.minecraft.world.phys.HitResult;
 import net.minecraft.world.phys.Vec3;
+import net.minecraft.world.phys.shapes.CollisionContext;
 import net.minecraft.world.InteractionHand;
 import net.neoforged.bus.api.SubscribeEvent;
 import net.neoforged.fml.common.EventBusSubscriber;
@@ -195,6 +202,196 @@ public final class BallExtraTraits {
         }
         level.playSound(null, victim.blockPosition(), SoundEvents.BEE_LOOP,
                 SoundSource.NEUTRAL, 1.0F, 1.0F);
+    }
+
+    // ===== 【尖啸】（回响球专属，作者 2026-10-16 指定）=====
+
+    /** 【尖啸】：音波的作用半径 —— 作者指定 <b>7 格</b>（路径与落点同值） */
+    public static final double SHRIEK_RADIUS = 7.0D;
+
+    /**
+     * 【尖啸】：射线的<b>距离上限</b> —— <b>256 格</b>（作者 2026-10-16 指定）。
+     *
+     * <p>一路没撞到方块时，就把「起点沿速度方向 256 格」那一点当成终点：
+     * 在那里触发落点判定（落点效果、音波、球停下），而不是继续往前飞。</p>
+     *
+     * <p>⚠️ 这条是为<b>末地</b>准备的 —— 末地有大量没有方块的虚空，
+     * 射线会一路 MISS。若不设上限，球会被直接放到极远处（甚至飞出世界边界），
+     * 那就是作者要防的 bug。</p>
+     */
+    private static final double SHRIEK_MAX_RANGE = 256.0D;
+
+    /** 【尖啸】：路径伤害（作者指定 5） */
+    public static final float SHRIEK_PATH_DAMAGE = 5.0F;
+
+    /** 【尖啸】：落点额外伤害（作者指定 10） */
+    public static final float SHRIEK_IMPACT_DAMAGE = 10.0F;
+
+    /** 【尖啸】：落点音波扩散的帧数 —— 球每刻推进一帧，走完就停 */
+    public static final int SHRIEK_WAVE_FRAMES = 10;
+
+    /**
+     * <b>【尖啸】</b> —— 回响球投出后的那一下。
+     *
+     * <h2>规格（作者 2026-10-16 原话）</h2>
+     * <blockquote>
+     * 扔出（射出）后无飞行过程，无视路径上的生物，直接抵达终点撞墙停下，同时路径上生成一道
+     * 无伤害的监守者音波特效；路径音波周围半径 7 格范围内所有生物受到 5 点伤害，被施加
+     * 黑暗(00:20)／失明2(00:20)／震荡2(00:20)／发光(00:40)／缓慢(00:40)／虚弱2(00:20)／漂浮(00:05)，
+     * 同时被向远离路径的方向击飞；落点半径 7 格内生物额外受到 10 点伤害，并把部分效果升级：
+     * 震荡2→震荡4(00:30)、虚弱2→虚弱5(1:00)、发光→发光(2:00)、缓慢→缓慢3(1:00)；
+     * 落点处有三道向外迅速扩散并逐渐消失的音波。
+     * </blockquote>
+     *
+     * <h2>实现要点</h2>
+     * <ol>
+     *   <li><b>无飞行过程</b>：本方法在球投出后的<b>第一刻</b>就把它直接放到射线终点
+     *       （{@code setPos} + 速度清零），所以玩家看到的是「瞬间抵达」。</li>
+     *   <li><b>无视路径上的生物</b>：射线只取 {@code ClipContext.Block.COLLIDER}，
+     *       完全不参与任何实体碰撞判定。</li>
+     *   <li><b>绝不误伤主人</b>：路径效果会剔除球的 owner ——
+     *       球是在主人身边出手的，他本人必然落在起点那一段的作用范围里。</li>
+     *   <li>判定用的是<b>点到线段的距离</b>，不是包围盒 ——
+     *       路径可以是斜的，包围盒会把范围放大成方形。</li>
+     * </ol>
+     *
+     * @return 落点扩散动画还需要走几帧（0 表示不播）
+     */
+    public static int shriek(BallProjectile ball, ServerLevel level, boolean armorPiercing) {
+        Vec3 from = ball.position();
+        Vec3 velocity = ball.getDeltaMovement();
+        if (velocity.lengthSqr() < 1.0E-6D) {
+            return 0;   // 没速度就不知道该往哪炸
+        }
+        Vec3 to = from.add(velocity.normalize().scale(SHRIEK_MAX_RANGE));
+        BlockHitResult hit = level.clip(new ClipContext(from, to,
+                ClipContext.Block.COLLIDER, ClipContext.Fluid.NONE, CollisionContext.empty()));
+        // 「撞墙停下」—— 一路没撞到方块（例如末地的虚空）时，
+        // 就在距离上限那一点（256 格）触发落点判定，避免球被丢到极远处。
+        Vec3 end = hit.getType() == HitResult.Type.MISS ? to : hit.getLocation();
+
+        // ===== ① 路径上的监守者音波（纯特效，无伤害）=====
+        int steps = Math.max(1, (int) (from.distanceTo(end) * 2.0D));
+        for (int i = 0; i <= steps; i++) {
+            Vec3 point = from.lerp(end, (double) i / steps);
+            level.sendParticles(ParticleTypes.SONIC_BOOM,
+                    point.x, point.y + 0.5D, point.z, 1, 0.0D, 0.0D, 0.0D, 0.0D);
+        }
+
+        // ===== ② 路径 + 落点：两层效果 =====
+        Entity owner = ball.getOwner();
+        double reach = from.distanceTo(end) / 2.0D + SHRIEK_RADIUS + 2.0D;
+        Vec3 middle = from.add(end).scale(0.5D);
+        List<LivingEntity> nearby = level.getEntitiesOfClass(LivingEntity.class,
+                new AABB(middle, middle).inflate(reach));
+        for (LivingEntity living : nearby) {
+            if (!living.isAlive() || living == owner) {
+                continue;   // 主人豁免
+            }
+            Vec3 nearest = nearestPointOnSegment(living.position(), from, end);
+            double distance = living.position().distanceTo(nearest);
+            boolean inPath = distance <= SHRIEK_RADIUS;
+            boolean inImpact = living.position().distanceTo(end) <= SHRIEK_RADIUS;
+            if (!inPath && !inImpact) {
+                continue;
+            }
+            if (inPath) {
+                living.hurtServer(level, shriekDamage(ball, level, armorPiercing), SHRIEK_PATH_DAMAGE);
+                // 「向远离路径的方向击飞」
+                Vec3 away = living.position().subtract(nearest);
+                away = away.lengthSqr() < 1.0E-6D ? new Vec3(0.0D, 1.0D, 0.0D) : away.normalize();
+                living.push(away.x * 1.1D, 0.55D, away.z * 1.1D);
+            }
+            if (inImpact) {
+                living.hurtServer(level, shriekDamage(ball, level, armorPiercing), SHRIEK_IMPACT_DAMAGE);
+            }
+            applyShriekEffects(living, ball, inImpact);
+        }
+
+        // ===== ③ 落点音效 + 球瞬移到终点并停下 =====
+        level.playSound(null, BlockPos.containing(end), SoundEvents.WARDEN_SONIC_BOOM,
+                SoundSource.HOSTILE, 4.0F, 1.0F);
+        ball.setPos(end.x, end.y, end.z);
+        ball.setDeltaMovement(Vec3.ZERO);
+        return SHRIEK_WAVE_FRAMES;
+    }
+
+    /**
+     * 【尖啸】用哪个伤害类型。
+     *
+     * <p>⚠️ 球身上带【穿甲】时<b>必须换成本模组的类型</b>：原版
+     * {@code minecraft:sonic_boom} 同时躺在 {@code bypasses_armor} 与
+     * {@code bypasses_enchantments} 两个标签里 —— 它不但无视护甲，
+     * <b>连保护附魔都一起跳过了</b>（{@code LivingEntity.java:2013} 直接 return）。
+     * 换成 {@code more_balls:armor_piercing} 之后就是「无视护甲、但吃保护附魔与抗性」。</p>
+     *
+     * <p>没带【穿甲】时保持原样，用原版的 sonicBoom。</p>
+     */
+    private static DamageSource shriekDamage(BallProjectile ball, ServerLevel level, boolean armorPiercing) {
+        if (armorPiercing) {
+            return BallDamageTypes.truePhysical(level, ball, ball.getOwner());
+        }
+        return level.damageSources().sonicBoom(ball);
+    }
+
+    /**
+     * 给一只生物打上【尖啸】的效果。
+     *
+     * <p>基础套（路径与落点都有）：黑暗 20s、失明 2 级 20s、震荡 2 级 20s、发光 40s、
+     * 缓慢 40s、虚弱 2 级 20s、漂浮 5s。</p>
+     *
+     * <p>落点额外把其中四条<b>升级</b> —— 震荡 4 级 30s、虚弱 5 级 1min、发光 2min、缓慢 3 级 1min。
+     * 先加基础再加升级，靠原版「同效果新实例覆盖旧的」自然生效。</p>
+     */
+    private static void applyShriekEffects(LivingEntity living, BallProjectile ball, boolean impact) {
+        Entity source = ball.getOwner() != null ? ball.getOwner() : ball;
+        living.addEffect(new MobEffectInstance(MobEffects.DARKNESS, 20 * 20, 0), source);
+        living.addEffect(new MobEffectInstance(MobEffects.BLINDNESS, 20 * 20, 1), source);
+        living.addEffect(new MobEffectInstance(ModEffects.SHOCK, 20 * 20, 1), source);
+        living.addEffect(new MobEffectInstance(MobEffects.GLOWING, 40 * 20, 0), source);
+        living.addEffect(new MobEffectInstance(MobEffects.SLOWNESS, 40 * 20, 0), source);
+        living.addEffect(new MobEffectInstance(MobEffects.WEAKNESS, 20 * 20, 1), source);
+        living.addEffect(new MobEffectInstance(MobEffects.LEVITATION, 5 * 20, 0), source);
+        if (!impact) {
+            return;
+        }
+        living.addEffect(new MobEffectInstance(ModEffects.SHOCK, 30 * 20, 3), source);
+        living.addEffect(new MobEffectInstance(MobEffects.WEAKNESS, 60 * 20, 4), source);
+        living.addEffect(new MobEffectInstance(MobEffects.GLOWING, 120 * 20, 0), source);
+        living.addEffect(new MobEffectInstance(MobEffects.SLOWNESS, 60 * 20, 2), source);
+    }
+
+    /**
+     * 落点那<b>三道向外迅速扩散并逐渐消失</b>的音波。
+     *
+     * <p>由球自己每刻推进一帧（{@code frame} 从 {@link #SHRIEK_WAVE_FRAMES} 递减）。
+     * 半径随帧数增大、粒子密度随半径变稀，到最后一帧自然变淡消失。</p>
+     */
+    public static void shriekWaves(BallProjectile ball, ServerLevel level, int frame) {
+        Vec3 center = ball.position().add(0.0D, 0.5D, 0.0D);
+        for (int ring = 0; ring < 3; ring++) {
+            double radius = (SHRIEK_WAVE_FRAMES - frame) * 0.9D + 1.0D + ring * 1.6D;
+            int points = Math.max(6, (int) (radius * 6.0D));
+            for (int i = 0; i < points; i++) {
+                double angle = Math.PI * 2.0D * i / points;
+                level.sendParticles(ParticleTypes.SONIC_BOOM,
+                        center.x + Math.cos(angle) * radius,
+                        center.y,
+                        center.z + Math.sin(angle) * radius,
+                        1, 0.0D, 0.0D, 0.0D, 0.0D);
+            }
+        }
+    }
+
+    /** 点到线段的最短距离点（【尖啸】的路径判定用它，斜着打也不会把范围放大成方形） */
+    private static Vec3 nearestPointOnSegment(Vec3 point, Vec3 a, Vec3 b) {
+        Vec3 ab = b.subtract(a);
+        double lengthSqr = ab.lengthSqr();
+        if (lengthSqr < 1.0E-9D) {
+            return a;
+        }
+        double t = point.subtract(a).dot(ab) / lengthSqr;
+        return a.add(ab.scale(Math.max(0.0D, Math.min(1.0D, t))));
     }
 
     // ===== 【尖刺】=====

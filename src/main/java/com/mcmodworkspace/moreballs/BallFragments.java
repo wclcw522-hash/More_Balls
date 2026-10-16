@@ -154,7 +154,9 @@ public final class BallFragments {
                     ModItems.EMERALD_BALL.get(),                 // 14 绿宝石
                     ModItems.DRIPSTONE_BALL.get(),               // 15 滴水石
                     ModItems.PRESERVE_BALL.get(),                // 16 蜜饯
-                    ModItems.TALISMAN_BALL.get());               // 17 符箓
+                    ModItems.TALISMAN_BALL.get(),                 // 17 符箓
+                    // 第十四批（作者 2026-10-16）—— 一律追加在末尾
+                    ModItems.ECHO_BALL.get());                    // 18 回响
         }
         return sourcesCache;
     }
@@ -201,7 +203,9 @@ public final class BallFragments {
             List.of("木", "圆石", "铁", "金", "空心铁", "紫水晶", "铜", "空心铜",
                     "红石", "钻石", "青金石", "末影", "潮汐",
                     // 第十三批重做（下标 13..17）—— 一律追加在末尾
-                    "史莱姆", "绿宝石", "滴水石", "蜜饯", "符箓");
+                    "史莱姆", "绿宝石", "滴水石", "蜜饯", "符箓",
+                    // 第十四批（下标 18）
+                    "回响");
 
     /**
      * 组合球<b>内部 id</b> 里用的短名，与 {@link #sources()} <b>同序、同长度</b>。
@@ -213,7 +217,9 @@ public final class BallFragments {
                     "amethyst", "copper", "hollow_copper",
                     "redstone", "diamond", "lapis", "ender_pearl", "tidal",
                     // 第十三批重做（下标 13..17）—— 与 SHORT_NAME 严格同序
-                    "slime", "emerald", "dripstone", "preserve", "talisman");
+                    "slime", "emerald", "dripstone", "preserve", "talisman",
+                    // 第十四批（下标 18）
+                    "echo");
 
     /** 这颗球在 {@link #sources()} 里的下标；不属于其中就返回 -1（雪球会走到这里） */
     public static int indexOf(Item ball) {

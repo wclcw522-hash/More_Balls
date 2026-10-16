@@ -81,55 +81,62 @@
           "model": "more_balls:item/ball_half_10"
         }
       },
-        {
-          "when": 11,
-          "model": {
-            "type": "minecraft:model",
-            "model": "more_balls:item/ball_half_11"
-          }
-        },
-        {
-          "when": 12,
-          "model": {
-            "type": "minecraft:model",
-            "model": "more_balls:item/ball_half_12"
-          }
-        },
-        {
-          "when": 13,
-          "model": {
-            "type": "minecraft:model",
-            "model": "more_balls:item/ball_half_13"
-          }
-        },
-        {
-          "when": 14,
-          "model": {
-            "type": "minecraft:model",
-            "model": "more_balls:item/ball_half_14"
-          }
-        },
-        {
-          "when": 15,
-          "model": {
-            "type": "minecraft:model",
-            "model": "more_balls:item/ball_half_15"
-          }
-        },
-        {
-          "when": 16,
-          "model": {
-            "type": "minecraft:model",
-            "model": "more_balls:item/ball_half_16"
-          }
-        },
-        {
-          "when": 17,
-          "model": {
-            "type": "minecraft:model",
-            "model": "more_balls:item/ball_half_17"
-          }
+      {
+        "when": 11,
+        "model": {
+          "type": "minecraft:model",
+          "model": "more_balls:item/ball_half_11"
         }
+      },
+      {
+        "when": 12,
+        "model": {
+          "type": "minecraft:model",
+          "model": "more_balls:item/ball_half_12"
+        }
+      },
+      {
+        "when": 13,
+        "model": {
+          "type": "minecraft:model",
+          "model": "more_balls:item/ball_half_13"
+        }
+      },
+      {
+        "when": 14,
+        "model": {
+          "type": "minecraft:model",
+          "model": "more_balls:item/ball_half_14"
+        }
+      },
+      {
+        "when": 15,
+        "model": {
+          "type": "minecraft:model",
+          "model": "more_balls:item/ball_half_15"
+        }
+      },
+      {
+        "when": 16,
+        "model": {
+          "type": "minecraft:model",
+          "model": "more_balls:item/ball_half_16"
+        }
+      },
+      {
+        "when": 17,
+        "model": {
+          "type": "minecraft:model",
+          "model": "more_balls:item/ball_half_17"
+        }
+      },
+      {
+        "when": 18,
+        "model": {
+          "type": "minecraft:model",
+          "model": "more_balls:item/ball_half_18"
+        }
+      }
     ],
     "fallback": {
       "type": "minecraft:model",

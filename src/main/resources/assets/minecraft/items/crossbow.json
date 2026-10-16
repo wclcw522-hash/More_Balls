@@ -128,7 +128,8 @@
                     "type": "minecraft:model",
                     "model": "more_balls:item/crossbow_ball_lapis_ball"
                 }
-            },            {
+            },
+            {
                 "when": "more_balls:tidal_ball",
                 "model": {
                     "type": "minecraft:model",
@@ -178,6 +179,13 @@
                     "model": {
                         "type": "more_balls:combo_charge_ball"
                     }
+                }
+            },
+            {
+                "when": "more_balls:echo_ball",
+                "model": {
+                    "type": "minecraft:model",
+                    "model": "more_balls:item/crossbow_ball_echo_ball"
                 }
             }
         ],

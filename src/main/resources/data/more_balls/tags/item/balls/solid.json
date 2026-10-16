@@ -15,6 +15,7 @@
     "minecraft:slime_ball",
     "more_balls:emerald_ball",
     "more_balls:dripstone_ball",
-    "more_balls:preserve_ball"
+    "more_balls:preserve_ball",
+    "more_balls:echo_ball"
   ]
 }

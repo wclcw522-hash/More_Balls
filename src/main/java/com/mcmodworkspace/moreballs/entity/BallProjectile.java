@@ -6,6 +6,7 @@ import net.minecraft.world.entity.EntityDimensions;
 import net.minecraft.world.phys.AABB;
 import net.minecraft.world.entity.monster.Enemy;
 import com.mcmodworkspace.moreballs.BallBehavior;
+import com.mcmodworkspace.moreballs.BallDamageTypes;
 import com.mcmodworkspace.moreballs.BallExtraTraits;
 import com.mcmodworkspace.moreballs.BallIlluminate;
 import com.mcmodworkspace.moreballs.BallMagic;
@@ -1296,6 +1297,12 @@ public class BallProjectile extends ThrowableItemProjectile {
                 BALL_CAP, all.size(), overflow);
     }
 
+    /** 【尖啸】是否已经炸过 —— 一只球只炸一次（回收后再放出不该重复触发） */
+    private boolean shriekFired;
+
+    /** 【尖啸】落点扩散动画的剩余帧数；<= 0 表示不在播 */
+    private int shriekWaveFrames;
+
     @Override
     public void tick() {
         ballTickPre();
@@ -1308,6 +1315,21 @@ public class BallProjectile extends ThrowableItemProjectile {
 
     /** tick 的前半段：上限检查、回归开关、票据 */
     private void ballTickPre() {
+        // ===== 【尖啸】（回响球专属，作者 2026-10-16）=====
+        // 投出后的**第一刻**就结算：射线找终点 → 路径与落点两轮效果 → 球瞬移过去并停下。
+        // 之后若干刻由球自己把落点那三道扩散音波逐帧画完。
+        // 详细规格见 BallExtraTraits 的【尖啸】段。
+        if (this.profile().hasFlag(BallBehavior.BallProfile.FLAG_SHRIEK)
+                && this.level() instanceof ServerLevel shriekLevel) {
+            if (!this.shriekFired) {
+                this.shriekFired = true;
+                this.shriekWaveFrames = BallExtraTraits.shriek(this, shriekLevel,
+                        this.profile().hasFlag(BallBehavior.BallProfile.FLAG_PIERCE));
+            } else if (this.shriekWaveFrames > 0) {
+                BallExtraTraits.shriekWaves(this, shriekLevel, this.shriekWaveFrames--);
+            }
+        }
+
         // 【忠诚】（「其它特殊」类，作者 2026-10-13）——
         // 潮汐球**永远带忠诚附魔**，且这个附魔不能因为球被改变状态而消失。
         //
@@ -3651,6 +3673,15 @@ public class BallProjectile extends ThrowableItemProjectile {
      */
     private DamageSource damageFromOwner() {
         Entity owner = this.getOwner();
+
+        // ===== 【穿甲】（作者 2026-10-16）=====
+        // 携带本词条的球造成的**所有**伤害都换成「无视护甲值、但仍吃保护附魔与抗性」的类型。
+        // 按作者原话「包括其他词条内未说明伤害类型的伤害」，它**优先于**下面【电击】那条
+        // 改类型的逻辑 —— 所以放在最前面。
+        // 类型定义与「为什么不能复用原版类型」见 BallDamageTypes 的类注释。
+        if (this.profile().hasFlag(BallBehavior.BallProfile.FLAG_PIERCE)) {
+            return BallDamageTypes.truePhysical(this.level(), this, owner);
+        }
 
         // 【电击】：这颗球直接造成的伤害按**闪电类型**结算。
         //

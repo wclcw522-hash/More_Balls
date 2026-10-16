@@ -350,6 +350,15 @@ public final class BallTooltip {
             out.add(Entry.of(line("tooltip.more_balls.entry.seal"), Kind.TRAIT,
                     line("tooltip.more_balls.desc.seal")));
         }
+        // 【尖啸】【穿甲】—— 回响球那两条（作者 2026-10-16）
+        if (profile.hasFlag(BallBehavior.BallProfile.FLAG_SHRIEK)) {
+            out.add(Entry.of(line("tooltip.more_balls.entry.shriek"), Kind.TRAIT,
+                    line("tooltip.more_balls.desc.shriek")));
+        }
+        if (profile.hasFlag(BallBehavior.BallProfile.FLAG_PIERCE)) {
+            out.add(Entry.of(line("tooltip.more_balls.entry.pierce"), Kind.TRAIT,
+                    line("tooltip.more_balls.desc.pierce")));
+        }
 
         // 【招蜂引蝶N】—— 蜜饯球（**数值类特性**）：击中时召唤 N 只蜜蜂
         // （血量走常量 BallExtraTraits.BEE_HEALTH，别在文案里写死）

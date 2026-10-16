@@ -1,0 +1,6 @@
+{
+  "__comment": "「真实物理伤害」（作者 2026-10-16 指定）：原版没有「物理伤害」这个聚合概念，所以本模组自建一个。它被登记为物理（data/neoforge/tags/damage_type/is_physical.json），但会被护甲值无视（data/minecraft/tags/damage_type/bypasses_armor.json）—— 也就是「无视护甲值，但仍受针对物理伤害的减伤减免或免疫」。",
+  "message_id": "truePhysicalDamage",
+  "exhaustion": 0.1,
+  "scaling": "when_caused_by_living_non_player"
+}
