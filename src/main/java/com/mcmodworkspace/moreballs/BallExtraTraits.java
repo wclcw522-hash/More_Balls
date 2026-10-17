@@ -827,16 +827,31 @@ public final class BallExtraTraits {
         //    对龙来说**任何一个部件的 hurtServer 都会转发到龙本体**，所以逐个试、
         //    第一个成功的就收工；全都不行也不再去调本体的 `hurtServer`（那必然返回 false）。
         if (living instanceof net.minecraft.world.entity.boss.enderdragon.EnderDragon dragon) {
+            // ⚠️⚠️ **打龙时必须把速度还原**（作者 2026-10-17「末影龙还是很显著地受到击飞影响」的最终答案）。
+            //
+            //    龙走的是 `EnderDragonPart.hurtServer` → `parentMob.hurt(level, this, source, damage)`，
+            //    而原版 `EnderDragon.hurt(...)` 内部会调 `knockback(...)` ——
+            //    **龙每挨一次伤害都会给自己施加一次击退**，把 `deltaMovement` 顶开。
+            //
+            //    这个位移跟【尖啸】自己的 `push` **无关**（那个早被 isBossLike 挡住了），
+            //    是「伤害本身」的副作用。既然 boss 不吃击飞，那就把受伤前的速度存下来、
+            //    打完立刻还原 —— **血照扣、位置纹丝不动**。
+            //
+            //    另：`EnderDragon.canBeAffected` 恒为 false，龙本来就免疫一切药水效果，
+            //    落点那套 debuff 对龙自然无效，不需要额外处理（作者 2026-10-17 指出）。
+            final Vec3 velocityBefore = dragon.getDeltaMovement();
             for (net.neoforged.neoforge.entity.PartEntity<?> part : dragon.getParts()) {
                 if (part instanceof net.minecraft.world.entity.boss.enderdragon.EnderDragonPart dragonPart) {
                     dragonPart.invulnerableTime = 0;
                     boolean hurt = dragonPart.hurtServer(level, source, amount);
                     dragonPart.invulnerableTime = 0;
                     if (hurt) {
+                        dragon.setDeltaMovement(velocityBefore);   // 抹掉受伤自带的击退
                         return;
                     }
                 }
             }
+            dragon.setDeltaMovement(velocityBefore);
             return;
         }
         living.invulnerableTime = 0;
