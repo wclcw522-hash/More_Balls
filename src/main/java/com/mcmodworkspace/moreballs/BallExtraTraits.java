@@ -568,9 +568,16 @@ public final class BallExtraTraits {
             if (!living.isAlive() || living == owner) {
                 continue;   // 主人豁免
             }
+            // ⚠️ **判定要把实体体积算进去**（作者 2026-10-17 报的「尖啸对末影龙不生效」的另一半原因）。
+            //
+            //    原来只拿 `living.position()`（= 脚底那个点）算距离：末影龙包围盒有 16 格宽、
+            //    位置点在身体根部，于是「音波从它身体中间穿过」也判不到。
+            //    这里加一个半体积的余量 —— 小龙/普通生物约 0.3~0.9 格，几乎无影响；
+            //    大体型生物（龙、凋灵、巨人）则按真实体积算，符合「音波扫过它就该吃伤害」的直觉。
+            final double bodyPad = Math.max(living.getBbWidth(), living.getBbHeight()) * 0.5D;
             Vec3 nearest = nearestPointOnSegment(living.position(), from, end);
-            boolean inPath = living.position().distanceTo(nearest) <= SHRIEK_PATH_RADIUS;
-            boolean inImpact = living.position().distanceTo(end) <= SHRIEK_IMPACT_RADIUS;
+            boolean inPath = living.position().distanceTo(nearest) <= SHRIEK_PATH_RADIUS + bodyPad;
+            boolean inImpact = living.position().distanceTo(end) <= SHRIEK_IMPACT_RADIUS + bodyPad;
 
             if (inPath) {
                 // 路径上：只有伤害 + 击飞，**不上任何 debuff**（作者 2026-10-16）
@@ -650,6 +657,30 @@ public final class BallExtraTraits {
      * @param amount 伤害值
      */
     private static void shriekHurt(ServerLevel level, LivingEntity living, DamageSource source, float amount) {
+        // ⚠️⚠️ **末影龙必须打「头部部件」**（作者 2026-10-17 报的「尖啸对末影龙不生效」）。
+        //
+        //    原版 `EnderDragon.hurtServer` 被重写过：**打身体直接返回 false**，
+        //    只有头部那一个 `EnderDragonPart` 能受伤 —— 而 `EnderDragonPart.hurtServer`
+        //    会转发 `parentMob.hurt(level, this, source, damage)`，扣的是龙本体的血。
+        //    所以这里对龙特判，把伤害交给 `getHead()`。
+        //
+        //    26.2 里 `EnderDragon` 没有 `getHead()`，部件统一从 `getParts()` 拿
+        //    （`EnderDragonPart` 在 `net.minecraft.world.entity.boss.enderdragon` 下）。
+        //    对龙来说**任何一个部件的 hurtServer 都会转发到龙本体**，所以逐个试、
+        //    第一个成功的就收工；全都不行也不再去调本体的 `hurtServer`（那必然返回 false）。
+        if (living instanceof net.minecraft.world.entity.boss.enderdragon.EnderDragon dragon) {
+            for (net.neoforged.neoforge.entity.PartEntity<?> part : dragon.getParts()) {
+                if (part instanceof net.minecraft.world.entity.boss.enderdragon.EnderDragonPart dragonPart) {
+                    dragonPart.invulnerableTime = 0;
+                    boolean hurt = dragonPart.hurtServer(level, source, amount);
+                    dragonPart.invulnerableTime = 0;
+                    if (hurt) {
+                        return;
+                    }
+                }
+            }
+            return;
+        }
         living.invulnerableTime = 0;
         living.hurtServer(level, source, amount);
         living.invulnerableTime = 0;
