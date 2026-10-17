@@ -531,7 +531,7 @@ public final class BallBehavior {
                 .withToughness(10)
                 .withBounce(10)
                 .withChargeLevels(6)
-                .withRarity(10));
+                .withRarity(20));   // 生成权重（作者 2026-10-17 指定：新球统一 20，原来是 10）
 
         // 绿宝石球：实心球，伤害 2、重量 6、坚固 20、弹射 3。
         // 【敛财】（「其它特殊」类）：击中时给被击中者挂【腰缠万贯】（00:10）—— 见 BallExtraTraits。
@@ -541,6 +541,7 @@ public final class BallBehavior {
                 .withWeight(6)
                 .withToughness(20)
                 .withBounce(3)
+                .withRarity(20)   // 生成权重（作者 2026-10-17 指定：新球统一 20，原来是默认 100）
                 .withFlag(BallProfile.FLAG_MONEY)
                 .withSound(BallSound.of(
                         SoundEvents.EXPERIENCE_ORB_PICKUP,
@@ -556,6 +557,7 @@ public final class BallBehavior {
                 .withToughness(2)
                 .withBounce(0)
                 .withChargeLevels(4)
+                .withRarity(20)   // 生成权重（作者 2026-10-17 指定：新球统一 20）
                 .withFlag(BallProfile.FLAG_SPIKE)
                 .withSoundType(SoundType.STONE));
 
@@ -569,6 +571,7 @@ public final class BallBehavior {
                 .withWeight(4)
                 .withToughness(NOT_TOUGH)
                 .withChargeLevels(4)
+                .withRarity(20)   // 生成权重（作者 2026-10-17 指定：新球统一 20）
                 .withBeeCount(4)
                 .withNurture(1.0D));
 
@@ -580,6 +583,7 @@ public final class BallBehavior {
                 .withWeight(2)
                 .withToughness(NOT_TOUGH)
                 .withChargeLevels(2)
+                .withRarity(20)   // 生成权重（作者 2026-10-17 指定：新球统一 20）
                 .withFlag(BallProfile.FLAG_SEAL)
                 .withSound(BallSound.of(
                         SoundEvents.BOOK_PAGE_TURN,
@@ -599,6 +603,9 @@ public final class BallBehavior {
                 .withToughness(400)
                 .withBounce(0)
                 .withChargeLevels(10)
+                // 生成权重 0（作者 2026-10-17 指定）：回响球**永远不会**由随机抽取生成
+                // —— randomBall() 遇到 rarity 0 会直接跳过（见那个方法的注释）。
+                .withRarity(0)
                 .withFlag(BallProfile.FLAG_SHRIEK)
                 .withFlag(BallProfile.FLAG_SEAL)
                 .withFlag(BallProfile.FLAG_PIERCE)
