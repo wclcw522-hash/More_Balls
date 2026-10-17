@@ -316,8 +316,14 @@ public final class BallExtraTraits {
         Vec3 from = ball.position();
 
         Entity owner = ball.getOwner();
-        // 反弹次数上限 = 弹射档位（回响球本体是 0 ⇒ 不反弹，行为与原先完全一致）
-        int maxBounces = Math.max(0, ball.getBounce());
+        // 段数上限 = max(弹射档位, 带【智慧】时的最少段数)。
+        //
+        // ⚠️ 原来只取弹射档位 —— 而回响球本体是**弹射 0**，于是循环只跑一段，
+        //    【智慧】就算被算进来也只能拐一次，做不到主人要的
+        //    「直线飞出一段 → 索敌转向 → 延伸一段后拐回 → 再重复一次」。
+        //    带【智慧】时至少给 SHRIEK_WISDOM_MIN_SEGMENTS 段，才有拐回来的余地。
+        int wisdomSegments = ball.hasWisdom() ? SHRIEK_WISDOM_MIN_SEGMENTS : 0;
+        int maxBounces = Math.max(Math.max(0, ball.getBounce()), wisdomSegments);
         Vec3 cursor = from;
         Vec3 dir = velocity.normalize();
         Vec3 lastPoint = from;
@@ -333,6 +339,20 @@ public final class BallExtraTraits {
             // ② 这一段：路径特效 + 路径判定 + 落点那一整套（音效 / 音爆 / 范围伤害 / 效果）
             shriekSegment(ball, level, cursor, end, armorPiercing, owner, miss);
             lastPoint = end;
+
+            // ②' **【智慧】索敌转向**（作者 2026-10-17 指出：轨迹计算必须把能改轨迹的词条算进去）
+            //
+            //     【尖啸】的轨迹是一次算完的几何射线，而【智慧】原本是「每 tick 改方向」——
+            //     一次算完的射线天然吃不到它。所以在这一段算完之后问一次「现在该朝哪走」，
+            //     据此改下一段的方向。效果就是主人要的
+            //     「直线飞出一段 → 空中索敌转向 → 延伸一段后拐回 → 再重复」。
+            //
+            //     放在 miss 判断**之前**：即使这一路没撞到东西，只要旁边有目标也该拐过去。
+            dir = ball.shriekSteer(end, dir);
+            if (dir.lengthSqr() < 1.0E-9D) {
+                break;
+            }
+            dir = dir.normalize();
 
             if (miss) {
                 break;   // 一路没撞到东西（末地虚空）⇒ 到此为止
@@ -365,6 +385,15 @@ public final class BallExtraTraits {
      * 步数不能再小（一步会跨过薄墙），速度也不能再大（会越过射程）。</p>
      */
     private static final int SHRIEK_SUBSTEPS = 8;
+
+    /**
+     * 带【智慧】的尖啸球<b>至少走几段射线</b>。
+     *
+     * <p>每段之后都会问一次 {@code shriekSteer} 要不要改方向（见 {@code shriek()}）。
+     * 取 3 = 「直线飞出一段 → 拐一次 → 再拐一次」，对应作者要的
+     * 「延伸一段后拐回 → 再重复一次」。</p>
+     */
+    private static final int SHRIEK_WISDOM_MIN_SEGMENTS = 3;
 
     /**
      * 【尖啸】飞行中的<b>每一步</b>：把「这一步走过的位移」当成一段路径做判定。
