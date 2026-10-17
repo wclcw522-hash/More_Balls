@@ -347,11 +347,23 @@ public final class BallExtraTraits {
             //     几何射线是一次算完的，所以任何「会改轨迹的词条」原本都吃不到。
             //     这里在**每一段算完之后**把整条修正器链跑一遍（见 PATH_MODIFIERS），
             //     谁来改轨迹谁实现 ShriekPathModifier 并登记，不用再动这个循环。
-            //     现有：【智慧】索敌转向、【磁性】偏航（占位）。
+            //     现有：【智慧】索敌转向。
             dir = steerPath(ball, end, dir);
 
             if (miss) {
-                break;   // 一路没撞到东西（末地虚空）⇒ 到此为止
+                // ⚠️⚠️ **不能 break**（作者 2026-10-17 报的「直接打出去还是直线」就是它）。
+                //
+                //     `ClipContext` 只判**方块**、不判实体。所以朝怪/空地打出去时射线必然 `MISS`，
+                //     原来这里直接 break ⇒ **只算了一段** ⇒ 上面 steerPath 算出来的拐向被丢弃
+                //     ⇒ 只有撞墙（不 miss）才进得了第二段 ⇒ 表现就是「要反弹一下才拐」。
+                //
+                //     正确做法：没撞到东西时把**这一段终点当作新的起点继续走**（方向用修正后的），
+                //     直到用完段数或用完距离。这样「直线飞出一段 → 拐向 → 再飞一段」才成立。
+                if (bounce >= maxBounces || cursor.distanceTo(from) >= SHRIEK_MAX_RANGE) {
+                    break;   // 段数或总射程用完了
+                }
+                cursor = end;
+                continue;
             }
 
             // ③ 撞墙 ⇒ 按面法线镜面反射后继续飞（方向保持单位向量）
