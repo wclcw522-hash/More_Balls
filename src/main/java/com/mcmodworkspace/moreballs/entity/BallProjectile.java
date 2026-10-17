@@ -1463,6 +1463,17 @@ public class BallProjectile extends ThrowableItemProjectile {
         super.tick();
         ballTickPost();
 
+        // ⚠️ **主 tick 也要补一次「这一步的位移」判定**（作者 2026-10-17 报「路径上的音波消失了」）。
+        //
+        //    1.1.1.33 之后 `shriekFlightStep()` 原来**只挂在下面的多步循环里**，
+        //    而那个循环只在起飞那一 tick 跑一次（`shriekExtraSteps` 消费即清零）。
+        //    于是尖啸球飞行途中的**每一个普通 tick 都没有任何路径判定** ——
+        //    音波只在起飞那一刻出现一次，之后就消失了。
+        //    这里补上：只要这一趟尖啸还在生效，每 tick 都把位移交给路径判定。
+        if (this.shriekFired && !this.isRemoved()) {
+            shriekFlightStep();
+        }
+
         // ===== 【尖啸】的「一 tick 多步」（作者 2026-10-16）=====
         // 同一 tick 内继续把「物理 + 后段逻辑」跑几遍：
         // 球按极速飞，途中该撞墙撞墙、该由【智慧】改向就改向、该由【感应】积热就积热。
@@ -2732,6 +2743,26 @@ public class BallProjectile extends ThrowableItemProjectile {
         // 穿墙的耐久代价由 chargeForPhasing 独立记账，不受这里影响。
         if (this.homingBack) {
             return;
+        }
+
+        // ===== 【尖啸】落点判定（作者 2026-10-17 报「撞到墙没有球体范围和特效」）=====
+        //
+        // ⚠️ 这是 1.1.1.33 改造时漏掉的一环。那次把【尖啸】从「几何迭代射线」换成了
+        //    「极速飞行 + 每步判定」，于是 `shriekLand` 变成了**没有任何调用点的死方法** ——
+        //    撞墙时既不补落点音爆、也不做半径 10 的范围判定，玩家看到的就是
+        //    「有时候撞到墙什么都没有」。这里把它接回来。
+        //
+        //    先把「当前位置 → 命中点」这一小段补一次路径判定（保证音波画到墙上），
+        //    再把命中点当作尖啸的落点：`bounce > 0` 会反弹（弹射档位用掉一次），
+        //    `bounce == 0`（回响球本体）就停下。
+        if (this.shriekFired && this.level() instanceof ServerLevel shriekLevel) {
+            Vec3 impact = hitResult.getLocation();
+            BallExtraTraits.shriekFlightTick(this, shriekLevel,
+                    this.traitFired(TRAIT_PIERCE), this.position(), impact);
+            Direction face = (hitResult instanceof BlockHitResult blockHit) ? blockHit.getDirection() : null;
+            this.shriekLand(impact, face);
+            // ⚠️ **不能 return** —— 后面还有碎裂 / 扣耐久 / 脉冲等常规命中逻辑，
+            //    早退会让尖啸球撞墙不扣耐久。这里只补完落点特效与判定，然后照常往下走。
         }
 
         // ===== 【脉冲】红石球：命中即触发（实体与方块都算）=====
