@@ -83,6 +83,64 @@ public class BallPouchScreen extends AbstractContainerScreen<BallPouchMenu> {
         super(menu, inventory, title, 176, menu.guiHeight());
     }
 
+    /**
+     * 「放得下就 1.0，放不下就按比例缩」—— 让界面自动适配原版的 GUI 缩放。
+     *
+     * <h2>为什么需要它（作者 2026-10-17 要求「自动适配原版的调节尺寸」）</h2>
+     * <p>原版会把 {@code guiScale} 自动调到一个能让<b>逻辑分辨率至少 320×240</b> 的值，
+     * 但<b>不会更低</b>。而本界面的高度是随袋子等级变的 —— 高等级袋子（两段各 6 行）
+     * 能到 260 以上，<b>超过 240 就必然被挤出屏幕</b>：
+     * 26.2 的 {@code RenderPass.enableScissor} 对越界<b>不做 clamp</b>，
+     * 会直接抛 {@code IllegalArgumentException} 打崩整帧 —— 也就是作者报的联机崩溃。</p>
+     *
+     * <p>所以这里按「窗口逻辑尺寸」算一个不超过 1 的缩放倍率，
+     * 窗口够大时<b>恒为 1.0（什么都不变）</b>，只有真的放不下才等比缩小。</p>
+     *
+     * @return 1.0 表示不需要缩放
+     */
+    private float fitScale() {
+        final var window = net.minecraft.client.Minecraft.getInstance().getWindow();
+        final int screenWidth = window.getGuiScaledWidth();
+        final int screenHeight = window.getGuiScaledHeight();
+        // 留 2 像素余量，避免正好贴边时仍被判越界
+        final float byWidth = (screenWidth - 2.0F) / this.imageWidth;
+        final float byHeight = (screenHeight - 2.0F) / this.imageHeight;
+        return Math.min(1.0F, Math.min(byWidth, byHeight));
+    }
+
+    @Override
+    public void extractRenderState(GuiGraphicsExtractor graphics, int mouseX, int mouseY, float partialTick) {
+        final float scale = this.fitScale();
+        if (scale >= 1.0F) {
+            // 放得下 ⇒ 与原来完全相同，一个像素都不动
+            super.extractRenderState(graphics, mouseX, mouseY, partialTick);
+            return;
+        }
+
+        // 放不下 ⇒ 等比缩小并居中。
+        // ⚠️ 这里包住的是**整个** super.extractRenderState —— 背景、槽位、物品图标、
+        //    数量文字、标题文字全都一起缩，所以**相对布局一点都不会乱**（只是整体变小）。
+        //    `AbstractContainerScreen` 已经把 leftPos/topPos 按未缩放尺寸算好，
+        //    所以平移量要把「居中后的位置」与「它自认为的位置」之差补回来。
+        final var window = net.minecraft.client.Minecraft.getInstance().getWindow();
+        final float screenWidth = window.getGuiScaledWidth();
+        final float screenHeight = window.getGuiScaledHeight();
+        final float offsetX = (screenWidth - this.imageWidth * scale) / 2.0F - this.leftPos * scale;
+        final float offsetY = (screenHeight - this.imageHeight * scale) / 2.0F - this.topPos * scale;
+
+        // ⚠️ 26.2 的 `pose()` 是 JOML 的 `Matrix3x2fStack`（2D 变换栈），
+        //    方法是 pushMatrix / popMatrix / translate / scale，不是老的 PoseStack。
+        final var pose = graphics.pose();
+        pose.pushMatrix();
+        pose.translate(offsetX, offsetY);
+        pose.scale(scale, scale);
+        // 鼠标坐标也要换算回「未缩放的界面坐标系」，否则悬停高亮与 tooltip 会错位
+        final int localMouseX = Math.round((mouseX - offsetX) / scale);
+        final int localMouseY = Math.round((mouseY - offsetY) / scale);
+        super.extractRenderState(graphics, localMouseX, localMouseY, partialTick);
+        pose.popMatrix();
+    }
+
     @Override
     public void extractBackground(GuiGraphicsExtractor graphics, int mouseX, int mouseY, float partialTick) {
         super.extractBackground(graphics, mouseX, mouseY, partialTick);
