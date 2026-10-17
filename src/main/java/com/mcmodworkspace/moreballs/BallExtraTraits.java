@@ -328,6 +328,17 @@ public final class BallExtraTraits {
         int maxBounces = Math.max(Math.max(0, ball.getBounce()), wisdomSegments);
         Vec3 cursor = from;
         Vec3 dir = velocity.normalize();
+
+        // ★ **出手即判定一次轨迹修正**（作者 2026-10-17 要求）
+        //
+        //   原来只在「每段算完之后」才跑修正链 —— 于是第一段永远是原始方向，
+        //   表现就是「出手那一下是直线，要等飞完一段（或撞墙）之后才开始拐」。
+        //   这里在**出手那一刻**先用当前点（球的位置）跑一遍，于是第一段就已经朝目标，
+        //   轨迹从一开始就能弯，而不是白白先飞一段直线。
+        //
+        //   注意用的是 `from`（球此刻的位置）而不是段的终点：这一步问的就是
+        //   「站在出手点上，有没有词条想改我的初始航向」。
+        dir = steerPath(ball, from, dir);
         Vec3 lastPoint = from;
 
         for (int bounce = 0; bounce <= maxBounces; bounce++) {
