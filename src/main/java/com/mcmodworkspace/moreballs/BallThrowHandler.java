@@ -126,6 +126,12 @@ public final class BallThrowHandler {
             // 壳只剩一颗 → 那一颗顶上手上这一格（不留空球堆）
             if (r.hasLeftover()) {
                 player.setItemInHand(hand, r.leftover());
+            } else if (BallClusterItem.contents(shell).isEmpty()) {
+                // ⚠️ **兜底：壳被掏空了就把这一格清空**（作者 2026-10-17 报的「透明物品」）。
+                //    `takeOne` 现在自己会 `setCount(0)`，但这里再判一次：
+                //    只要内容真的空了，就必须显式写空 —— 否则万一哪条路径漏了，
+                //    手上就会留下一个「不是球堆、也画不出来」的透明占位。
+                player.setItemInHand(hand, ItemStack.EMPTY);
             }
             return;
         }

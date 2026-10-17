@@ -210,6 +210,22 @@ public class BallClusterItem extends Item {
         //    （原先我写的是 `shell.copyFrom(last)`，在 26.2 里对 copyFrom 的引用是**歧义的**，
         //      而且就算消掉歧义也换不掉 item —— 这条编译错误就是这么来的。）
         setContents(shell, rest);   // 空了会自己摘掉组件
+        // ⚠️⚠️ **掏空时必须把 count 也归零**（作者 2026-10-17 报的「球堆扔出一颗后留下透明物品」）。
+        //
+        //    `setContents(shell, EMPTY)` 只摘掉球堆组件，**`count` 仍然是 1** ——
+        //    于是那一格留下一个「已经不是球堆、又没被清掉」的物品：渲染器读到内容为空就不画，
+        //    玩家看到的就是一个**透明的占位**。
+        //
+        //    原来这条清格责任被推给了调用方（见上面 javadoc 的「调用方应当自行决定」），
+        //    而 `BallThrowHandler` 那段只处理了 `hasLeftover()` 的分支、**没有 else**，
+        //    于是「球堆里只剩 1 颗时扔出去」这条路恰好踩中：掏空 → 0 颗 → `declusterInto`
+        //    也返回空 → 谁也不清格 → 手上留空壳。
+        //
+        //    现在直接在掏空处归零：调用方**不需要**再操心「壳空了要清格」这件事
+        //    （想保留空壳再收球的场景，调用方自己 setCount(1) 即可）。
+        if (rest.isEmpty()) {
+            shell.setCount(0);
+        }
         return taken;
     }
 
