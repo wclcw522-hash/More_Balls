@@ -52,6 +52,12 @@ public class BallPouchScreen extends AbstractContainerScreen<BallPouchMenu> {
     private static final Identifier CONTAINER_TEXTURE =
             Identifier.withDefaultNamespace("textures/gui/container/generic_54.png");
 
+    /** 原版容器底图的<b>原始宽度</b>（generic_54 就是 176：左右 8 边框 + 中间 160） */
+    private static final int BASE_WIDTH = 176;
+
+    /** 原版容器左右边框的宽度（纹理 u=0..8 与 u=168..176） */
+    private static final int EDGE_WIDTH = 8;
+
     /** 纹理总尺寸（blit 用它归一化 u / v） */
     private static final int TEXTURE_SIZE = 256;
 
@@ -192,8 +198,54 @@ public class BallPouchScreen extends AbstractContainerScreen<BallPouchMenu> {
         if (!isRowVisible(y, TITLE_HEIGHT)) {
             return;
         }
+        blitWide(graphics, x, y, 0.0F, TITLE_HEIGHT);
+    }
+
+    /**
+     * <b>把一条 176 宽的底图「撑宽」成任意宽度</b> —— 左右边框照抄、中间按原图宽度平铺。
+     *
+     * <h2>为什么不能直接 blit 拉宽（作者 2026-10-17 指出的问题）</h2>
+     * <p>原版 {@code generic_54.png} 只有 <b>176</b> 宽（左右各 8 像素边框 + 中间 160 的槽位区）。
+     * 袋子改成每行 18 格后界面宽 340，如果直接把 blit 的宽度写成 340，
+     * 整张图会被<b>横向拉伸</b> —— 看起来就是「两个 9 格的框拼在一起」，边框也会变粗/变形。</p>
+     *
+     * <p>正确画法是把这条带子当成「可伸缩的边框」，按原版 UI 的规矩拆成三段：</p>
+     * <pre>
+     * [ 左 8px 边框 ][ 中间 160px 平铺 ×N ][ 右 8px 边框 ]
+     * </pre>
+     * <p>左右两段照抄纹理的 {@code u=0..8} 与 {@code u=168..176}，
+     * 中间每隔 160 像素画一段（每段都用原尺寸，所以<b>不会被拉伸</b>）。
+     * 最后一段不足 160 时按剩余宽度裁剪（`blit` 的宽度同时决定 UV 跨度，所以那一段仍会轻微压缩，
+     * 但它在边框内侧、且底色是纯色，看不出来）。</p>
+     *
+     * @param v      纹理纵向起点
+     * @param height 这一段的高度
+     */
+    private void blitWide(GuiGraphicsExtractor graphics, int x, int y, float v, int height) {
+        final int total = this.imageWidth;
+        final int edge = EDGE_WIDTH;
+        final int middle = BASE_WIDTH - edge * 2;   // 160
+        if (total <= edge * 2) {
+            // 极窄（理论上不会发生）⇒ 退回原来的整张 blit
+            graphics.blit(RenderPipelines.GUI_TEXTURED, CONTAINER_TEXTURE,
+                    x, y, 0.0F, v, total, height, TEXTURE_SIZE, TEXTURE_SIZE);
+            return;
+        }
+        // 左边框
         graphics.blit(RenderPipelines.GUI_TEXTURED, CONTAINER_TEXTURE,
-                x, y, 0.0F, 0.0F, this.imageWidth, TITLE_HEIGHT, TEXTURE_SIZE, TEXTURE_SIZE);
+                x, y, 0.0F, v, edge, height, TEXTURE_SIZE, TEXTURE_SIZE);
+        // 右边框
+        graphics.blit(RenderPipelines.GUI_TEXTURED, CONTAINER_TEXTURE,
+                x + total - edge, y, (float) (BASE_WIDTH - edge), v, edge, height, TEXTURE_SIZE, TEXTURE_SIZE);
+        // 中间：按 160 一段平铺
+        int cursor = edge;
+        final int middleEnd = total - edge;
+        while (cursor < middleEnd) {
+            final int seg = Math.min(middle, middleEnd - cursor);
+            graphics.blit(RenderPipelines.GUI_TEXTURED, CONTAINER_TEXTURE,
+                    x + cursor, y, (float) edge, v, seg, height, TEXTURE_SIZE, TEXTURE_SIZE);
+            cursor += seg;
+        }
     }
 
     /**
@@ -205,9 +257,7 @@ public class BallPouchScreen extends AbstractContainerScreen<BallPouchMenu> {
         if (height <= 0 || !isRowVisible(y, height)) {
             return;
         }
-        graphics.blit(RenderPipelines.GUI_TEXTURED, CONTAINER_TEXTURE,
-                x, y, 0.0F, (float) SLOTS_V, this.imageWidth, height,
-                TEXTURE_SIZE, TEXTURE_SIZE);
+        blitWide(graphics, x, y, (float) SLOTS_V, height);
     }
 
     /** 贴玩家背包区（含快捷栏）。守卫理由同上。 */
@@ -215,9 +265,7 @@ public class BallPouchScreen extends AbstractContainerScreen<BallPouchMenu> {
         if (!isRowVisible(y, PLAYER_H)) {
             return;
         }
-        graphics.blit(RenderPipelines.GUI_TEXTURED, CONTAINER_TEXTURE,
-                x, y, 0.0F, (float) PLAYER_V, this.imageWidth, PLAYER_H,
-                TEXTURE_SIZE, TEXTURE_SIZE);
+        blitWide(graphics, x, y, (float) PLAYER_V, PLAYER_H);
     }
 
     /**
