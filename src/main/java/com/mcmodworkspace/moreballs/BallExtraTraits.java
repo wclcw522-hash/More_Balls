@@ -298,23 +298,62 @@ public final class BallExtraTraits {
             return 0;   // 没速度就不知道该往哪飞
         }
 
-        // ===== 【尖啸】= 让球「按极速真的飞一趟」 =====
+        // ===== 【尖啸】= 几何射线算完整条轨迹（作者 2026-10-17 定的方案）=====
         //
-        // ⚠️⚠️ 作者 2026-10-16 追加要求：**所有受速度 / 方向影响的词条都要一并纳入**
-        //     （【智慧】索敌转向、【感应】积热、【磁吸】牵引、【磁性】偏航、【潮涌】入水、
-        //      【照明】【透镜】下方积热……）。逐个去接是接不全的。
+        // ⚠️⚠️ **这一版把「让球真的按极速飞」整个回退了**，原因很具体：
+        //    那套做法让球在一 tick 内飞完 256 格，于是**路径音波只在同一帧出现**
+        //    （玩家看不到那一道光），而落点判定又跟着每 tick 乱跑。
         //
-        //     所以这里**不再做几何瞬移**，改成两件事：
-        //       ① 把速度拉到极大 —— 视觉上依旧是「瞬间抵达」，同时让「按速度缩放」的词条
-        //          （最典型是【感应】的 heatEfficiency = 速度 / 出手速度）直接吃到满值；
-        //       ② 请球在**同一 tick 内多跑若干步**（{@link BallProjectile#setShriekFlight}）——
-        //          球于是真的按物理飞、真的撞墙、真的被【智慧】改向。
+        //    作者给的方案是**两边分开算**：
+        //      · **轨迹**走回这里的几何射线 —— 一 tick 内迭代算出整条路径
+        //        （含反弹），每一段都当场画音波、结算路径伤害，末端结算落点音爆。
+        //        这样「一道音波」是确定的、看得见的。
+        //      · **词条的数值相互作用**不靠真速度，改由 `BallProjectile.shriekSpeedBoost()`
+        //        给一个「等效 1 刻 256 格」的速度倍率，凡是按速度缩放的词条
+        //        （最典型【感应】的积热效率）都按那个算。
         //
-        //     路径伤害 / 击飞在 shriekFlightTick 里按每步的实际位移判定；
-        //     每个碰撞点的音效 + 音爆在 onHit 的方块分支里补。
+        //    两边互不牵制：球的实际弹道一点没变，词条该吃满的还是吃满。
+        Vec3 from = ball.position();
+
+        Entity owner = ball.getOwner();
+        // 反弹次数上限 = 弹射档位（回响球本体是 0 ⇒ 不反弹，行为与原先完全一致）
+        int maxBounces = Math.max(0, ball.getBounce());
+        Vec3 cursor = from;
         Vec3 dir = velocity.normalize();
-        ball.setShriekFlight(SHRIEK_SUBSTEPS);
-        ball.setDeltaMovement(dir.scale(SHRIEK_SPEED_FOR_TRAITS));
+        Vec3 lastPoint = from;
+
+        for (int bounce = 0; bounce <= maxBounces; bounce++) {
+            // ① 从当前点朝当前方向射到距离上限
+            Vec3 to = cursor.add(dir.scale(SHRIEK_MAX_RANGE));
+            BlockHitResult hit = level.clip(new ClipContext(cursor, to,
+                    ClipContext.Block.COLLIDER, ClipContext.Fluid.NONE, CollisionContext.empty()));
+            boolean miss = hit.getType() == HitResult.Type.MISS;
+            Vec3 end = miss ? to : hit.getLocation();
+
+            // ② 这一段：路径特效 + 路径判定 + 落点那一整套（音效 / 音爆 / 范围伤害 / 效果）
+            shriekSegment(ball, level, cursor, end, armorPiercing, owner, miss);
+            lastPoint = end;
+
+            if (miss) {
+                break;   // 一路没撞到东西（末地虚空）⇒ 到此为止
+            }
+
+            // ③ 撞墙 ⇒ 按面法线镜面反射后继续飞（方向保持单位向量）
+            double nx = hit.getDirection().getStepX();
+            double ny = hit.getDirection().getStepY();
+            double nz = hit.getDirection().getStepZ();
+            double dot = dir.x * nx + dir.y * ny + dir.z * nz;
+            Vec3 reflected = new Vec3(dir.x - 2.0D * dot * nx,
+                    dir.y - 2.0D * dot * ny, dir.z - 2.0D * dot * nz);
+            if (reflected.lengthSqr() < 1.0E-9D) {
+                break;   // 正好垂直撞进去，反射不出方向
+            }
+            dir = reflected.normalize();
+            cursor = end;
+        }
+
+        // ④ 整条轨迹已算完 ⇒ 球停在最后落点
+        ball.shriekLand(lastPoint, null);
         return SHRIEK_WAVE_FRAMES;
     }
 
@@ -349,6 +388,17 @@ public final class BallExtraTraits {
     }
 
     /**
+     * 把一个**排好队**的路径点生成成音波粒子（由球每 tick 分批调用，见 {@code emitShriekTrail}）。
+     *
+     * <p>这就是那条「一道音波」的基本单位 —— 与 {@link #shriekImpact} 的落点球爆是两回事：
+     * 这个沿轨迹连续生成、铺出光束；那个只在撞到东西时炸一圈。</p>
+     */
+    public static void shriekTrailPoint(ServerLevel level, Vec3 point) {
+        level.sendParticles(ParticleTypes.SONIC_BOOM,
+                point.x, point.y + 0.5D, point.z, 1, 0.0D, 0.0D, 0.0D, 0.0D);
+    }
+
+    /**
      * 【尖啸】的<b>落点</b>：音效 + 音爆范围，<b>只在真正撞上东西时调用一次</b>。
      *
      * <p>与 {@link #shriekFlightTick} 分工明确：那个每 tick 都在跑、只负责沿路径画音波；
@@ -370,17 +420,14 @@ public final class BallExtraTraits {
                                       boolean armorPiercing, Entity owner, boolean miss) {
         // ===== ① 这一段路径上的监守者音波（纯特效）=====
         //
-        // ⚠️ **轨迹余光**（作者 2026-10-17 指定）：`SONIC_BOOM` 自身的存活时间很短，
-        //    而【尖啸】是**一 tick 内飞完 256 格**（速度 32 × 8 子步）—— 一整条光束
-        //    在同一瞬间铺好又立刻散掉，人眼基本看不到，表现就是「打出去路径没特效」。
-        //    所以沿同一条线**再撒一层静止的 `END_ROD` 光点**（速度 0 ⇒ 原地不动、
-        //    存活时间远长于音波），那道光才留得住、看得见。
+        // 几何射线版：整条路径在**这一 tick** 里就算完并全部生成。
+        // 之所以现在能看见了 —— 因为球本身不再「一 tick 飞 256 格」，
+        // `shriek()` 是当场把整条轨迹算完、球直接停到落点，
+        // 所以这些粒子是沿着一条**确定的、静止的**路径铺开的，不会被高速实体甩在后面。
         int steps = Math.max(1, (int) (from.distanceTo(end) * 2.0D));
         for (int i = 0; i <= steps; i++) {
             Vec3 point = from.lerp(end, (double) i / steps);
             level.sendParticles(ParticleTypes.SONIC_BOOM,
-                    point.x, point.y + 0.5D, point.z, 1, 0.0D, 0.0D, 0.0D, 0.0D);
-            level.sendParticles(ParticleTypes.END_ROD,
                     point.x, point.y + 0.5D, point.z, 1, 0.0D, 0.0D, 0.0D, 0.0D);
         }
 
@@ -411,9 +458,15 @@ public final class BallExtraTraits {
             }
         }
 
-        // ===== ③ 落点音效 + 音爆 =====
-        // ⚠️ 这一段**只在真正撞到东西时**由 {@link #shriekImpact} 调一次 —— 见 shriekFlightTick 的说明。
-        //    留在这里会让「每 tick 调一次」的路径判定顺手在球的当前位置丢球爆。
+        // ===== ③ 落点音效 + 音爆范围 =====
+        //
+        // ⚠️ 这一段**恢复成几何射线版就该在这里做**：轨迹走回几何射线之后，
+        //    `shriekSegment` 只在「一段算完」时被调一次（不是每 tick），
+        //    所以落点音爆在每个真正的碰撞点各出一次，正是作者要的「每个碰撞点都像正常发射一样」。
+        //    （中间那几版因为把整条路径挂到每 tick，才不得不把它拆出去。）
+        level.playSound(null, BlockPos.containing(end), SoundEvents.WARDEN_SONIC_BOOM,
+                SoundSource.HOSTILE, 4.0F, 1.0F);
+        shriekBurst(level, end);
     }
 
     /**

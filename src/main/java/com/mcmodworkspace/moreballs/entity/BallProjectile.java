@@ -1441,6 +1441,73 @@ public class BallProjectile extends ThrowableItemProjectile {
     private boolean shriekDone;
 
     /**
+     * 【尖啸】的等效速度：一 tick 飞完 256 格 ⇒ <b>256 格/刻</b>。
+     *
+     * <p>出手速度约 1.5 格/刻，所以这相当于把按速度缩放的词条拉到约 <b>170 倍</b> ——
+     * 任何「速度 / 出手速度」形式的效率都会直接顶满。</p>
+     */
+    public static final double SHRIEK_EQUIVALENT_SPEED = 256.0D;
+
+    /**
+     * 【尖啸】期间给「按速度缩放」的词条用的<b>等效速度</b>（作者 2026-10-17 定的方案）。
+     *
+     * <p>作者原话：「把球的轨迹改回原来的计算，然后在计算其它词条的相互作用时用这种
+     * 1 刻跑 256 的速度，<b>就是两边分开算</b>」。</p>
+     *
+     * <p>也就是说：<b>弹道</b>走几何射线（球不再是一颗高速实体，轨迹由 {@code shriek()}
+     * 当场算完），而<b>词条的数值</b>仍按「一 tick 跑完 256 格」的等效速度算 ——
+     * 谁也不用迁就谁。凡是要读速度做缩放的词条，一律读这个方法，
+     * 而不是直接读 {@code getDeltaMovement()}。</p>
+     */
+    public double effectiveSpeed() {
+        if (this.shriekFired && !this.shriekDone) {
+            return SHRIEK_EQUIVALENT_SPEED;
+        }
+        return this.getDeltaMovement().length();
+    }
+
+    /**
+     * 【尖啸】<b>待播放的路径音波点</b>（按飞行顺序排队）。
+     *
+     * <p>⚠️ 为什么要排队而不是「当场画完」（作者 2026-10-17 两次指出）：
+     * 尖啸是<b>一 tick 内飞完 256 格</b>，如果路径音波也在一 tick 内全部生成，
+     * 那整条光束就在同一帧铺好、下一帧散掉 —— 肉眼看不出「打出去有一道音波」。</p>
+     *
+     * <p>所以这里改成：飞行时只把路径点<b>登记</b>进来，之后由
+     * {@link #emitShriekTrail()} 每 tick 取一段真正生成，整条音波就被摊开成
+     * 十几 tick 的「一道横扫过去的光束」。</p>
+     */
+    private final java.util.ArrayDeque<Vec3> shriekTrail = new java.util.ArrayDeque<>();
+
+    /**
+     * 排队中的音波点里，<b>每 tick 生成多少个</b>。
+     *
+     * <p>取 12：256 格的路径大约排进 512 个点（每格 2 个），
+     * 每 tick 12 个 ≈ 43 tick（2 秒多）走完整条 —— 足够看清那一道光，
+     * 又不至于拖太久像「残留特效」。想更快就调大这个数。</p>
+     */
+    private static final int SHRIEK_TRAIL_PER_TICK = 12;
+
+    /** 把一个路径点登记进待播放队列（由 {@link BallExtraTraits} 在飞行判定时调用） */
+    public void enqueueShriekTrail(Vec3 point) {
+        this.shriekTrail.addLast(point);
+    }
+
+    /** 把排队中的路径音波每 tick 放一段出来（见 {@link #shriekTrail} 的说明） */
+    private void emitShriekTrail() {        if (this.shriekTrail.isEmpty()) {
+            return;
+        }
+        if (!(this.level() instanceof ServerLevel level)) {
+            return;
+        }
+        int budget = SHRIEK_TRAIL_PER_TICK;
+        while (budget-- > 0 && !this.shriekTrail.isEmpty()) {
+            Vec3 point = this.shriekTrail.pollFirst();
+            BallExtraTraits.shriekTrailPoint(level, point);
+        }
+    }
+
+    /**
      * 【尖啸】的<b>路径音波</b>是否还在生效 —— 起飞后为真，撞到东西收尾后转假。
      *
      * <p>⚠️ 与 {@link #isShriekFlying()} 不是一回事：那个判的是「本 tick 还要不要再跑几步」
@@ -1512,6 +1579,11 @@ public class BallProjectile extends ThrowableItemProjectile {
         // ===== 悬空总兜底（放在最末，覆盖上面所有分支）=====
         // 见 tickNoGravityStall() 的说明：无重力 + 完全静止撑满 5 秒就强制放开重力。
         this.tickNoGravityStall();
+
+        // ===== 【尖啸】路径音波：每 tick 放一段（见 shriekTrail 的说明）=====
+        // 放的是「这一趟飞过的路径」排下来的队，与球现在在哪无关，
+        // 所以撞到东西之后它还会把剩下的那一段播完 —— 那才是「一道音波扫过去」。
+        this.emitShriekTrail();
     }
 
     /** tick 的前半段：上限检查、回归开关、票据 */
@@ -2721,7 +2793,14 @@ public class BallProjectile extends ThrowableItemProjectile {
         if (base <= 0.0F) {
             return 0.0F;   // 没配初速度就别积热，免得除以零
         }
-        return (float) (this.getDeltaMovement().length() / base);
+        // ⚠️ 分子用 effectiveSpeed() 而**不是** getDeltaMovement().length()（作者 2026-10-17 定的方案）。
+        //
+        //    【尖啸】的轨迹已经回到几何射线 —— 球本身**不再以极速飞行**，
+        //    所以 getDeltaMovement() 读到的是普通速度。但作者要求
+        //    「计算其它词条的相互作用时用 1 刻跑 256 的速度，两边分开算」，
+        //    于是让 effectiveSpeed() 在尖啸这一趟里返回 256 格/刻。
+        //    这样【感应】的积热效率照样被顶满，而弹道与特效不受影响。
+        return (float) (this.effectiveSpeed() / base);
     }
     /**
      * 回归虚化：<b>整条命中链都跳过</b>。
@@ -2778,8 +2857,9 @@ public class BallProjectile extends ThrowableItemProjectile {
             BallExtraTraits.shriekFlightTick(this, shriekLevel,
                     this.traitFired(TRAIT_PIERCE), this.position(), impact);
             Direction face = (hitResult instanceof BlockHitResult blockHit) ? blockHit.getDirection() : null;
-            // 落点那一套（音效 + 球爆范围）**只在这里调一次** —— 路径上每 tick 的那次不算落点。
-            BallExtraTraits.shriekImpact(shriekLevel, impact);
+            // ⚠️ 这里**不要再调 shriekImpact** —— 轨迹已回到几何射线，
+            //    `shriekSegment` 每算完一段就自带「落点音效 + 球爆」，
+            //    这里再调一次就是在同一个点炸两圈。
             this.shriekLand(impact, face);
             // ⚠️ **不能 return** —— 后面还有碎裂 / 扣耐久 / 脉冲等常规命中逻辑，
             //    早退会让尖啸球撞墙不扣耐久。这里只补完落点特效与判定，然后照常往下走。
