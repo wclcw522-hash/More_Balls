@@ -337,7 +337,27 @@ public final class BallExtraTraits {
      */
     public static void shriekFlightTick(BallProjectile ball, ServerLevel level, boolean armorPiercing,
                                         Vec3 from, Vec3 end) {
+        // ⚠️⚠️ **只做「路径音波 + 路径伤害判定」，绝不做落点音爆**（作者 2026-10-17 报的回归）。
+        //
+        //    这个方法是**每 tick / 每子步**都调的。而 `shriekSegment` 的第三段是
+        //    「落点音效 + shriekBurst 球爆」—— 挂在每 tick 上，就等于**每一 tick 都在球的
+        //    当前位置丢一次球爆**：表现就是「打出去的路劲没特效，回来的时候却一直挂着特效，
+        //    还连着终点的球形特效一起回来」。
+        //
+        //    落点那一套改由 `BallProjectile.onHit` 在**真正撞到东西时**调 {@link #shriekImpact} 一次。
         shriekSegment(ball, level, from, end, armorPiercing, ball.getOwner(), false);
+    }
+
+    /**
+     * 【尖啸】的<b>落点</b>：音效 + 音爆范围，<b>只在真正撞上东西时调用一次</b>。
+     *
+     * <p>与 {@link #shriekFlightTick} 分工明确：那个每 tick 都在跑、只负责沿路径画音波；
+     * 这个是「撞上去的那一下」，由 {@code BallProjectile.onHit} 触发。</p>
+     */
+    public static void shriekImpact(ServerLevel level, Vec3 end) {
+        level.playSound(null, BlockPos.containing(end), SoundEvents.WARDEN_SONIC_BOOM,
+                SoundSource.HOSTILE, 4.0F, 1.0F);
+        shriekBurst(level, end);
     }
 
     /**
@@ -383,10 +403,9 @@ public final class BallExtraTraits {
             }
         }
 
-        // ===== ③ 落点音效 + 音爆范围 =====
-        level.playSound(null, BlockPos.containing(end), SoundEvents.WARDEN_SONIC_BOOM,
-                SoundSource.HOSTILE, 4.0F, 1.0F);
-        shriekBurst(level, end);
+        // ===== ③ 落点音效 + 音爆 =====
+        // ⚠️ 这一段**只在真正撞到东西时**由 {@link #shriekImpact} 调一次 —— 见 shriekFlightTick 的说明。
+        //    留在这里会让「每 tick 调一次」的路径判定顺手在球的当前位置丢球爆。
     }
 
     /**

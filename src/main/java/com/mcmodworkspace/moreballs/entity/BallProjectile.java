@@ -1437,6 +1437,24 @@ public class BallProjectile extends ThrowableItemProjectile {
     /** 【尖啸】飞行中「上一步的位置」—— 用来把每步的位移当成一段路径做判定 */
     private Vec3 shriekStepFrom;
 
+    /** 【尖啸】这一趟是否已经收尾（撞到东西、落点结算过了） */
+    private boolean shriekDone;
+
+    /**
+     * 【尖啸】的<b>路径音波</b>是否还在生效 —— 起飞后为真，撞到东西收尾后转假。
+     *
+     * <p>⚠️ 与 {@link #isShriekFlying()} 不是一回事：那个判的是「本 tick 还要不要再跑几步」
+     * （只在起飞那一 tick 成立），这个判的是「这一趟尖啸还在不在飞」——
+     * 主 tick 要靠它决定要不要沿路径画音波。</p>
+     *
+     * <p>作者 2026-10-17 报「回来的时候一直挂着特效」：原来主 tick 只判 {@code shriekFired}，
+     * 而那个位<b>一旦置位就永不清除</b>，于是球之后每 tick（包括回归回家的路上）都在画音波。
+     * 加上 {@link #shriekDone} 之后，撞到东西就停止。</p>
+     */
+    private boolean shriekPathActive() {
+        return this.shriekFired && !this.shriekDone;
+    }
+
     /** 【尖啸】是否正在「极速飞行」中（每步都要补路径判定） */
     public boolean isShriekFlying() {
         return this.shriekFired && this.shriekExtraSteps > 0;
@@ -1470,7 +1488,7 @@ public class BallProjectile extends ThrowableItemProjectile {
         //    于是尖啸球飞行途中的**每一个普通 tick 都没有任何路径判定** ——
         //    音波只在起飞那一刻出现一次，之后就消失了。
         //    这里补上：只要这一趟尖啸还在生效，每 tick 都把位移交给路径判定。
-        if (this.shriekFired && !this.isRemoved()) {
+        if (this.shriekPathActive() && !this.isRemoved()) {
             shriekFlightStep();
         }
 
@@ -2760,6 +2778,8 @@ public class BallProjectile extends ThrowableItemProjectile {
             BallExtraTraits.shriekFlightTick(this, shriekLevel,
                     this.traitFired(TRAIT_PIERCE), this.position(), impact);
             Direction face = (hitResult instanceof BlockHitResult blockHit) ? blockHit.getDirection() : null;
+            // 落点那一套（音效 + 球爆范围）**只在这里调一次** —— 路径上每 tick 的那次不算落点。
+            BallExtraTraits.shriekImpact(shriekLevel, impact);
             this.shriekLand(impact, face);
             // ⚠️ **不能 return** —— 后面还有碎裂 / 扣耐久 / 脉冲等常规命中逻辑，
             //    早退会让尖啸球撞墙不扣耐久。这里只补完落点特效与判定，然后照常往下走。
@@ -2906,6 +2926,8 @@ public class BallProjectile extends ThrowableItemProjectile {
      * @param face 撞到的方块面；没撞到传 {@code null}
      */
     public void shriekLand(Vec3 end, @Nullable Direction face) {
+        // 这一趟尖啸到此收尾 —— 主 tick 不再沿路径画音波（否则球回家路上会一直挂着特效）。
+        this.shriekDone = true;
         this.setPos(end.x, end.y, end.z);
         if (face != null && this.getBounce() > 0) {
             this.bounceOff(face);
