@@ -582,10 +582,15 @@ public final class BallExtraTraits {
             if (inPath) {
                 // 路径上：只有伤害 + 击飞，**不上任何 debuff**（作者 2026-10-16）
                 shriekHurt(level, living, shriekDamage(ball, level, armorPiercing), SHRIEK_PATH_DAMAGE);
-                Vec3 away = living.position().subtract(nearest);
-                away = away.lengthSqr() < 1.0E-6D ? new Vec3(0.0D, 1.0D, 0.0D) : away.normalize();
-                living.push(away.x * SHRIEK_KNOCK_HORIZONTAL, SHRIEK_KNOCK_VERTICAL,
-                        away.z * SHRIEK_KNOCK_HORIZONTAL);
+                // ⚠️ **boss 类不吃击飞**（作者 2026-10-17 指定）—— 伤害照常，只是不推。
+                //    理由很直接：末影龙/凋灵被音波推着乱飞会打崩整个战斗设计。
+                //    判据见 {@link #isBossLike(LivingEntity)}（走 bossbar）。
+                if (!isBossLike(living)) {
+                    Vec3 away = living.position().subtract(nearest);
+                    away = away.lengthSqr() < 1.0E-6D ? new Vec3(0.0D, 1.0D, 0.0D) : away.normalize();
+                    living.push(away.x * SHRIEK_KNOCK_HORIZONTAL, SHRIEK_KNOCK_VERTICAL,
+                            away.z * SHRIEK_KNOCK_HORIZONTAL);
+                }
             }
             if (inImpact) {
                 shriekHurt(level, living, shriekDamage(ball, level, armorPiercing), SHRIEK_IMPACT_DAMAGE);
@@ -656,6 +661,147 @@ public final class BallExtraTraits {
      * @param source 伤害源（已按【穿甲】选好真实物理 / 普通）
      * @param amount 伤害值
      */
+    /** 类 → 该类（含父类）上所有 {@code ServerBossEvent} 字段；缓存避免反复反射 */
+    private static final java.util.Map<Class<?>, java.lang.reflect.Field[]> BOSS_FIELDS =
+            new java.util.concurrent.ConcurrentHashMap<>();
+
+    /**
+     * <b>是不是 boss 类生物</b> —— 这类生物<b>不吃【尖啸】的击飞</b>（伤害照常）。
+     *
+     * <p>作者 2026-10-17 指定：「让【尖啸】的击飞效果对 boss 类生物不生效」，
+     * 并且指明<b>判定依据用 bossbar</b>。</p>
+     *
+     * <h2>为什么要反射</h2>
+     * <p>原版并没有公开的「这只生物有没有 boss 血条」接口：
+     * {@code BossEvent} 是各个 boss 自己持有的<b>私有字段</b>
+     * （{@code WitherBoss.bossEvent}、{@code EnderDragon.dragonEvent} 之类，
+     * 查过 26.2 源码确认没有 getter），{@code EntityTypeTags} 里也没有 BOSS 标签、
+     * {@code MobCategory} 也没有 BOSS 类别。</p>
+     *
+     * <p>所以这里<b>直接找实体或其父类上类型为 {@link ServerBossEvent} 的字段</b>，
+     * 字段非空 ⇒ 这只生物挂着 boss 血条 ⇒ 算 boss。
+     * 这样连其它模组的 boss（同样用 {@code ServerBossEvent}）也能一并覆盖，
+     * 不用去硬编码类名。</p>
+     *
+     * <h2>性能</h2>
+     * <p>反射只在<b>第一次遇到某个类</b>时做一次，结果按 {@code Class} 缓存在
+     * {@link #BOSS_FIELDS} 里（值是字段数组，空数组表示「查过了，没有」）。
+     * 之后每次判定只是几次 {@code field.get}，可以放心放在每段射线的循环里。</p>
+     */
+    /**
+     * <b>boss 判定器</b> —— 一个「这只生物算不算 boss」的判断。
+     *
+     * <p>⭐ <b>扩展点</b>：其它模组想把自家 boss 也纳入「不吃【尖啸】击飞」的范围，
+     * 实现本接口后调 {@link #registerBossPredicate(BossPredicate)} 登记即可，
+     * 不需要改本模组任何代码。</p>
+     */
+    @FunctionalInterface
+    public interface BossPredicate {
+        /**
+         * @param living 待判定的生物
+         * @return {@code true} 表示它是 boss（不吃击飞）
+         */
+        boolean isBoss(LivingEntity living);
+    }
+
+    /**
+     * <b>boss 判定链</b> —— 任意一条返回 {@code true} 即算 boss。
+     *
+     * <p>默认只装一条 {@link #hasBossBar}：<b>实体挂着 {@code ServerBossEvent}
+     * （也就是屏幕上方会显示 boss 血条）就算 boss</b> —— 这是作者 2026-10-17 指定的判据。</p>
+     *
+     * <p>⭐ <b>扩展点</b>：见 {@link #registerBossPredicate(BossPredicate)}。</p>
+     */
+    private static final java.util.List<BossPredicate> BOSS_PREDICATES =
+            new java.util.concurrent.CopyOnWriteArrayList<>(
+                    java.util.List.of(BallExtraTraits::hasBossBar));
+
+    /**
+     * ⭐ <b>给其它模组用的登记入口</b>：把自己的 boss 判定器加进链里。
+     *
+     * <p>用途：本模组的【尖啸】击飞对 boss 不生效，而「boss」的默认判据是
+     * <b>实体持有 {@code ServerBossEvent}（屏幕上方有 boss 血条）</b>。
+     * 如果某个模组的 boss 没用 {@code ServerBossEvent}（自己画血条之类），
+     * 就能通过这个方法把它补进来：</p>
+     *
+     * <pre>{@code
+     * BallExtraTraits.registerBossPredicate(
+     *         living -> living instanceof MyBossEntity);
+     * }</pre>
+     *
+     * <p>判定器抛出的异常会被单独吞掉，不会影响其它判定器、也不会打断尖啸结算。</p>
+     *
+     * @param predicate 追加的判定器（传 {@code null} 会被忽略）
+     */
+    public static void registerBossPredicate(BossPredicate predicate) {
+        if (predicate != null) {
+            BOSS_PREDICATES.add(predicate);
+        }
+    }
+
+    /**
+     * 依次跑 {@link #BOSS_PREDICATES}，任意一条命中即算 boss。
+     */
+    private static boolean isBossLike(LivingEntity living) {
+        for (BossPredicate predicate : BOSS_PREDICATES) {
+            try {
+                if (predicate.isBoss(living)) {
+                    return true;
+                }
+            } catch (Throwable ignored) {
+                // 单个判定器出错不影响其它判定器，更不能打断尖啸结算
+            }
+        }
+        return false;
+    }
+
+    /**
+     * <b>默认判据：屏幕上方有 boss 血条就算 boss</b>（作者 2026-10-17 指定）。
+     *
+     * <h2>为什么要反射</h2>
+     * <p>原版没有公开的「这只生物有没有 boss 血条」接口：{@code BossEvent} 是各个 boss
+     * 自己持有的<b>私有字段</b>（{@code WitherBoss.bossEvent} 等，查过 26.2 源码确认没有 getter），
+     * {@code EntityTypeTags} 里没有 BOSS 标签、{@code MobCategory} 也没有 BOSS 类别。</p>
+     *
+     * <p>所以这里找实体（含父类）上类型为 {@code ServerBossEvent} 的字段，非空 ⇒ 它挂着 boss 血条。
+     * 这样<b>任何模组</b>只要用原版的 {@code ServerBossEvent} 画血条，都会被自动认定为 boss。</p>
+     *
+     * <h2>性能</h2>
+     * <p>反射只在<b>第一次遇到某个类</b>时做一次，结果按 {@code Class} 缓存在 {@link #BOSS_FIELDS}
+     * （空数组 = 查过了、没有这个字段）。之后每次判定只有几次 {@code field.get}。</p>
+     */
+    private static boolean hasBossBar(LivingEntity living) {
+        java.lang.reflect.Field[] cached = BOSS_FIELDS.get(living.getClass());
+        if (cached == null) {
+            java.util.List<java.lang.reflect.Field> found = new java.util.ArrayList<>();
+            for (Class<?> c = living.getClass(); c != null && c != Object.class; c = c.getSuperclass()) {
+                for (java.lang.reflect.Field field : c.getDeclaredFields()) {
+                    if (!net.minecraft.server.level.ServerBossEvent.class.isAssignableFrom(field.getType())) {
+                        continue;
+                    }
+                    try {
+                        field.setAccessible(true);
+                    } catch (Throwable ignored) {
+                        continue;   // 模块系统不让开就跳过，不影响其它字段
+                    }
+                    found.add(field);
+                }
+            }
+            cached = found.toArray(new java.lang.reflect.Field[0]);
+            BOSS_FIELDS.put(living.getClass(), cached);
+        }
+        for (java.lang.reflect.Field field : cached) {
+            try {
+                if (field.get(living) instanceof net.minecraft.server.level.ServerBossEvent) {
+                    return true;   // 挂着 boss 血条 ⇒ 算 boss
+                }
+            } catch (Throwable ignored) {
+                // 读不到就当没有，绝不让判定炸掉整条尖啸结算
+            }
+        }
+        return false;
+    }
+
     private static void shriekHurt(ServerLevel level, LivingEntity living, DamageSource source, float amount) {
         // ⚠️⚠️ **末影龙必须打「头部部件」**（作者 2026-10-17 报的「尖啸对末影龙不生效」）。
         //
