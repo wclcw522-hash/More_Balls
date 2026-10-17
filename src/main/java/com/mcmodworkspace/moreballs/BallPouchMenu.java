@@ -57,6 +57,17 @@ public class BallPouchMenu extends AbstractContainerMenu {
     /** 每行槽位数（历史名，保留给外部引用；等价于 {@link #POUCH_COLUMNS}） */
     public static final int COLUMNS = POUCH_COLUMNS;
 
+    /**
+     * 玩家背包那 9 列相对袋子左边缘的额外缩进 —— 让它在变宽的界面里<b>居中</b>。
+     *
+     * <p>袋子 15 列宽 284，而玩家背包是原版固定 9 列（占 176 的版式，去掉外框后 168）。
+     * 把 168 居中放到 284 里 ⇒ 左边留 (284-168)/2 = 58，玩家第一格内容于是落在
+     * 58 + (8-4) = <b>62</b>。相对 {@link #SIDE_PADDING}=8 的额外缩进就是 <b>54</b>。</p>
+     *
+     * <p>底图 {@code ball_pouch.png} 里玩家区就是按这个位置居中画的，两边必须一致。</p>
+     */
+    private static final int PLAYER_INSET = 54;
+
     /** 单格步长（原版槽位间距） */
     private static final int SLOT_STEP = 18;
 
@@ -188,12 +199,12 @@ public class BallPouchMenu extends AbstractContainerMenu {
         for (int row = 0; row < 3; row++) {
             for (int col = 0; col < PLAYER_COLUMNS; col++) {
                 this.addSlot(new Slot(inventory, col + row * PLAYER_COLUMNS + PLAYER_COLUMNS,
-                        SIDE_PADDING + col * 18, playerTop + row * 18));
+                        SIDE_PADDING + PLAYER_INSET + col * 18, playerTop + row * 18));
             }
         }
         int hotbarTop = playerTop + 3 * 18 + 4;
         for (int col = 0; col < PLAYER_COLUMNS; col++) {
-            this.addSlot(new Slot(inventory, col, SIDE_PADDING + col * SLOT_STEP, hotbarTop));
+            this.addSlot(new Slot(inventory, col, SIDE_PADDING + PLAYER_INSET + col * SLOT_STEP, hotbarTop));
         }
     }
 
