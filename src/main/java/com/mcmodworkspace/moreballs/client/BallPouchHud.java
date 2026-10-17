@@ -94,6 +94,23 @@ public final class BallPouchHud implements GuiLayer {
         int screenWidth = minecraft.getWindow().getGuiScaledWidth();
         int screenHeight = minecraft.getWindow().getGuiScaledHeight();
 
+        // ⚠️⚠️ **窗口极小时直接不画**（玩家 2026-10-17 报的联机崩溃：
+        //     `Scissor at 226, 504 with size 16x24 is out of bounds for render area
+        //      RenderArea[x=0, y=0, width=854, height=480]`）。
+        //
+        //     那个坐标比渲染区还大 24，查下来不是我们这两处槽位算出来的
+        //     （袋子界面 leftPos=339、这里 offhandX=314），更像是**窗口刚被缩小**时
+        //     残留的坐标 —— 而 26.2 的 `RenderPass.enableScissor` 对越界**不做 clamp**，
+        //     直接把整帧打崩。
+        //
+        //     我们改不了原版的 clamp，但可以**保证自己不递交任何会越界的几何**：
+        //     窗口小到连「副手栏 + 这一格」都放不下时，就别画了 ——
+        //     少一个提示格，总比整局崩掉好。
+        if (screenHeight < HOTBAR_HEIGHT + SLOT_HEIGHT + AMMO_SLOT_GAP
+                || screenWidth < HOTBAR_WIDTH + OFFHAND_GAP + SLOT_WIDTH) {
+            return;
+        }
+
         // 原版副手槽的位置：快捷栏左边、贴着底边
         int offhandX = screenWidth / 2 - HOTBAR_WIDTH / 2 - OFFHAND_GAP;
         int offhandTop = screenHeight - HOTBAR_HEIGHT;
