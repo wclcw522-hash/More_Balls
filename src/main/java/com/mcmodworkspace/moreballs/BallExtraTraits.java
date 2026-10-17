@@ -771,6 +771,18 @@ public final class BallExtraTraits {
      * （空数组 = 查过了、没有这个字段）。之后每次判定只有几次 {@code field.get}。</p>
      */
     private static boolean hasBossBar(LivingEntity living) {
+        // ⚠️⚠️ **末影龙必须单独认**（作者 2026-10-17：「末影龙还是很显著地受到击飞影响」后查出的根因）。
+        //
+        //    26.2 里 `EnderDragon` 的字段中**根本没有** `ServerBossEvent` —— 它的 boss 血条
+        //    由 `EnderDragonFight`（末地那套 boss 战控制器，挂在 `ServerLevel` 上）持有。
+        //    所以下面那套「找实体上 ServerBossEvent 字段」的反射对龙永远返回 false，
+        //    龙就一直被当成普通生物挨击飞。
+        //
+        //    语义上龙当然是 boss（它头上确实有 boss 血条），只是血条不挂在实体身上 ⇒ 按类认。
+        //    凋灵那种直接在实体上持有 `bossEvent` 字段的，仍走下面反射那一路。
+        if (living instanceof net.minecraft.world.entity.boss.enderdragon.EnderDragon) {
+            return true;
+        }
         java.lang.reflect.Field[] cached = BOSS_FIELDS.get(living.getClass());
         if (cached == null) {
             java.util.List<java.lang.reflect.Field> found = new java.util.ArrayList<>();
@@ -855,7 +867,12 @@ public final class BallExtraTraits {
         living.addEffect(new MobEffectInstance(MobEffects.GLOWING, 120 * 20, 0), source);
         living.addEffect(new MobEffectInstance(MobEffects.SLOWNESS, 40 * 20, 2), source);
         living.addEffect(new MobEffectInstance(MobEffects.WEAKNESS, 60 * 20, 3), source);
-        living.addEffect(new MobEffectInstance(MobEffects.LEVITATION, 5 * 20, 0), source);
+        // ⚠️ **boss 不挂漂浮**（作者 2026-10-17：「末影龙还是很显著地受到击飞影响」）。
+        //    除了 push 之外，落点这套效果里的「漂浮 5 秒」同样会把龙/凋灵顶离原位 ——
+        //    那是观感上最像「被击飞」的一环。既然 boss 不吃击飞，漂浮也一并跳过。
+        if (!isBossLike(living)) {
+            living.addEffect(new MobEffectInstance(MobEffects.LEVITATION, 5 * 20, 0), source);
+        }
     }
 
     /**
