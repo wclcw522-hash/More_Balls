@@ -369,10 +369,18 @@ public final class BallExtraTraits {
     private static void shriekSegment(BallProjectile ball, ServerLevel level, Vec3 from, Vec3 end,
                                       boolean armorPiercing, Entity owner, boolean miss) {
         // ===== ① 这一段路径上的监守者音波（纯特效）=====
+        //
+        // ⚠️ **轨迹余光**（作者 2026-10-17 指定）：`SONIC_BOOM` 自身的存活时间很短，
+        //    而【尖啸】是**一 tick 内飞完 256 格**（速度 32 × 8 子步）—— 一整条光束
+        //    在同一瞬间铺好又立刻散掉，人眼基本看不到，表现就是「打出去路径没特效」。
+        //    所以沿同一条线**再撒一层静止的 `END_ROD` 光点**（速度 0 ⇒ 原地不动、
+        //    存活时间远长于音波），那道光才留得住、看得见。
         int steps = Math.max(1, (int) (from.distanceTo(end) * 2.0D));
         for (int i = 0; i <= steps; i++) {
             Vec3 point = from.lerp(end, (double) i / steps);
             level.sendParticles(ParticleTypes.SONIC_BOOM,
+                    point.x, point.y + 0.5D, point.z, 1, 0.0D, 0.0D, 0.0D, 0.0D);
+            level.sendParticles(ParticleTypes.END_ROD,
                     point.x, point.y + 0.5D, point.z, 1, 0.0D, 0.0D, 0.0D, 0.0D);
         }
 
