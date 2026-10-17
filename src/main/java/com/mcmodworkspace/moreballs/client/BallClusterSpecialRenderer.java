@@ -206,7 +206,18 @@ public class BallClusterSpecialRenderer implements SpecialModelRenderer<ItemStac
                 continue;
             }
             Identifier sourceId = BuiltInRegistries.ITEM.getKey(sources.get(index));
-            Identifier pieceId = Identifier.fromNamespaceAndPath(sourceId.getNamespace(),
+            // ⚠️⚠️ **namespace 必须固定用 more_balls，不能用 sourceId.getNamespace()**
+            //     （作者 2026-10-17 报的「球堆里右下角史莱姆球不渲染」就是它）。
+            //
+            //     **史莱姆球与末影珍珠是原版物品**，物品 id 是 `minecraft:slime_ball` /
+            //     `minecraft:ender_pearl` —— 拿它们的 namespace 拼出来就是
+            //     `minecraft:textures/item/slime_ball_quarter_4.png`，
+            //     **那个文件根本不存在**（碎片贴图都在本模组的 more_balls 下）。
+            //     readTexture 返回 null ⇒ 那一格被跳过 ⇒ 球堆上缺一块。
+            //
+            //     所以这里只取物品的 **path**（slime_ball / ender_pearl / wooden_ball …），
+            //     namespace 一律 more_balls —— 与生成碎片贴图时的做法一致。
+            Identifier pieceId = Identifier.fromNamespaceAndPath(MoreBalls.MOD_ID,
                     "textures/item/" + sourceId.getPath() + "_quarter_" + (q + 1) + ".png");
             com.mojang.blaze3d.platform.NativeImage piece =
                     ComboChargeBallRenderer.readTexture(pieceId);
