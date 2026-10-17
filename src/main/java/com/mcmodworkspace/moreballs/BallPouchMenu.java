@@ -49,7 +49,7 @@ public class BallPouchMenu extends AbstractContainerMenu {
      *   <li>{@link #PLAYER_COLUMNS} = 玩家背包 / 快捷栏的列数 —— 原版固定 9，永远不动。</li>
      * </ul>
      */
-    public static final int POUCH_COLUMNS = 9;
+    public static final int POUCH_COLUMNS = 15;
 
     /** 玩家背包 / 快捷栏的列数 —— 原版固定 9，**不要**跟着袋子改 */
     public static final int PLAYER_COLUMNS = 9;
