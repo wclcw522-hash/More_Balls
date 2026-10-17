@@ -3285,8 +3285,10 @@ public class BallProjectile extends ThrowableItemProjectile {
         //    转向永远不生效（轨迹永远走直线）。
         //
         //    正确语义：-1 = 未初始化（当作「有次数、可用」）；0 = 真的用完了（不干预）。
-        if (this.profile().wisdom() <= 0 || this.wisdomUsesLeft == 0) {
-            return null;   // 没带【智慧】，或次数确实用完了 ⇒ 不干预
+        // ⚠️ 统一走 wisdomCanSeek()：-1 表示还没初始化（尖啸在 ballTickPre 里算轨迹时就是它），
+        //    不能当成「次数用完」—— 详见那个方法的说明。
+        if (!this.wisdomCanSeek()) {
+            return null;
         }
         if (!(this.level() instanceof ServerLevel steerLevel)) {
             return null;
@@ -3474,10 +3476,34 @@ public class BallProjectile extends ThrowableItemProjectile {
     }
 
     /**
+     * <b>统一的「【智慧】还能不能索敌」判据</b> —— 凡是要判这个的地方都用它。
+     *
+     * <p>⚠️⚠️ 为什么必须有这么一个方法（作者 2026-10-17：「改的是那个接口吧，别再只改了这一个」）：
+     * `wisdomUsesLeft` 有<b>三态</b>，而它被散落地判在好几个地方，一不留神就写错：
+     * <ul>
+     *   <li><b>-1 = 还没初始化</b> —— 初值。它要到 {@code ballTickPost()} 的智慧块里才被设成
+     *       {@code profile().wisdom()}；</li>
+     *   <li><b>0 = 次数用完了</b> —— 真的不能索敌；</li>
+     *   <li><b>&gt;0 = 还有次数</b> —— 可以索敌。</li>
+     * </ul>
+     * 而【尖啸】的轨迹是<b>在 {@code ballTickPre()} 里一次算完的</b>，那时字段基本还是 -1。
+     * 所以**绝不能写 `wisdomUsesLeft &gt; 0` 或 `&lt;= 0`** —— 那会把「未初始化」当成「用完」，
+     * 转向永远不生效。</p>
+     *
+     * @return {@code true} 表示这颗球带【智慧】、且次数还没用完（-1 按「可用」算）
+     */
+    private boolean wisdomCanSeek() {
+        return this.profile().wisdom() > 0 && this.wisdomUsesLeft != 0;
+    }
+
+    /**
      * 【智慧x】是否还在追踪中（次数未耗尽）。
      *
      * <p>追踪期间这颗球<b>不受重力</b>、也<b>不被【空气动力球】回收</b> ——
      * 它会一直追到把「机会」用完为止（作者 2026-10-09 指定）。</p>
+     *
+     * <p>⚠️ 注意这里与 {@link #wisdomCanSeek()} 的差别：这里问的是「<b>正在追踪中</b>」，
+     * 而「未初始化（-1）」并不算在追踪（球刚出手、还没走过 tick），所以仍然要求 {@code > 0}。</p>
      */
     private boolean wisdomStillTracking() {
         return this.profile().wisdom() > 0 && this.wisdomUsesLeft > 0;
@@ -3496,7 +3522,9 @@ public class BallProjectile extends ThrowableItemProjectile {
      * @return true 表示这次锁到了目标（航向已被改写）
      */
     public boolean shriekWisdomStep() {
-        if (this.profile().wisdom() <= 0 || this.wisdomUsesLeft <= 0) {
+        // ⚠️ 用统一判据 wisdomCanSeek()，别再手写 `wisdomUsesLeft <= 0`
+        //    （-1 = 未初始化，会被误判成「用完」，见那个方法的说明）。
+        if (!this.wisdomCanSeek()) {
             return false;
         }
         int before = this.wisdomUsesLeft;
