@@ -1,5 +1,7 @@
 package com.mcmodworkspace.moreballs;
 
+import org.jetbrains.annotations.Nullable;
+
 import com.mcmodworkspace.moreballs.entity.BallProjectile;
 import com.mcmodworkspace.moreballs.entity.DripstoneShard;
 import net.minecraft.core.BlockPos;
@@ -340,19 +342,13 @@ public final class BallExtraTraits {
             shriekSegment(ball, level, cursor, end, armorPiercing, owner, miss);
             lastPoint = end;
 
-            // ②' **【智慧】索敌转向**（作者 2026-10-17 指出：轨迹计算必须把能改轨迹的词条算进去）
+            // ②' **轨迹修正链**（作者 2026-10-17 指定：要接口，不要专用钩子）
             //
-            //     【尖啸】的轨迹是一次算完的几何射线，而【智慧】原本是「每 tick 改方向」——
-            //     一次算完的射线天然吃不到它。所以在这一段算完之后问一次「现在该朝哪走」，
-            //     据此改下一段的方向。效果就是主人要的
-            //     「直线飞出一段 → 空中索敌转向 → 延伸一段后拐回 → 再重复」。
-            //
-            //     放在 miss 判断**之前**：即使这一路没撞到东西，只要旁边有目标也该拐过去。
-            dir = ball.shriekSteer(end, dir);
-            if (dir.lengthSqr() < 1.0E-9D) {
-                break;
-            }
-            dir = dir.normalize();
+            //     几何射线是一次算完的，所以任何「会改轨迹的词条」原本都吃不到。
+            //     这里在**每一段算完之后**把整条修正器链跑一遍（见 PATH_MODIFIERS），
+            //     谁来改轨迹谁实现 ShriekPathModifier 并登记，不用再动这个循环。
+            //     现有：【智慧】索敌转向、【磁性】偏航（占位）。
+            dir = steerPath(ball, end, dir);
 
             if (miss) {
                 break;   // 一路没撞到东西（末地虚空）⇒ 到此为止
@@ -394,6 +390,86 @@ public final class BallExtraTraits {
      * 「延伸一段后拐回 → 再重复一次」。</p>
      */
     private static final int SHRIEK_WISDOM_MIN_SEGMENTS = 3;
+
+    /**
+     * 【尖啸】轨迹的<b>修正器接口</b>（作者 2026-10-17 指定：要接口，不要专用钩子）。
+     *
+     * <h2>怎么用</h2>
+     * <p>几何射线每算完一段，就按 {@link #PATH_MODIFIERS} 的顺序问每一位「下一段朝哪走」。
+     * 想让某个词条影响轨迹时，<b>只需要写一个实现 + 在清单里加一行</b> ——
+     * 不用再改 {@code shriek()} 里的循环，也不用担心和别人的改动打架。</p>
+     *
+     * <h2>契约</h2>
+     * <ul>
+     *   <li>返回<b>单位向量</b>表示「改成这个方向」；</li>
+     *   <li>返回 {@code null} 表示「我不干预」，链条继续问下一位；</li>
+     *   <li>链条按顺序执行，前一位的结果会作为后一位的输入方向 ——
+     *       所以多个词条可以叠着改（比如先被【磁性】偏一点、再被【智慧】拉向目标）。</li>
+     * </ul>
+     */
+    @FunctionalInterface
+    public interface ShriekPathModifier {
+        /**
+         * @param ball  这颗球（可读它的词条、次数、配置）
+         * @param point 这一段射线的终点（= 下一段的起点）
+         * @param dir   当前方向（单位向量，可能已被前一位修正器改过）
+         * @return 新方向（单位向量），或 {@code null} 表示不干预
+         */
+        @Nullable Vec3 steer(BallProjectile ball, Vec3 point, Vec3 dir);
+    }
+
+    /**
+     * <b>轨迹修正器清单</b> —— 顺序执行，前面的输出是后面的输入。
+     *
+     * <p>目前登记了两位：</p>
+     * <ol>
+     *   <li>{@link #steerWisdom} ——【智慧】索敌转向；</li>
+     *   <li>{@link #steerMagnetic} ——【磁性】磁场偏航。</li>
+     * </ol>
+     *
+     * <p>以后再加「会改轨迹的词条」，在这里追加一行即可。</p>
+     */
+    private static final List<ShriekPathModifier> PATH_MODIFIERS = List.of(
+            BallExtraTraits::steerWisdom,
+            BallExtraTraits::steerMagnetic);
+
+    /**
+     * 让整条修正器链跑一遍，得到下一段的方向。
+     *
+     * @return 修正后的单位方向；没有修正器接手时原样返回 {@code dir}
+     */
+    public static Vec3 steerPath(BallProjectile ball, Vec3 point, Vec3 dir) {
+        Vec3 current = dir;
+        for (ShriekPathModifier modifier : PATH_MODIFIERS) {
+            Vec3 next = modifier.steer(ball, point, current);
+            if (next != null && next.lengthSqr() > 1.0E-9D) {
+                current = next.normalize();
+            }
+        }
+        return current;
+    }
+
+    /**
+     * 【智慧】修正器：10 格内最近的敌人 ⇒ 把方向改朝它。
+     *
+     * <p>这就是作者要的「直线飞出一段 → 空中索敌转向 → 延伸一段后拐回」。</p>
+     */
+    @Nullable
+    private static Vec3 steerWisdom(BallProjectile ball, Vec3 point, Vec3 dir) {
+        Vec3 steered = ball.wisdomSteerToward(point);
+        return steered;   // null = 没锁到目标，不干预
+    }
+
+    /**
+     * 【磁性】修正器：让球朝磁场方向偏一点。
+     *
+     * <p>⚠️ 待实装 —— 先按接口占位，保证「加新修正器不用改 {@code shriek()}」这条路是通的。
+     * 具体的磁场来源与偏转角度要按【磁性】的实际规格来，这里没有凭空编一套数值。</p>
+     */
+    @Nullable
+    private static Vec3 steerMagnetic(BallProjectile ball, Vec3 point, Vec3 dir) {
+        return null;
+    }
 
     /**
      * 【尖啸】飞行中的<b>每一步</b>：把「这一步走过的位移」当成一段路径做判定。

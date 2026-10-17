@@ -3262,26 +3262,23 @@ public class BallProjectile extends ThrowableItemProjectile {
     }
 
     /**
-     * 【尖啸】几何射线专用：<b>从给定点朝哪个方向走</b>（把【智慧】的索敌转向算进轨迹）。
+     * 【尖啸】轨迹修正链里<b>【智慧】那一位</b>用：从给定点找 10 格内最近的目标，返回朝它的单位向量。
      *
-     * <p>⚠️ 为什么需要它（作者 2026-10-17 指出「轨迹的计算会把智慧这种能改轨迹的一并计算吧」）：
-     * 【尖啸】的轨迹由 {@code BallExtraTraits.shriek()} <b>一 tick 内一次算完</b>的几何射线构成，
-     * 而【智慧】原本是「每 tick 重锁目标、改 {@code deltaMovement}」的逐步行为 ——
-     * 一次算完的射线天然吃不到它。所以这里提供「在某个点上找一次目标」的入口，
-     * 由 {@code shriek()} 在<b>每一段射线算完之后</b>调一次、据此改下一段方向。
-     * 效果就是作者要的「直线飞出一段 → 空中索敌转向 → 再飞一段」。</p>
+     * <p>⚠️ 由 {@code BallExtraTraits.steerWisdom}（一个 {@code ShriekPathModifier} 实现）调用，
+     * 不再是写死在 {@code shriek()} 里的专用钩子 —— 作者 2026-10-17 指定「要接口不要专用钩子」，
+     * 以后任何会改轨迹的词条都往那条修正链里登记一份即可。</p>
      *
      * <p>判据与 {@code tryWisdomLock} 一致（10 格内、活着、非旁观、非主人、敌人或仇恨中的中立），
      * 只是搜索中心换成传入的 {@code point}。</p>
      *
-     * @return 找到目标就返回朝它的单位向量，否则原样返回 {@code dir}
+     * @return 朝目标的单位向量；<b>锁不到目标时返回 {@code null}</b>（表示「这一位不干预」）
      */
-    public Vec3 shriekSteer(Vec3 point, Vec3 dir) {
+    public Vec3 wisdomSteerToward(Vec3 point) {
         if (this.profile().wisdom() <= 0 || this.wisdomUsesLeft <= 0) {
-            return dir;   // 没有【智慧】或次数已用完 ⇒ 照原方向走
+            return null;   // 没有【智慧】或次数已用完 ⇒ 不干预
         }
         if (!(this.level() instanceof ServerLevel steerLevel)) {
-            return dir;
+            return null;
         }
         LivingEntity best = null;
         double bestDistance = WISDOM_RADIUS;
@@ -3300,10 +3297,10 @@ public class BallProjectile extends ThrowableItemProjectile {
             }
         }
         if (best == null) {
-            return dir;
+            return null;
         }
         Vec3 to = best.position().add(0.0D, best.getBbHeight() * 0.5D, 0.0D).subtract(point);
-        return to.lengthSqr() < 1.0E-6D ? dir : to.normalize();
+        return to.lengthSqr() < 1.0E-6D ? null : to.normalize();
     }
 
 
