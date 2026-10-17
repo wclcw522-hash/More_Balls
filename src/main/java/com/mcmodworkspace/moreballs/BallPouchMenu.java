@@ -38,8 +38,27 @@ import net.minecraft.world.item.ItemStack;
  */
 public class BallPouchMenu extends AbstractContainerMenu {
 
-    /** 每行槽位数 */
-    public static final int COLUMNS = 9;
+    /**
+     * <b>袋子自身每行的槽位数</b> —— 作者 2026-10-17 指定改成 <b>18</b>。
+     *
+     * <p>⚠️⚠️ 这个**不能**和玩家背包的列数共用一个常量（原来两者共用一个 `COLUMNS = 9`）：
+     * 玩家背包与快捷栏是**原版固定 9 列**，袋子如果改成 18 列、玩家那两段也跟着变，
+     * 整个背包区就会排错。所以拆成两个常量：</p>
+     * <ul>
+     *   <li>{@link #POUCH_COLUMNS} = 袋子（弹药段 / 转运段）的列数 —— 作者要的 18；</li>
+     *   <li>{@link #PLAYER_COLUMNS} = 玩家背包 / 快捷栏的列数 —— 原版固定 9，永远不动。</li>
+     * </ul>
+     */
+    public static final int POUCH_COLUMNS = 18;
+
+    /** 玩家背包 / 快捷栏的列数 —— 原版固定 9，**不要**跟着袋子改 */
+    public static final int PLAYER_COLUMNS = 9;
+
+    /** 每行槽位数（历史名，保留给外部引用；等价于 {@link #POUCH_COLUMNS}） */
+    public static final int COLUMNS = POUCH_COLUMNS;
+
+    /** 单格步长（原版槽位间距） */
+    private static final int SLOT_STEP = 18;
 
     /** 弹药段距顶部的距离 —— 与原版箱子一致（标题栏 17 像素） */
     private static final int AMMO_TOP = 17;
@@ -116,12 +135,12 @@ public class BallPouchMenu extends AbstractContainerMenu {
         this.transitRows = rowsFor(this.tier.transitSlots());
 
         // ① 弹药段 —— 按行占位，超出的格子禁用
-        int ammoPositions = this.ammoRows * COLUMNS;
+        int ammoPositions = this.ammoRows * POUCH_COLUMNS;
         for (int i = 0; i < ammoPositions; i++) {
             boolean unlocked = i < this.tier.ammoSlots();
             this.addSlot(new Slot(container, i,
-                    SIDE_PADDING + (i % COLUMNS) * 18,
-                    AMMO_TOP + (i / COLUMNS) * 18) {
+                    SIDE_PADDING + (i % POUCH_COLUMNS) * 18,
+                    AMMO_TOP + (i / POUCH_COLUMNS) * 18) {
                 @Override
                 public boolean isActive() {
                     return unlocked;
@@ -138,12 +157,12 @@ public class BallPouchMenu extends AbstractContainerMenu {
 
         // ② 转运段 —— 前面先让出第二个标题区（写「中转区」），它同时就是两段的分隔
         int transitTop = AMMO_TOP + this.ammoRows * 18 + SECTION_TITLE_HEIGHT;
-        int transitPositions = this.transitRows * COLUMNS;
+        int transitPositions = this.transitRows * POUCH_COLUMNS;
         for (int j = 0; j < transitPositions; j++) {
             boolean unlocked = j < this.tier.transitSlots();
             this.addSlot(new Slot(container, BallPouchContainer.AMMO_SLOTS + j,
-                    SIDE_PADDING + (j % COLUMNS) * 18,
-                    transitTop + (j / COLUMNS) * 18) {
+                    SIDE_PADDING + (j % POUCH_COLUMNS) * 18,
+                    transitTop + (j / POUCH_COLUMNS) * 18) {
                 @Override
                 public boolean isActive() {
                     return unlocked;
@@ -167,25 +186,36 @@ public class BallPouchMenu extends AbstractContainerMenu {
         // ③ 玩家背包（3 行主背包 + 1 行快捷栏）
         int playerTop = transitTop + this.transitRows * 18 + PLAYER_GAP;
         for (int row = 0; row < 3; row++) {
-            for (int col = 0; col < COLUMNS; col++) {
-                this.addSlot(new Slot(inventory, col + row * COLUMNS + COLUMNS,
+            for (int col = 0; col < PLAYER_COLUMNS; col++) {
+                this.addSlot(new Slot(inventory, col + row * PLAYER_COLUMNS + PLAYER_COLUMNS,
                         SIDE_PADDING + col * 18, playerTop + row * 18));
             }
         }
         int hotbarTop = playerTop + 3 * 18 + 4;
-        for (int col = 0; col < COLUMNS; col++) {
-            this.addSlot(new Slot(inventory, col, SIDE_PADDING + col * 18, hotbarTop));
+        for (int col = 0; col < PLAYER_COLUMNS; col++) {
+            this.addSlot(new Slot(inventory, col, SIDE_PADDING + col * SLOT_STEP, hotbarTop));
         }
     }
 
     /** 格数换算成行数（向上取整） */
+    /**
+     * 界面<b>宽度</b> —— 跟着袋子的列数走（作者 2026-10-17 把每行槽位改成 18，宽度必须同步）。
+     *
+     * <p>公式与原版容器一致：左右各留 {@link #SIDE_PADDING} 的内边距，
+     * 中间是「列数 × 单格步长」。玩家背包 / 快捷栏是原版固定 9 列、左对齐，
+     * 所以界面变宽后它们仍贴在左边，与改之前的位置完全一致。</p>
+     */
+    public int guiWidth() {
+        return SIDE_PADDING * 2 + POUCH_COLUMNS * SLOT_STEP;
+    }
+
     private static int rowsFor(int slots) {
-        return (slots + COLUMNS - 1) / COLUMNS;
+        return (slots + POUCH_COLUMNS - 1) / POUCH_COLUMNS;
     }
 
     /** 袋子自身的槽位总数（含被盖住的位置） */
     public int pouchSlotCount() {
-        return (this.ammoRows + this.transitRows) * COLUMNS;
+        return (this.ammoRows + this.transitRows) * POUCH_COLUMNS;
     }
 
     /**
@@ -256,7 +286,7 @@ public class BallPouchMenu extends AbstractContainerMenu {
             // 【球堆】壳（作者 2026-10-15）：壳里装的全是**用过的**球 → 直接进**转运段**。
             // 不认壳的话 shift 搬运搬不动它，玩家只能手动一格一格拖。
             if (com.mcmodworkspace.moreballs.BallClusterItem.isCluster(stack)) {
-                int transitFrom = this.ammoRows * COLUMNS;
+                int transitFrom = this.ammoRows * POUCH_COLUMNS;
                 if (!this.moveItemStackTo(stack, transitFrom, pouchSlots, false)) {
                     return ItemStack.EMPTY;
                 }
@@ -265,8 +295,8 @@ public class BallPouchMenu extends AbstractContainerMenu {
                     return ItemStack.EMPTY;
                 }
                 boolean toAmmo = BallPouchItem.isPristine(stack);
-                int from = toAmmo ? 0 : this.ammoRows * COLUMNS;
-                int to = toAmmo ? this.ammoRows * COLUMNS : pouchSlots;
+                int from = toAmmo ? 0 : this.ammoRows * POUCH_COLUMNS;
+                int to = toAmmo ? this.ammoRows * POUCH_COLUMNS : pouchSlots;
                 if (!this.moveItemStackTo(stack, from, to, false)) {
                     return ItemStack.EMPTY;
                 }

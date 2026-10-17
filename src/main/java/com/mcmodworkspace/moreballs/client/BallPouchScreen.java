@@ -79,8 +79,10 @@ public class BallPouchScreen extends AbstractContainerScreen<BallPouchMenu> {
     private static final int LOCK_MASK = 18;
 
     public BallPouchScreen(BallPouchMenu menu, Inventory inventory, Component title) {
-        // 尺寸必须走构造参数 —— 26.x 里 imageWidth / imageHeight 是 final 字段
-        super(menu, inventory, title, 176, menu.guiHeight());
+        // 尺寸必须走构造参数 —— 26.x 里 imageWidth / imageHeight 是 final 字段。
+        // 宽度跟着袋子的列数走（作者 2026-10-17 把每行槽位改成 18 ⇒ 宽度同步变宽），
+        // 所以不能再写死 176，改从 menu.guiWidth() 取。
+        super(menu, inventory, title, menu.guiWidth(), menu.guiHeight());
     }
 
     /**
