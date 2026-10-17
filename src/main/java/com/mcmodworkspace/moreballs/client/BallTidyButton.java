@@ -177,8 +177,8 @@ public final class BallTidyButton {
      * 那块地方本来就是界面自带的留白，永远不会被裁掉。</p>
      *
      * <h2>② 界面里没有合成书时（箱子、收纳袋、熔炉……）</h2>
-     * <p>放在<b>玩家背包右上角第一格向右的外面一点点</b> ——
-     * 也就是背包第一行第一格的右侧外沿。这个位置在各容器界面里都是空白区，
+     * <p>放在<b>玩家背包右上那一格（第一行的最后一格）向右的外面一点点</b> ——
+     * 也就是背包第一行**最后一格**的右侧外沿。这个位置在各容器界面里都是空白区，
      * 也不会随界面高度变化而跑到屏幕外。</p>
      *
      * <p>原先的做法是「{@code guiLeft - SIZE - GAP}，贴左侧外沿」，那样界面窄/窗口小时
@@ -200,23 +200,36 @@ public final class BallTidyButton {
             };
         }
 
-        // ② 没有合成书 ⇒ 玩家背包第一格向右的外面
+        // ② 没有合成书 ⇒ 玩家背包**右上那一格**向右的外面
+        //
+        // ⚠️ 是「背包第一行的**最后**一格」，不是第一格（作者 2026-10-17 指正：
+        //    「玩家背包右上的那一格，不是第一格」）。
+        //    这里不写死 containerSlot == 17，而是**取「最上行里最靠右」的那个槽位** ——
+        //    这样不管背包几行、槽位怎么排，取到的都一定是右上角那一格。
+        Slot topRight = null;
         for (Slot slot : screen.getMenu().slots) {
             if (!(slot.container instanceof Inventory)) {
                 continue;   // 只看玩家自己的背包
             }
-            // 只要「背包第一行第一格」——也就是 containerSlot == 9
-            // （0..8 是快捷栏，从 9 起才是 3 行背包）
-            if (slot.getContainerSlot() != Inventory.getSelectionSize()) {
+            // 跳过快捷栏（containerSlot 0..8 是快捷栏，从 9 起才是 3 行背包）
+            if (slot.getContainerSlot() < Inventory.getSelectionSize()) {
                 continue;
             }
-            final int slotLeft = left + slot.x;
-            final int slotTop = top + slot.y;
-            return new int[] {
-                    slotLeft + SLOT_SIZE + GAP,                   // 第一格右边，隔 GAP
-                    slotTop + (SLOT_SIZE - SIZE) / 2               // 与那一格垂直居中
-            };
+            // 更靠上优先；同一行里更靠右优先
+            if (topRight == null
+                    || slot.y < topRight.y
+                    || (slot.y == topRight.y && slot.x > topRight.x)) {
+                topRight = slot;
+            }
         }
-        return null;
+        if (topRight == null) {
+            return null;
+        }
+        final int slotLeft = left + topRight.x;
+        final int slotTop = top + topRight.y;
+        return new int[] {
+                slotLeft + SLOT_SIZE + GAP,                    // 右上那一格的右边，隔 GAP
+                slotTop + (SLOT_SIZE - SIZE) / 2                // 与那一格垂直居中
+        };
     }
 }
