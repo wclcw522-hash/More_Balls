@@ -3274,8 +3274,19 @@ public class BallProjectile extends ThrowableItemProjectile {
      * @return 朝目标的单位向量；<b>锁不到目标时返回 {@code null}</b>（表示「这一位不干预」）
      */
     public Vec3 wisdomSteerToward(Vec3 point) {
-        if (this.profile().wisdom() <= 0 || this.wisdomUsesLeft <= 0) {
-            return null;   // 没有【智慧】或次数已用完 ⇒ 不干预
+        // ⚠️⚠️ **判据不能写 `wisdomUsesLeft <= 0`**（作者 2026-10-17 报「【智慧】还是不能影响轨迹」）。
+        //
+        //    时间线（三个行号摆在一起就看出来了）：
+        //      · `wisdomUsesLeft` 的初值是 **-1**（表示「还没初始化」）；
+        //      · 它在 **`ballTickPost()`** 的智慧块里才被设成 `profile().wisdom()`；
+        //      · 而【尖啸】的 `shriek()` 在 **`ballTickPre()`** 里就被调用了 ——
+        //        **那时 `wisdomUsesLeft` 还是 -1**。
+        //    于是 `<= 0` 把「未初始化」当成了「次数用完」，只在第一次就返回 null，
+        //    转向永远不生效（轨迹永远走直线）。
+        //
+        //    正确语义：-1 = 未初始化（当作「有次数、可用」）；0 = 真的用完了（不干预）。
+        if (this.profile().wisdom() <= 0 || this.wisdomUsesLeft == 0) {
+            return null;   // 没带【智慧】，或次数确实用完了 ⇒ 不干预
         }
         if (!(this.level() instanceof ServerLevel steerLevel)) {
             return null;
