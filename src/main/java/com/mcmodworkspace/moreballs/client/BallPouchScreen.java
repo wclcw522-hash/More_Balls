@@ -225,6 +225,12 @@ public class BallPouchScreen extends AbstractContainerScreen<BallPouchMenu> {
         final int total = this.imageWidth;
         final int edge = EDGE_WIDTH;
         final int middle = BASE_WIDTH - edge * 2;   // 160
+        if (total == BASE_WIDTH) {
+            // 宽度正好等于原图（9 列）⇒ 一次 blit 画完，与重构前的像素完全一致
+            graphics.blit(RenderPipelines.GUI_TEXTURED, CONTAINER_TEXTURE,
+                    x, y, 0.0F, v, total, height, TEXTURE_SIZE, TEXTURE_SIZE);
+            return;
+        }
         if (total <= edge * 2) {
             // 极窄（理论上不会发生）⇒ 退回原来的整张 blit
             graphics.blit(RenderPipelines.GUI_TEXTURED, CONTAINER_TEXTURE,

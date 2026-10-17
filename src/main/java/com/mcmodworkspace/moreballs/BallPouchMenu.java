@@ -49,7 +49,7 @@ public class BallPouchMenu extends AbstractContainerMenu {
      *   <li>{@link #PLAYER_COLUMNS} = 玩家背包 / 快捷栏的列数 —— 原版固定 9，永远不动。</li>
      * </ul>
      */
-    public static final int POUCH_COLUMNS = 18;
+    public static final int POUCH_COLUMNS = 9;
 
     /** 玩家背包 / 快捷栏的列数 —— 原版固定 9，**不要**跟着袋子改 */
     public static final int PLAYER_COLUMNS = 9;
@@ -206,7 +206,9 @@ public class BallPouchMenu extends AbstractContainerMenu {
      * 所以界面变宽后它们仍贴在左边，与改之前的位置完全一致。</p>
      */
     public int guiWidth() {
-        return SIDE_PADDING * 2 + POUCH_COLUMNS * SLOT_STEP;
+        // 与原版容器一致的宽度：左右内边距 + (列数-1) 个步长 + 最后一格的 16 像素宽
+        // 9 列 ⇒ 16 + 8*18 + 16 = 176（与回退前的硬编码值完全一致）
+        return SIDE_PADDING * 2 + (POUCH_COLUMNS - 1) * SLOT_STEP + 16;
     }
 
     private static int rowsFor(int slots) {
