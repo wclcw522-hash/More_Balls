@@ -574,14 +574,14 @@ public final class BallExtraTraits {
 
             if (inPath) {
                 // 路径上：只有伤害 + 击飞，**不上任何 debuff**（作者 2026-10-16）
-                living.hurtServer(level, shriekDamage(ball, level, armorPiercing), SHRIEK_PATH_DAMAGE);
+                shriekHurt(level, living, shriekDamage(ball, level, armorPiercing), SHRIEK_PATH_DAMAGE);
                 Vec3 away = living.position().subtract(nearest);
                 away = away.lengthSqr() < 1.0E-6D ? new Vec3(0.0D, 1.0D, 0.0D) : away.normalize();
                 living.push(away.x * SHRIEK_KNOCK_HORIZONTAL, SHRIEK_KNOCK_VERTICAL,
                         away.z * SHRIEK_KNOCK_HORIZONTAL);
             }
             if (inImpact) {
-                living.hurtServer(level, shriekDamage(ball, level, armorPiercing), SHRIEK_IMPACT_DAMAGE);
+                shriekHurt(level, living, shriekDamage(ball, level, armorPiercing), SHRIEK_IMPACT_DAMAGE);
                 applyShriekEffects(living, ball);
             }
         }
@@ -629,6 +629,31 @@ public final class BallExtraTraits {
      *
      * <p>没带【穿甲】时保持原样，用原版的 sonicBoom。</p>
      */
+    /**
+     * 【尖啸】造成伤害并<b>无视无敌帧</b>（作者 2026-10-17 要求）。
+     *
+     * <p>原版 {@code LivingEntity.hurtServer} 受 {@code invulnerableTime} 限制：
+     * 刚挨过打的目标在这段时间内再挨打会被直接忽略。而【尖啸】会在<b>一整条路径的每一段</b>
+     * 上反复结算（路径 5 点 + 每个碰撞点 15 点），若走无敌帧，同一个目标只会吃到第一下，
+     * 后面全被吞掉 —— 于是「尖啸打一片」实际只打了一个。
+     *
+     * <p>所以这里在<b>每次结算前后都把 {@code invulnerableTime} 清零</b>：</p>
+     * <ul>
+     *   <li><b>结算前清零</b> —— 保证这一下一定生效，不被上一次的无敌帧挡掉；</li>
+     *   <li><b>结算后清零</b> —— 不留无敌帧给后面的段/下一个碰撞点，也不影响紧接着的其它伤害
+     *       （「以及受其影响的伤害」也一并无视无敌帧）。</li>
+     * </ul>
+     *
+     * @param level  服务端世界
+     * @param living 目标
+     * @param source 伤害源（已按【穿甲】选好真实物理 / 普通）
+     * @param amount 伤害值
+     */
+    private static void shriekHurt(ServerLevel level, LivingEntity living, DamageSource source, float amount) {
+        living.invulnerableTime = 0;
+        living.hurtServer(level, source, amount);
+        living.invulnerableTime = 0;
+    }
     private static DamageSource shriekDamage(BallProjectile ball, ServerLevel level, boolean armorPiercing) {
         if (armorPiercing) {
             return BallDamageTypes.truePhysical(level, ball, ball.getOwner());
