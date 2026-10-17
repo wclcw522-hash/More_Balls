@@ -385,15 +385,27 @@ public final class ModItems {
      *
      * <p>物品 id 就是等级的资源名（皮革那件叫 {@code ball_pouch}）。</p>
      *
-     * <p><b>装了 Curios 就用带饰品能力的那个类，没装就用普通的</b> ——
-     * {@code BallPouchCurioItem} 引用了 Curios 的接口，所以它只有 Curios 在场时才能加载。
-     * 三元表达式在 false 分支上不会构造它，JVM 也就不会去解析那个类，
-     * 于是没装 Curios 的玩家完全不受影响。这是「第三方依赖只用 compileOnly + 运行时判断」
-     * 那条规范的具体落地。</p>
+     * <p><b>装了 Curios 就用带饰品能力的那个类，没装就用普通的。</b></p>
+     *
+     * <p>⚠️⚠️ <b>这里绝不能直接写 {@code new BallPouchCurioItem(...)} —— 哪怕包在三元判断里</b>
+     * （作者 2026-10-17 关掉其它 mod 后游戏起不来，根因就是它）：</p>
+     *
+     * <pre>
+     * java.lang.NoClassDefFoundError: top/theillusivec4/curios/api/type/capability/ICurioItem
+     *     at com.mcmodworkspace.moreballs.MoreBalls.&lt;init&gt;(MoreBalls.java:24)
+     * </pre>
+     *
+     * <p>原因不是运行时走了那条分支，而是 <b>JVM 字节码验证器</b>：{@code new BallPouchCurioItem(...)}
+     * 的结果要赋给 {@code Item}，验证器就得确认「它是 {@code Item} 的子类」——
+     * 这一确认就要**加载那个类**，而它 {@code implements ICurioItem}，Curios 不在就炸。
+     * 运行时的 {@code isLoaded()} 判断在「类型解析」面前完全无效。</p>
+     *
+     * <p>所以真正的 {@code new} 挪进了 {@link BallPouchCurioFactory#create}（返回类型是 {@code Item}），
+     * 本方法只在这个工厂外面套运行时判断 —— 没装 Curios 时那个类根本不会被加载。</p>
      */
     private static DeferredItem<Item> registerPouch(BallPouchTier tier) {
         return ITEMS.registerItem(tier.id(), props -> BallPouchCurios.isLoaded()
-                ? new BallPouchCurioItem(props.stacksTo(1), tier)
+                ? BallPouchCurioFactory.create(props.stacksTo(1), tier)
                 : new BallPouchItem(props.stacksTo(1), tier));
     }
 
