@@ -100,19 +100,6 @@ public abstract class AbstractContainerMenuMixin {
         //    而作者是在**背包界面**里测的 ⇒ 永远走不到，功能等于没实现。
         //    这里才是所有容器界面（背包 / 箱子 / 收纳袋…）共用的 clicked 入口。
         //
-        // 只在服务端干：会改球堆的组件，是持久状态变更，客户端由同步包刷回来。
-        // ⏳ 临时诊断（定位「加号有但右键放不进」）：只打右键点击，量很小
-        if (input == ContainerInput.PICKUP && button == 1) {
-            com.mcmodworkspace.moreballs.MoreBalls.LOGGER.info(
-                    "[pouch][mixin] slot={} client={} carried={} ball={} target={} cluster={}",
-                    slotId, player.level().isClientSide(), self.getCarried(),
-                    !self.getCarried().isEmpty()
-                            && com.mcmodworkspace.moreballs.BallAmmo.isBall(self.getCarried()),
-                    (slotId >= 0 && slotId < self.slots.size()) ? self.slots.get(slotId).getItem() : ItemStack.EMPTY,
-                    (slotId >= 0 && slotId < self.slots.size())
-                            && BallClusterItem.isCluster(self.slots.get(slotId).getItem()));
-        }
-
         // ⚠️ **两端都要执行**（作者 2026-10-18 反馈「加号有但放不进」）：
         //    原来我加了 `!player.level().isClientSide()`，只在服务端改。
         //    但客户端那一侧没有我的 ci.cancel()，原版会照自己的规则处理「光标有物品 + 右键点已占用槽」
@@ -130,7 +117,17 @@ public abstract class AbstractContainerMenuMixin {
                 if (existing.hasRoom() && existing.matches(carriedBall)) {
                     BallClusterContents after = existing.withAdded(carriedBall);
                     if (after != existing) {
-                        BallClusterItem.setContents(targetShell, after);
+                        // ⚠️⚠️ **必须「复制 → 改组件 → 写回槽位」**，不能直接改 getItem() 返回的那个对象。
+                        //
+                        //    这是本方法里相邻两个分支的既有写法，我原先没照着来：
+                        //      · ② 落一颗（L85）：`target.set(one)`
+                        //      · ③ 取一组（L184/188）：`slot.setByPlayer(shellAfter)`
+                        //    只有 ②' 直接 `setContents(targetShell, after)` —— 改的是从槽位取出来的那个
+                        //    ItemStack，**不会触发槽位更新**，服务端与客户端都看不到变化 ⇒ 表现为「放不进去」。
+                        ItemStack shellAfter = targetShell.copy();
+                        BallClusterItem.setContents(shellAfter, after);
+                        self.slots.get(slotId).setByPlayer(shellAfter);
+
                         carriedBall.shrink(1);          // 光标上少一颗
                         self.setCarried(carriedBall.isEmpty() ? ItemStack.EMPTY : carriedBall);
                         self.broadcastChanges();
