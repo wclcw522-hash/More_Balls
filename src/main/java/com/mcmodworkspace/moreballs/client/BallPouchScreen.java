@@ -272,6 +272,11 @@ public class BallPouchScreen extends AbstractContainerScreen<BallPouchMenu> {
      */
     private void drawInsertHints(GuiGraphicsExtractor graphics, int x) {
         final net.minecraft.world.item.ItemStack carried = this.menu.getCarried();
+        // ⏳ 临时诊断：无条件打点，确认本方法被调用以及光标状态
+        com.mcmodworkspace.moreballs.MoreBalls.LOGGER.info("[pouch][hint-enter] carried={} isBall={} slots={}",
+                carried,
+                !carried.isEmpty() && com.mcmodworkspace.moreballs.BallAmmo.isBall(carried),
+                this.menu.slots.size());
         if (carried.isEmpty() || !com.mcmodworkspace.moreballs.BallAmmo.isBall(carried)) {
             return;   // 光标上不是球 ⇒ 没有任何提示
         }

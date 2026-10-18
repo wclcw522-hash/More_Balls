@@ -293,6 +293,9 @@ public class BallPouchMenu extends AbstractContainerMenu {
      */
     @Override
     public void clicked(int slotId, int button, net.minecraft.world.inventory.ContainerInput containerInput, Player player) {
+        // ⏳ 临时诊断：先确认这个 override 到底有没有被调用（无条件打点）
+        MoreBalls.LOGGER.info("[pouch][clicked-enter] slot={} button={} input={} carried={}",
+                slotId, button, containerInput, this.getCarried());
         // ⏳ 临时诊断（定位「右键放不进球堆」，验证后删）
         if (button == 1 && containerInput == net.minecraft.world.inventory.ContainerInput.PICKUP) {
             final ItemStack dbgCarried = this.getCarried();
