@@ -107,6 +107,12 @@ public final class BallTidyButton {
         if (minecraft.player == null) {
             return;   // 不在世界里就不响应
         }
+        // ⚠️ 只有开着背包 / 容器界面时才响应（作者 2026-10-18：平常不该整理）。
+        //    这条是 KeyMapping 那一路，另一路见 {@link #onMouseButton}，两处都必须判断，
+        //    否则玩家在游戏里按中键照样会整理。
+        if (!(minecraft.gui.screen() instanceof AbstractContainerScreen<?>)) {
+            return;
+        }
         while (TIDY_KEY.consumeClick()) {
             ClientPacketDistributor.sendToServer(TidyBallsPayload.INSTANCE);
         }
@@ -141,8 +147,13 @@ public final class BallTidyButton {
             return;   // 这个鼠标键不是绑给「整理球堆」的
         }
         Minecraft minecraft = Minecraft.getInstance();
-        if (minecraft.player == null || minecraft.gui.screen() != null) {
+        // ⚠️ **只在背包 / 容器界面里整理**（作者 2026-10-18：平常不该整理）。
+        //    原先是反的 —— `screen != null` 就返回，等于「只有没开界面时才整理」。
+        if (minecraft.player == null) {
             return;
+        }
+        if (!(minecraft.gui.screen() instanceof AbstractContainerScreen<?>)) {
+            return;   // 没开容器界面（在游戏里跑）⇒ 不整理
         }
         ClientPacketDistributor.sendToServer(TidyBallsPayload.INSTANCE);
         event.setCanceled(true);   // 吃掉这次按键

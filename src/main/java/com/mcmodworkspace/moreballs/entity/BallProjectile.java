@@ -1542,6 +1542,11 @@ public class BallProjectile extends ThrowableItemProjectile {
 
     @Override
     public void tick() {
+        // 作者 2026-10-18：世界里的球实体一直带「发光」轮廓（无限时长）。
+        // 用 setGlowingTag 而不是 GLOWING 药水效果 —— 药水有持续时间要每 tick 续期，
+        // 而发光标记是实体上的布尔状态，设置一次就是永久的。
+        this.setGlowingTag(true);
+
         ballTickPre();
 
         // 父类 tick —— 物理、移动、碰撞检测都在里面
