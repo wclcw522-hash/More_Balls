@@ -98,8 +98,9 @@ public final class BallClusterDecorator implements IItemDecorator {
             final ItemStack carriedNow = cs.getMenu().getCarried();
             if (!carriedNow.isEmpty() && com.mcmodworkspace.moreballs.BallAmmo.isBall(carriedNow)
                     && contents.hasRoom() && contents.matches(carriedNow)) {
-                final int px = x + 11;
-                final int py = y + 11;
+                // 画在**左上角**：右下角是原版物品数量数字的位置，会把它挡住（作者 2026-10-18）
+                final int px = x + 1;
+                final int py = y + 1;
                 guiGraphics.fill(px, py, px + 6, py + 6, 0xFF000000);          // 黑描边
                 guiGraphics.fill(px + 1, py + 1, px + 5, py + 5, 0xFF3FA34D);   // 绿底
                 guiGraphics.fill(px + 1, py + 3, px + 5, py + 4, 0xFFFFFFFF);   // 「+」横
