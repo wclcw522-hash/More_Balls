@@ -32,6 +32,11 @@ public class MoreBalls {
 
 
         // 右键投掷 + 蓄力链路（全部走官方事件，无 Mixin）
+        // 战利品箱里生成球（作者 2026-10-18）—— LootTableLoadEvent 属于 GAME 总线，
+        // 而且 26.2 的 @EventBusSubscriber 没能把它挂上（实测一条规则都没生效），
+        // 所以这里显式挂到 NeoForge.EVENT_BUS 上，双保险。
+        NeoForge.EVENT_BUS.addListener(BallLootTables::onLootTableLoad);
+
         NeoForge.EVENT_BUS.addListener(BallThrowHandler::onRightClickItem);
         NeoForge.EVENT_BUS.addListener(BallThrowHandler::onStartUsing);
         NeoForge.EVENT_BUS.addListener(BallThrowHandler::onStopUsing);

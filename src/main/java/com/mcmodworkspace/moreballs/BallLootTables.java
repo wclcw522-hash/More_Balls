@@ -122,26 +122,32 @@ public final class BallLootTables {
             }
 
             // ④ 金球：猪灵堡垒的箱子（20%），1–2 个，试 3 次
-            if (path.startsWith("bastion_")) {
+            if (path.contains("bastion_")) {
                 addBallPool(event, "gold", ModItems.GOLD_BALL.get(),
                         GOLD_CHANCE, 1, 2, GOLD_TRIES, null);
             }
 
             // ⑤ 潮汐球：藏宝图对应的箱子（30%），代替海洋之心 ⇒ 数量 1、试 1 次
-            if (path.equals("buried_treasure")) {
+            if (path.endsWith("buried_treasure")) {
                 addBallPool(event, "tidal", ModItems.TIDAL_BALL.get(),
                         TIDAL_CHANCE, 1, 1, 1, null);
             }
 
             // ⑥ 回响球：远古城市的箱子（2%），1–2 个，试 2 次
-            if (path.startsWith("ancient_city")) {
+            if (path.contains("ancient_city")) {
                 addBallPool(event, "echo", ModItems.ECHO_BALL.get(),
                         ECHO_CHANCE, 1, 2, ECHO_TRIES, null);
             }
 
-            // ⑦ 紫水晶球：y < 30 的箱子（20%），1–4 个，试 3 次
-            addBallPool(event, "amethyst", ModItems.AMETHYST_BALL.get(),
-                    AMETHYST_CHANCE, 1, 4, AMETHYST_TRIES, YBelowCondition.yBelow(AMETHYST_MAX_Y));
+            // ⑦ 紫水晶球：y < 30 的**箱子**（20%），1–4 个，试 3 次
+            //
+            // ⚠️ 必须先限定「是箱子表」—— 否则这张规则会给**每一张** loot table
+            //    （钓鱼、怪物掉落、村庄交易…）都加一个池，虽然 y<30 条件会挡住绝大多数，
+            //    但池子白加一遍，日志也会刷屏。原作者说的是「箱子」，就只对 chests/ 下的表生效。
+            if (path.startsWith("chests/")) {
+                addBallPool(event, "amethyst", ModItems.AMETHYST_BALL.get(),
+                        AMETHYST_CHANCE, 1, 4, AMETHYST_TRIES, YBelowCondition.yBelow(AMETHYST_MAX_Y));
+            }
         } catch (Throwable ignored) {
             // 见方法注释：宁可这条规则不加，也不能让战利品加载失败
         }
@@ -182,6 +188,9 @@ public final class BallLootTables {
         pool.add(entry);
         pool.name(poolName);
         event.getTable().addPool(pool.build());
+        // 诊断日志（debug 级；排查时把它调成 info 就能看到每条规则往哪些表加了池）
+        MoreBalls.LOGGER.debug("[ball][loot] 已加池 {} 到表 {}（概率 {}，数量 {}-{}，rolls {}）",
+                poolName, event.getName(), chance, min, max, tries);
     }
 
     // ===== 「跟随原表概率」：反射读权重 =====
@@ -209,13 +218,7 @@ public final class BallLootTables {
                     continue;
                 }
                 for (Object entryObj : entries) {
-                    if (!want.equals(itemOf(entryObj))) {
-                        continue;
-                    }
-                    final float w = weightOf(entryObj);
-                    if (w > 0.0F) {
-                        best = Math.max(best, w / total);
-                    }
+                    best = Math.max(best, matchInEntry(entryObj, want, total));
                 }
             }
             return best;
@@ -224,6 +227,40 @@ public final class BallLootTables {
         }
     }
 
+    /**
+     * 在一个条目里找目标物品，**递归进「条目组」**。
+     *
+     * <p>⚠️ 作者 2026-10-18 实测「除了紫水晶球其它都不出」，根因之一就在这里：
+     * 原版箱子表大量用 {@code EntryGroup} / {@code AlternativesEntry} / {@code SequentialEntry}
+     * 把多个条目打包成一个，而第一版只看了 {@code LootPool.entries} 的**第一层** ——
+     * 包在组里的铁锭、钻石根本看不见，于是「跟随原表概率」三条规则全判定为「表里没有」，
+     * 一颗球都不加。</p>
+     *
+     * <p>这里对每个条目：先看它自己是不是目标物品；不是就尝试取它的 {@code entries}
+     * 字段（组类都有这个字段）递归下去。</p>
+     *
+     * @return 该条目（或它内部子条目）对应的概率，找不到返回 0
+     */
+    private static float matchInEntry(Object entryObj, Identifier want, float poolTotal) {
+        if (entryObj == null || poolTotal <= 0.0F) {
+            return 0.0F;
+        }
+        // 自己就是目标物品
+        if (want.equals(itemOf(entryObj))) {
+            final float w = weightOf(entryObj);
+            return w > 0.0F ? w / poolTotal : 0.0F;
+        }
+        // 不是 ⇒ 可能是「条目组」，递归进子条目
+        final Object children = getField(entryObj, "entries");
+        if (!(children instanceof List<?> list)) {
+            return 0.0F;
+        }
+        float best = 0.0F;
+        for (Object child : list) {
+            best = Math.max(best, matchInEntry(child, want, poolTotal));
+        }
+        return best;
+    }
     /** 池的总权重（把条目权重加起来，比去碰私有方法稳） */
     private static float totalWeight(Object poolObj) {
         final List<?> entries = (List<?>) getField(poolObj, "entries");
