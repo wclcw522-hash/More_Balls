@@ -259,10 +259,15 @@ public final class BallTooltip {
         //    和【熔融x】一个做法：名字带效果颜色、时长自动按 tick 速率格式化成 mm:ss，
         //    而不是在 lang 里写死「（00:03）」（那种写法时长一改就对不上）。
         if (profile.hasFlag(BallBehavior.BallProfile.FLAG_PULSE)) {
-            out.add(Entry.of(line("tooltip.more_balls.entry.pulse"), Kind.TRAIT,
-                    Component.translatable("tooltip.more_balls.desc.pulse",
+            // ⚠️ 描述对调后，**带效果名/时长的那句现在在常显行**（author 2026-10-18），
+            //    所以两个参数也必须跟着搬到 entry 这边 —— 否则占位符没东西可填，
+            //    会原样显示成 %1$s / %2$s（作者报的「效果名与时长被百分号取代」就是这个）。
+            out.add(Entry.of(
+                    Component.translatable("tooltip.more_balls.entry.pulse",
                             effectWithDuration(ModEffects.SHOCK, RedstonePulse.DURATION_BASE, 0),
-                            effectWithDuration(ModEffects.SHOCK, RedstonePulse.DURATION_STRONG, RedstonePulse.AMPLIFIER_STRONG))));
+                            effectWithDuration(ModEffects.SHOCK, RedstonePulse.DURATION_STRONG, RedstonePulse.AMPLIFIER_STRONG)),
+                    Kind.TRAIT,
+                    line("tooltip.more_balls.desc.pulse")));
         }
 
         // 【照明】—— 雪球-红石：下方四棱锥区域内的生物被染色发光
@@ -333,10 +338,13 @@ public final class BallTooltip {
         // 常显是那句调侃，说明收在 Shift 里；说明里的效果名与时长走**原版药水格式**
         // （名字带效果颜色、时长是「00:10」那种写法）。
         if (profile.hasFlag(BallBehavior.BallProfile.FLAG_MONEY)) {
-            out.add(Entry.of(line("tooltip.more_balls.entry.money"), Kind.TRAIT,
-                    line("tooltip.more_balls.desc.money",
+            // 同上：带效果名/时长的那句搬到常显行了，参数也跟着搬。
+            out.add(Entry.of(
+                    Component.translatable("tooltip.more_balls.entry.money",
                             effectWithDuration(ModEffects.MONEY, BallExtraTraits.MONEY_TICKS,
-                                    MoneyEffect.MAX_AMPLIFIER))));
+                                    MoneyEffect.MAX_AMPLIFIER)),
+                    Kind.TRAIT,
+                    line("tooltip.more_balls.desc.money")));
         }
 
         // 【尖刺】—— 滴水石球（「其它特殊」类）：击中 / 碰撞 / 破碎时射出 8 枚滴水石锥
