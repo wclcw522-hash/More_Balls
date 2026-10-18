@@ -251,9 +251,9 @@ public final class BallTooltip {
         // 【穿透x】—— 自带穿透，能连着打穿 x 个目标
         if (profile.hasPenetration()) {
             out.add(Entry.of(
-                    line("tooltip.more_balls.entry.penetration", String.valueOf(profile.penetration())),
-                    Kind.TRAIT,
-                    line("tooltip.more_balls.desc.penetration", String.valueOf(profile.penetration()))));
+                    // 原常显只有「【穿透x】」没有描述 ⇒ 描述对调后 shift 里不再留那一行（作者 2026-10-18）
+            line("tooltip.more_balls.entry.penetration", String.valueOf(profile.penetration())),
+                    Kind.TRAIT));
         }
 
         // 【脉冲】—— 红石球：命中时让周围金属目标晕头转向。
@@ -269,8 +269,7 @@ public final class BallTooltip {
                     Component.translatable("tooltip.more_balls.entry.pulse",
                             effectWithDuration(ModEffects.SHOCK, RedstonePulse.DURATION_BASE, 0),
                             effectWithDuration(ModEffects.SHOCK, RedstonePulse.DURATION_STRONG, RedstonePulse.AMPLIFIER_STRONG)),
-                    Kind.TRAIT,
-                    line("tooltip.more_balls.desc.pulse")));
+                    Kind.TRAIT));
         }
 
         // 【照明】—— 雪球-红石：下方四棱锥区域内的生物被染色发光
@@ -320,8 +319,8 @@ public final class BallTooltip {
 
         // 【忠诚】—— 潮汐球：永远带忠诚附魔，且不会被任何生物捡走
         if (profile.loyalty()) {
-            out.add(Entry.of(line("tooltip.more_balls.entry.loyalty"), Kind.TRAIT,
-                    line("tooltip.more_balls.desc.loyalty")));
+            // 原常显只有「【忠诚】」⇒ shift 里不再留那一行（作者 2026-10-18）
+            out.add(Entry.of(line("tooltip.more_balls.entry.loyalty"), Kind.TRAIT));
         }
 
         // ===== 更早批次：【感应】自 2.0.0 起就有（渲染代码排在此处）=====
@@ -332,7 +331,8 @@ public final class BallTooltip {
             Component text = profile.sense() == BallBehavior.DEFAULT_SENSE_LEVEL
                     ? line("tooltip.more_balls.entry.sense_plain")
                     : line("tooltip.more_balls.entry.sense", String.valueOf(profile.sense()));
-            out.add(Entry.of(text, Kind.TRAIT, line("tooltip.more_balls.desc.sense")));
+            // 原常显只有「【感应x】」⇒ shift 里不再留那一行（作者 2026-10-18）
+            out.add(Entry.of(text, Kind.TRAIT));
         }
 
         // ===== 第十三批重做（作者 2026-10-15）=====
