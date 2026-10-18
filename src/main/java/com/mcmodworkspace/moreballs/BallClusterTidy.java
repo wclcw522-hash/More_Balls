@@ -118,6 +118,20 @@ public final class BallClusterTidy {
             return pouchTouched ? 1 : 0;
         }
 
+        // ===== 第一趟半：**排序**（作者 2026-10-18：整理除堆叠外还要完成排序）=====
+        //
+        // 排序键 = 「球种 → 档位」。同一颗球总是聚在一起，同球种内部再按档位（也就是耐久）排列。
+        // 排序的意义在下面第二趟体现：塞壳是按 loose 的顺序走的，
+        // 于是背包里新建出来的壳也就按「球种 + 档位」依次落位，而不是看哪颗球先被摊开。
+        //
+        // ⚠️ 用注册名做第一键，而不是物品的注册顺序 —— 那样会随注册表加载次序漂移。
+        loose.sort(
+                java.util.Comparator
+                        .comparing((ItemStack s) -> net.minecraft.core.registries.BuiltInRegistries.ITEM
+                                .getKey(s.getItem()).toString())
+                        .thenComparingInt(s -> BallClusterTier.of(s).isClustered() ? 0 : 1)
+                        .thenComparingInt(s -> -s.getDamageValue()));
+
         // ===== 第二趟：逐颗塞进壳 =====
         int moved = 0;
         for (ItemStack ball : loose) {

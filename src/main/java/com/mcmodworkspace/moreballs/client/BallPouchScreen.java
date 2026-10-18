@@ -192,6 +192,9 @@ public class BallPouchScreen extends AbstractContainerScreen<BallPouchMenu> {
 
         // ⑥ 把未解锁的格子盖成银灰色（索引靠后的那些，也就是从右往左）
         shadeLockedSlots(graphics, x);
+
+        // ⑦ 光标拿着球时，给「能收下它的球堆」画右下角小加号（作者 2026-10-18）
+        drawInsertHints(graphics, x);
     }
 
     /**
@@ -260,6 +263,40 @@ public class BallPouchScreen extends AbstractContainerScreen<BallPouchMenu> {
      * （窗口够高时恒为 true）。它只在窗口被压得极小、或者坐标因为 resize 竞态
      * 落到屏幕外时才拦一下，避免把越界的几何交给 26.2 的 scissor 而崩掉整帧。</p>
      */
+    /**
+     * <b>「光标拿着球、这个球堆能收下它」⇒ 右下角画个小加号</b>（作者 2026-10-18 要求）。
+     *
+     * <p>判据与 {@code BallPouchMenu.clicked} 里那段右键放入<b>完全一致</b>：
+     * 光标上是球、槽里是球堆、{@code hasRoom()} 且 {@code matches()}。
+     * 两处必须同一套条件，否则会出现「画了加号却放不进去」。</p>
+     */
+    private void drawInsertHints(GuiGraphicsExtractor graphics, int x) {
+        final net.minecraft.world.item.ItemStack carried = this.menu.getCarried();
+        if (carried.isEmpty() || !com.mcmodworkspace.moreballs.BallAmmo.isBall(carried)) {
+            return;   // 光标上不是球 ⇒ 没有任何提示
+        }
+        for (Slot slot : this.menu.slots) {
+            final net.minecraft.world.item.ItemStack stack = slot.getItem();
+            if (stack.isEmpty() || !com.mcmodworkspace.moreballs.BallClusterItem.isCluster(stack)) {
+                continue;
+            }
+            final com.mcmodworkspace.moreballs.BallClusterContents contents =
+                    com.mcmodworkspace.moreballs.BallClusterItem.contents(stack);
+            if (!contents.hasRoom() || !contents.matches(carried)) {
+                continue;
+            }
+            // 槽位内容区 16×16 的右下角，画一个 6×6 的小标记
+            final int sx = x + slot.x + 11;
+            final int sy = this.topPos + slot.y + 11;
+            if (!isRowVisible(sy, 6)) {
+                continue;
+            }
+            graphics.fill(sx, sy, sx + 6, sy + 6, 0xFF000000);          // 黑描边
+            graphics.fill(sx + 1, sy + 1, sx + 5, sy + 5, 0xFF3FA34D);   // 绿底
+            graphics.fill(sx + 1, sy + 3, sx + 5, sy + 4, 0xFFFFFFFF);   // 「+」横
+            graphics.fill(sx + 3, sy + 1, sx + 4, sy + 5, 0xFFFFFFFF);   // 「+」竖
+        }
+    }
     private static boolean isRowVisible(int y, int height) {
         final int screenHeight = net.minecraft.client.Minecraft.getInstance()
                 .getWindow().getGuiScaledHeight();
