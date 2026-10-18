@@ -11,6 +11,8 @@ import net.minecraft.world.level.storage.loot.predicates.LootItemCondition;
 import net.minecraft.world.level.storage.loot.predicates.LootItemRandomChanceCondition;
 import net.minecraft.world.level.storage.loot.providers.number.ConstantValue;
 import net.minecraft.world.level.storage.loot.providers.number.UniformGenerator;
+import net.neoforged.bus.api.SubscribeEvent;
+import net.neoforged.fml.common.EventBusSubscriber;
 import net.neoforged.neoforge.event.LootTableLoadEvent;
 
 import java.util.List;
@@ -46,11 +48,21 @@ import java.util.List;
  *
  * <p>⚠️ 反射<b>全程兜底</b>：任何一步失败只是「这条规则这次不加」，绝不让战利品生成崩掉。</p>
  *
- * <h2>怎么挂上去的</h2>
- * <p>{@code LootTableLoadEvent} 是 <b>mod 总线</b>事件，而 26.2 的 {@code @EventBusSubscriber}
- * 已经没有 {@code bus} 属性 —— 所以由 {@code MoreBalls} 构造器里
- * {@code modEventBus.addListener(BallLootTables::onLootTableLoad)} 显式挂上。</p>
+ * <h2>怎么挂上去的（⚠️ 这里是踩过的坑）</h2>
+ * <p>第一版我以为 {@code LootTableLoadEvent} 是 mod 总线事件，在 {@code MoreBalls} 构造器里
+ * 用 {@code modEventBus.addListener(...)} 挂 —— <b>一跑就崩</b>：</p>
+ *
+ * <pre>
+ * java.lang.IllegalArgumentException: Listener for event class
+ *   net.neoforged.neoforge.event.LootTableLoadEvent takes an argument that is not valid for this bus
+ * Caused by: This bus only accepts subclasses of IModBusEvent,
+ *   which class LootTableLoadEvent is not.
+ * </pre>
+ *
+ * <p><b>它是 GAME 总线事件</b>（{@code NeoForge.EVENT_BUS}），不是 {@code IModBusEvent}。
+ * 所以改用 {@code @EventBusSubscriber(modid = ...)}（默认就是 GAME 总线）+ {@code @SubscribeEvent}。</p>
  */
+@EventBusSubscriber(modid = MoreBalls.MOD_ID)   // LootTableLoadEvent 是 GAME 总线事件（不是 IModBusEvent）
 public final class BallLootTables {
 
     private BallLootTables() {
@@ -83,6 +95,7 @@ public final class BallLootTables {
      * <p>整体包在 {@code try/catch Throwable} 里：战利品加载是启动路径上的事，
      * 绝不能因为本模组让整个世界加载失败。出问题就当这些规则不存在。</p>
      */
+    @SubscribeEvent
     public static void onLootTableLoad(LootTableLoadEvent event) {
         try {
             final Identifier id = event.getName();
