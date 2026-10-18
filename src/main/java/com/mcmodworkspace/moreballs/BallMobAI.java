@@ -471,13 +471,13 @@ public final class BallMobAI {
      * 【烈焰人】每次尝试捡球的概率（作者 2026-10-11 指定：<b>30%</b>）。
      *
      * <p>⚠️ 这是「**每次尝试**」的概率 —— 和别的怪物那套口径一致
-     * （它们写的是 {@code PICKUP_CHANCE * PICKUP_TRY_INTERVAL = 4%}，也是每次尝试）。
+     * （它们写的是 {@code PICKUP_CHANCE * PICKUP_TRY_INTERVAL = 2%}，也是每次尝试）。
      * 所以这里直接就是 {@code 0.30}，**不要再乘 {@link #PICKUP_TRY_INTERVAL}**。</p>
      *
      * <p>配合 {@link #PICKUP_TRY_INTERVAL}（2 刻一次），
      * 实际相当于平均每刻 15% —— 它要求「飞过去就把球收进来」，捡慢了就白追一趟。</p>
      */
-    public static final float BLAZE_PICKUP_CHANCE = 0.02F;   // 作者 2026-10-18：捡球每次尝试统一 2%
+    public static final float BLAZE_PICKUP_CHANCE = 0.30F;   // 烈焰人专属规则，不随通用怪下调
 
     /**
      * 【烈焰人】的<b>拾取球判定范围</b>（作者 2026-10-11 指定）—— <b>15 × 15 × 5</b>。
