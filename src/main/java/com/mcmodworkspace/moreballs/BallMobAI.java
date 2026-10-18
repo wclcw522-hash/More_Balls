@@ -128,14 +128,16 @@ public final class BallMobAI {
     /** 每几刻扫一次附近有没有球（只为「决定要不要走过去」，拾取判定不受这个限制） */
     private static final int SEEK_SCAN_INTERVAL = 10;
 
+    // 接球概率（作者 2026-10-18 下调为 5% / 10% / 25%）：原来 10% / 25% / 50% 太高，
+    // 玩家扔出去的球老是被半路接走、等于在给怪送弹药 —— 这也是「感觉没必要用这个 mod」的成因之一。
     /** 接球概率：简单难度 */
-    public static final float CATCH_CHANCE_EASY = 0.10F;
+    public static final float CATCH_CHANCE_EASY = 0.05F;
 
     /** 接球概率：普通难度 */
-    public static final float CATCH_CHANCE_NORMAL = 0.25F;
+    public static final float CATCH_CHANCE_NORMAL = 0.10F;
 
     /** 接球概率：困难难度 */
-    public static final float CATCH_CHANCE_HARD = 0.50F;
+    public static final float CATCH_CHANCE_HARD = 0.25F;
 
     /**
      * 怪物蓄力的等级选择概率（作者指定）：
