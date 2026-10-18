@@ -230,10 +230,22 @@ public final class BallLootTables {
         return (w instanceof Number n) ? n.floatValue() : 0.0F;
     }
 
-    /** 条目的物品 —— 只有 {@code LootItem} 才有 {@code item} 字段 */
+    /**
+     * 条目的物品 —— 只有 {@code LootItem} 才有 {@code item} 字段。
+     *
+     * <p>⚠️⚠️ <b>{@code LootItem.item} 的类型是 {@code Holder<Item>}，不是 {@code Item}</b>
+     * （查 26.2 源码确认：{@code private final Holder<Item> item;}）。
+     * 第一版我按 {@code instanceof Item} 判，结果<b>恒为 false</b> ——
+     * 铁球和钻石球这两条「跟随原表概率」的规则会<b>静默失效</b>（不报错、就是永远不加），
+     * 这种错没实测根本看不出来。所以这里必须按 Holder 取值。</p>
+     */
     private static Identifier itemOf(Object entryObj) {
-        final Object item = getField(entryObj, "item");
-        if (item instanceof Item it) {
+        final Object raw = getField(entryObj, "item");
+        if (raw instanceof net.minecraft.core.Holder<?> holder && holder.value() instanceof Item it) {
+            return net.minecraft.core.registries.BuiltInRegistries.ITEM.getKey(it);
+        }
+        // 兜底：万一某个版本把它存成裸 Item
+        if (raw instanceof Item it) {
             return net.minecraft.core.registries.BuiltInRegistries.ITEM.getKey(it);
         }
         return null;
