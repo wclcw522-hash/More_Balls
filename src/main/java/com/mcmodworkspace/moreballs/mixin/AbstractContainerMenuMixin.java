@@ -128,7 +128,12 @@ public abstract class AbstractContainerMenuMixin {
                         BallClusterItem.setContents(shellAfter, after);
                         self.slots.get(slotId).setByPlayer(shellAfter);
 
-                        carriedBall.shrink(1);          // 光标上少一颗
+                        // 光标上按**实际放进去的数量**扣减（作者 2026-10-18：一次全放进去）。
+                        // withAdded 内部是 `add = min(ball.getCount(), room)` ——
+                        // 空间够就整摞收下、不够就收 room 个，所以这里不能写死 shrink(1)。
+                        // 差值 = 这次真正进壳的颗数。
+                        int added = after.size() - existing.size();
+                        carriedBall.shrink(added);
                         self.setCarried(carriedBall.isEmpty() ? ItemStack.EMPTY : carriedBall);
                         self.broadcastChanges();
                         ci.cancel();
