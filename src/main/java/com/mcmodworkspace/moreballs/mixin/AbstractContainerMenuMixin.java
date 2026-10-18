@@ -113,8 +113,13 @@ public abstract class AbstractContainerMenuMixin {
                             && BallClusterItem.isCluster(self.slots.get(slotId).getItem()));
         }
 
+        // ⚠️ **两端都要执行**（作者 2026-10-18 反馈「加号有但放不进」）：
+        //    原来我加了 `!player.level().isClientSide()`，只在服务端改。
+        //    但客户端那一侧没有我的 ci.cancel()，原版会照自己的规则处理「光标有物品 + 右键点已占用槽」
+        //    （交换 / 放不进去就地返回），客户端的预测结果把服务端改的覆盖掉
+        //    ⇒ 表现就是「动作像没发生」。
+        //    现在两端都跑：客户端改本地立刻可见，服务端改权威，再由同步包对齐。
         if (input == ContainerInput.PICKUP && button == 1
-                && !player.level().isClientSide()
                 && slotId >= 0 && slotId < self.slots.size()) {
             ItemStack carriedBall = self.getCarried();
             ItemStack targetShell = self.slots.get(slotId).getItem();
