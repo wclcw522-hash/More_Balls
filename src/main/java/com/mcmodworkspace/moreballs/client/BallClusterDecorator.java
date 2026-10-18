@@ -83,6 +83,29 @@ public final class BallClusterDecorator implements IItemDecorator {
             return false;
         }
 
+        // ===== 光标上拿着球时，给「能收下它的球堆」画右下角小加号（作者 2026-10-18）=====
+        //
+        // ⚠️ 这段**必须放在物品装饰器里**，不能放某个 Screen：
+        //    装饰器对所有容器界面（背包 / 箱子 / 收纳袋…）的物品格都会调用，
+        //    而作者的测试场景是**背包界面** —— 之前写在 BallPouchScreen 里就永远看不到。
+        //
+        //    判据与 AbstractContainerMenuMixin 里那段「右键放入」完全一致
+        //    （carried 是球 + 本格是球堆 + hasRoom + matches），
+        //    否则会出现「画了加号却放不进去」。
+        final net.minecraft.client.gui.screens.Screen dbgScreen =
+                net.minecraft.client.Minecraft.getInstance().gui.screen();
+        if (dbgScreen instanceof net.minecraft.client.gui.screens.inventory.AbstractContainerScreen<?> cs) {
+            final ItemStack carriedNow = cs.getMenu().getCarried();
+            if (!carriedNow.isEmpty() && com.mcmodworkspace.moreballs.BallAmmo.isBall(carriedNow)
+                    && contents.hasRoom() && contents.matches(carriedNow)) {
+                final int px = x + 11;
+                final int py = y + 11;
+                guiGraphics.fill(px, py, px + 6, py + 6, 0xFF000000);          // 黑描边
+                guiGraphics.fill(px + 1, py + 1, px + 5, py + 5, 0xFF3FA34D);   // 绿底
+                guiGraphics.fill(px + 1, py + 3, px + 5, py + 4, 0xFFFFFFFF);   // 「+」横
+                guiGraphics.fill(px + 3, py + 1, px + 4, py + 5, 0xFFFFFFFF);   // 「+」竖
+            }
+        }
         String amount = String.valueOf(contents.size());
         // 与 GuiGraphicsExtractor#itemCount 完全相同的落点（26.2 源码 L897）
         guiGraphics.text(font, amount, x + 19 - 2 - font.width(amount), y + 6 + 3, -1, true);

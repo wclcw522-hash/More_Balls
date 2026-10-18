@@ -94,6 +94,35 @@ public abstract class AbstractContainerMenuMixin {
             }
         }
 
+        // ===== ②' 光标上拿着**球** + 右键**球堆** = 把球放进去（作者 2026-10-18）=====
+        //
+        // ⚠️ 之前我把这段写进了 BallPouchMenu.clicked —— 那是**收纳袋自己的界面**，
+        //    而作者是在**背包界面**里测的 ⇒ 永远走不到，功能等于没实现。
+        //    这里才是所有容器界面（背包 / 箱子 / 收纳袋…）共用的 clicked 入口。
+        //
+        // 只在服务端干：会改球堆的组件，是持久状态变更，客户端由同步包刷回来。
+        if (input == ContainerInput.PICKUP && button == 1
+                && !player.level().isClientSide()
+                && slotId >= 0 && slotId < self.slots.size()) {
+            ItemStack carriedBall = self.getCarried();
+            ItemStack targetShell = self.slots.get(slotId).getItem();
+            if (!carriedBall.isEmpty() && com.mcmodworkspace.moreballs.BallAmmo.isBall(carriedBall)
+                    && !targetShell.isEmpty() && BallClusterItem.isCluster(targetShell)) {
+                BallClusterContents existing = BallClusterItem.contents(targetShell);
+                // 同球种（matches 只比球种、不比档位）+ 还有空位；withAdded 失败会返回同一引用
+                if (existing.hasRoom() && existing.matches(carriedBall)) {
+                    BallClusterContents after = existing.withAdded(carriedBall);
+                    if (after != existing) {
+                        BallClusterItem.setContents(targetShell, after);
+                        carriedBall.shrink(1);          // 光标上少一颗
+                        self.setCarried(carriedBall.isEmpty() ? ItemStack.EMPTY : carriedBall);
+                        self.broadcastChanges();
+                        ci.cancel();
+                        return;
+                    }
+                }
+            }
+        }
         // ===== ③ 背包里右键球堆 = 取出最低耐久那一组 =====
         // 只认「右键拿起」
         if (input != ContainerInput.PICKUP || button != 1) {

@@ -278,65 +278,6 @@ public class BallPouchMenu extends AbstractContainerMenu {
         return this.pouch;
     }
 
-    /**
-     * <b>右键把光标上的球放进球堆</b>（作者 2026-10-18 要求）。
-     *
-     * <p>原来只能「右键球堆 → 把最低耐久的那颗拿到光标上」（取出），反向放不进去。
-     * 这里补上反向：光标上拿着一颗球、右键点某个球堆，若同球种且还有空位，就收进去。</p>
-     *
-     * <h2>为什么要在 clicked 里拦</h2>
-     * <p>原版右键对槽位只有「拆一半 / 放一个」两种语义，不认识球堆这种「壳里装一串」的东西 ——
-     * 壳是 {@code stacksTo(1)} 的，原版只会把光标整摞塞进空槽，塞不进已占用的槽。
-     * 所以这一层必须自己写。</p>
-     *
-     * <p>拦下之后**不调 super**，直接返回 —— 否则原版还会再按自己的规则动一次光标上的物品。</p>
-     */
-    @Override
-    public void clicked(int slotId, int button, net.minecraft.world.inventory.ContainerInput containerInput, Player player) {
-        // ⏳ 临时诊断：先确认这个 override 到底有没有被调用（无条件打点）
-        MoreBalls.LOGGER.info("[pouch][clicked-enter] slot={} button={} input={} carried={}",
-                slotId, button, containerInput, this.getCarried());
-        // ⏳ 临时诊断（定位「右键放不进球堆」，验证后删）
-        if (button == 1 && containerInput == net.minecraft.world.inventory.ContainerInput.PICKUP) {
-            final ItemStack dbgCarried = this.getCarried();
-            final ItemStack dbgTarget = (slotId >= 0 && slotId < this.slots.size())
-                    ? this.slots.get(slotId).getItem() : ItemStack.EMPTY;
-            MoreBalls.LOGGER.info("[pouch][clicked] slot={} carried={} isBall={} target={} isCluster={}",
-                    slotId, dbgCarried, BallAmmo.isBall(dbgCarried), dbgTarget,
-                    !dbgTarget.isEmpty() && BallClusterItem.isCluster(dbgTarget));
-            if (!dbgTarget.isEmpty() && BallClusterItem.isCluster(dbgTarget)) {
-                final BallClusterContents dbg = BallClusterItem.contents(dbgTarget);
-                MoreBalls.LOGGER.info("[pouch][clicked] hasRoom={} matches={}", dbg.hasRoom(), dbg.matches(dbgCarried));
-            }
-        }
-
-        // 只接「右键 + 拾取类点击」
-        if (button == 1 && containerInput == net.minecraft.world.inventory.ContainerInput.PICKUP) {
-            final ItemStack carried = this.getCarried();
-            if (!carried.isEmpty() && BallAmmo.isBall(carried)) {
-                // slotId 越界（点空白区）时原版约定为 -1 / -999
-                if (slotId >= 0 && slotId < this.slots.size()) {
-                    final ItemStack target = this.slots.get(slotId).getItem();
-                    if (!target.isEmpty() && BallClusterItem.isCluster(target)) {
-                        final BallClusterContents existing = BallClusterItem.contents(target);
-                        // ⚠️ 同球种 + 还有空位才收；withAdded 失败会静默返回同一引用，所以要比引用
-                        if (existing.hasRoom() && existing.matches(carried)) {
-                            final BallClusterContents after = existing.withAdded(carried);
-                            if (after != existing) {
-                                BallClusterItem.setContents(target, after);
-                                carried.shrink(1);            // 光标上少一颗
-                                this.setCarried(carried.isEmpty() ? ItemStack.EMPTY : carried);
-                                this.broadcastChanges();
-                                return;                        // 拦下，不交给原版
-                            }
-                        }
-                    }
-                }
-            }
-        }
-        super.clicked(slotId, button, containerInput, player);
-    }
-    @Override
     public ItemStack quickMoveStack(Player player, int index) {
         Slot slot = this.slots.get(index);
         if (!slot.hasItem()) {
