@@ -104,12 +104,12 @@ public final class BallMobAI {
 
     /**
      * 捡球判定概率的<b>基准值</b> —— 实际判定概率是它 × {@link #PICKUP_TRY_INTERVAL}
-     * ＝ <b>每次尝试 4%</b>；判定只每 2 刻做一次，所以手感仍是「平均每刻 2%」。
+     * ＝ <b>每次尝试 2%</b>；判定只每 2 刻做一次，所以手感仍是「平均每刻 1%」（作者 2026-10-18 下调）。
      *
-     * <p>也就是平均约 50 刻（2.5 秒）才会捡起来一次，怪物会在球旁边磨蹭一会儿，
+     * <p>也就是平均约 100 刻（5 秒）才会捡起来一次，怪物会在球旁边磨蹭更久，
      * 而不是一走近就秒捡。</p>
      */
-    public static final float PICKUP_CHANCE = 0.02F;
+    public static final float PICKUP_CHANCE = 0.01F;
 
     /** 拾取尝试的间隔（刻）—— 与 PICKUP_CHANCE 配合，概率按倍数补回 */
     private static final int PICKUP_TRY_INTERVAL = 2;
@@ -477,7 +477,7 @@ public final class BallMobAI {
      * <p>配合 {@link #PICKUP_TRY_INTERVAL}（2 刻一次），
      * 实际相当于平均每刻 15% —— 它要求「飞过去就把球收进来」，捡慢了就白追一趟。</p>
      */
-    public static final float BLAZE_PICKUP_CHANCE = 0.30F;
+    public static final float BLAZE_PICKUP_CHANCE = 0.02F;   // 作者 2026-10-18：捡球每次尝试统一 2%
 
     /**
      * 【烈焰人】的<b>拾取球判定范围</b>（作者 2026-10-11 指定）—— <b>15 × 15 × 5</b>。
