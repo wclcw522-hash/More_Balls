@@ -81,7 +81,7 @@ public final class BallLootTables {
     private static final float TIDAL_CHANCE = 0.30F;
     private static final float ECHO_CHANCE = 0.02F;
     private static final float LAPIS_CHANCE = 0.10F;
-    private static final float AMETHYST_CHANCE = 0.20F;
+    private static final float AMETHYST_CHANCE = 0.10F;   // 作者 2026-10-18：20% -> 10%（减半）
 
     /** 「跟随原表」的折算比例 */
     private static final float FOLLOW_RATIO = 0.30F;
