@@ -179,12 +179,15 @@ public final class BallTooltip {
         // 【熔融x】—— 空心铁球专属：热量攒够后击中目标会把它烫伤
         if (profile.hasMolten()) {
             out.add(Entry.of(
-                    line("tooltip.more_balls.entry.molten", String.valueOf(profile.moltenThreshold())),
+                    // ⚠️ entry 那一句里有两个占位符：%1$s 是**熔融阈值**（40 这种数字），
+            //    %2$s 是**效果名+时长**。描述对调后两者挤到了同一行，
+            //    必须分别给 %1$s / %2$s，否则「获得」后面也会显示成阈值数字
+            //    （作者 2026-10-18 报的「描述越改越乱」就是这个）。
+            line("tooltip.more_balls.entry.molten",
+                    String.valueOf(profile.moltenThreshold()),
+                    effectWithDuration(ModEffects.MOLTEN_BURN, BallBehavior.MOLTEN_BURN_TICKS, 0)),
                     Kind.TRAIT,
-                    // 效果名 + 时长整体走原版格式（名字带效果颜色、时长是药水格式）
-                    line("tooltip.more_balls.desc.molten",
-                            effectWithDuration(ModEffects.MOLTEN_BURN,
-                                    BallBehavior.MOLTEN_BURN_TICKS, 0))));
+                    line("tooltip.more_balls.desc.molten")));
         }
 
         // 【变形】—— 金球
