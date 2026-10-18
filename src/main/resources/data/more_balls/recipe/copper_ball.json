@@ -1,8 +1,8 @@
 {
   "type": "minecraft:crafting_shaped",
   "category": "misc",
-  "key": { "#": "minecraft:copper_block" },
+  "key": { "#": "minecraft:copper_ingot" },
   "pattern": [ " # ", "###", " # " ],
-  "result": { "count": 8, "id": "more_balls:copper_ball" },
+  "result": { "count": 1, "id": "more_balls:copper_ball" },
   "show_notification": false
 }

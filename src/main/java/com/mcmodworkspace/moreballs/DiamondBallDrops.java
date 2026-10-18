@@ -31,22 +31,30 @@ public final class DiamondBallDrops {
     private DiamondBallDrops() {
     }
 
-    /** 第一段：掉 4–6 个钻石的概率 */
-    private static final float DIAMOND_MAIN_CHANCE = 0.60F;
+    // ===== 作者 2026-10-18 改版：破碎掉落 = 材料价值的 30% =====
+    //
+    // 钻石球配方现在是 5 个钻石 ⇒ 成本 5 ⇒ 30% = 1.5 颗。
+    // 实现成「100% 掉 1–2 个」，平均值 (1+2)/2 = 1.5，正好卡在 30%。
+    //
+    // 原来的二三段（20% 再掉 1–3 颗钻石、没掉钻石时 80% 掉 8–16 煤炭）
+    // 一并取消 —— 掉落已经按「材料价值比例」统一了，再叠随机段落会超出 30%。
+
+    /** 第一段：掉 1–2 个钻石（100%） */
+    private static final float DIAMOND_MAIN_CHANCE = 1.00F;
 
     /** 第一段的数量区间 */
-    private static final int DIAMOND_MAIN_MIN = 4;
-    private static final int DIAMOND_MAIN_MAX = 6;
+    private static final int DIAMOND_MAIN_MIN = 1;
+    private static final int DIAMOND_MAIN_MAX = 2;
 
-    /** 第二段：再掉 1–3 个钻石的概率 */
-    private static final float DIAMOND_EXTRA_CHANCE = 0.20F;
+    /** 第二段：已取消（概率 0，不再额外掉钻石） */
+    private static final float DIAMOND_EXTRA_CHANCE = 0.0F;
 
     /** 第二段的数量区间 */
     private static final int DIAMOND_EXTRA_MIN = 1;
     private static final int DIAMOND_EXTRA_MAX = 3;
 
-    /** 第三段：前面一颗钻石都没掉时，掉煤炭的概率 */
-    private static final float COAL_CHANCE = 0.80F;
+    /** 第三段：已取消（概率 0，不再补偿煤炭） */
+    private static final float COAL_CHANCE = 0.0F;
 
     /** 第三段的数量区间 */
     private static final int COAL_MIN = 8;

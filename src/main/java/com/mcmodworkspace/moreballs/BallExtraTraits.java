@@ -234,10 +234,10 @@ public final class BallExtraTraits {
     private static final double SHRIEK_MAX_RANGE = 256.0D;
 
     /** 【尖啸】：路径伤害（作者指定 5） */
-    public static final float SHRIEK_PATH_DAMAGE = 5.0F;
+    public static final float SHRIEK_PATH_DAMAGE = 10.0F;   // 作者 2026-10-18：5 -> 10
 
     /** 【尖啸】：落点范围伤害 —— 作者 2026-10-16 改为 <b>15</b>（原先是 10） */
-    public static final float SHRIEK_IMPACT_DAMAGE = 15.0F;
+    public static final float SHRIEK_IMPACT_DAMAGE = 20.0F;   // 作者 2026-10-18：15 -> 20
 
     /**
      * 【尖啸】：击飞力度 —— 作者 2026-10-16 要求「<b>稍微增大</b>」。

@@ -155,7 +155,7 @@ public final class BallBehavior {
     public static final int MOLTEN_BURN_TICKS = 20;
 
     /** 「雪球_金粒」【点金】的单块转化概率（作者指定 10%） */
-    public static final float TRANSMUTE_CHANCE = 0.10F;
+    public static final float TRANSMUTE_CHANCE = 0.20F;   // 作者 2026-10-18：10% -> 20%
 
     /**
      * 【初速度】的基准值 —— 雪球的初速度是 10（作者指定）。
@@ -302,11 +302,9 @@ public final class BallBehavior {
                 .withBounce(3)
                 .withRarity(20)
                 .withSound(BallSound.of(SoundType.ANVIL, 0.3F))
-                .withDrops(List.of(
-                        new BallDrop(Items.IRON_NUGGET, 10, 30, 1.00F),
-                        new BallDrop(Items.IRON_NUGGET, 10, 50, 0.80F),
-                        new BallDrop(Items.IRON_INGOT, 1, 6, 0.60F),
-                        new BallDrop(Items.IRON_BLOCK, 0, 1, 0.10F))));
+                // 破碎掉落（作者 2026-10-18）：<b>材料价值的 30%</b>。
+                // 配方是 5 个铁锭 ⇒ 成本 5 ⇒ 30% = 1.5 ⇒ 实现成「100% 掉 1–2 个」，平均值正好 1.5。
+                .withDrops(List.of(new BallDrop(Items.IRON_INGOT, 1, 2, 1.00F))));
 
         // ===== 空心铁球：坚固 20、重量 3、弹射 4、伤害 1、带【感应】【磁吸】【熔融120】 =====
         // 铁砧敲击音（三声那个的单次敲击），音量 30%
@@ -320,7 +318,7 @@ public final class BallBehavior {
                 .withSense(DEFAULT_SENSE_LEVEL)
                 .withMagnet(BallProspecting.MAGNET_RADIUS)
                 // 【熔融80】（作者 2026-10-14 指定，原为共享常量 MOLTEN_THRESHOLD = 120）
-                .withMolten(80)
+                .withMolten(40)   // 作者 2026-10-18：80 -> 40
                 .withSound(BallSound.of(SoundEvents.ANVIL_HIT, SoundEvents.ANVIL_HIT, 0.3F)));
 
         // ===== 「雪球？（碎石）」：不坚固（碰上就碎、无弹性）、重量 5、伤害 2、带【融化200】 =====
@@ -414,9 +412,8 @@ public final class BallBehavior {
                 .withConduction(true)
                 // 声音与铁球相同（作者指定）：铁砧敲击音、音量 30%
                 .withSound(BallSound.of(SoundType.ANVIL, 0.3F))
-                .withDrops(List.of(
-                        new BallDrop(Items.COPPER_INGOT, 2, 2, 0.75F),
-                        new BallDrop(Items.COPPER_INGOT, 2, 4, 0.30F))));
+                // 破碎掉落（作者 2026-10-18）：材料价值 30%。5 铜锭成本 ⇒ 平均 1.5
+                .withDrops(List.of(new BallDrop(Items.COPPER_INGOT, 1, 2, 1.00F))));
 
         // 空心铜球：伤害 1、坚固 5、重量 2、弹射 3
         // 【感应2】【引雷120】热量满 120 释放 4–9 道闪电并清空热量
@@ -429,7 +426,7 @@ public final class BallBehavior {
                 .withRarity(20)
                 .withSense(COPPER_SENSE_LEVEL)
                 // 【引雷100】（作者 2026-10-14 指定，原为共享常量 THUNDER_THRESHOLD = 120）
-                .withThunder(100)
+                .withThunder(50)   // 作者 2026-10-18：100 -> 50
                 // 声音与空心铁球相同（作者指定）：铁砧单次敲击、音量 30%
                 .withSound(BallSound.of(SoundEvents.ANVIL_HIT, SoundEvents.ANVIL_HIT, 0.3F))
                 .withDrops(List.of(new BallDrop(Items.COPPER_NUGGET, 1, 2, 0.50F))));
@@ -482,7 +479,8 @@ public final class BallBehavior {
                         SoundEvents.ENCHANTMENT_TABLE_USE,
                         SoundEvents.ENCHANTMENT_TABLE_USE,
                         1.0F))
-                .withDrops(List.of(new BallDrop(Items.LAPIS_LAZULI, 3, 5, 0.60F))));
+                // 破碎掉落（作者 2026-10-18）：材料价值 30%。5 青金石成本 ⇒ 平均 1.5
+                .withDrops(List.of(new BallDrop(Items.LAPIS_LAZULI, 1, 2, 1.00F))));
 
         // ===== 雪球-红石（作者 2026-10-10 指定）=====
         // 伤害 0、重量 3、蓄力 6；不坚固、无弹射
@@ -500,7 +498,9 @@ public final class BallBehavior {
                 .withSoundType(SoundType.SNOW)
                 // 雪球系的惯例：热量攒到 200 就化掉（雪球系 5 颗 —— 碎石/铁粒/金粒/红石/铜粒 —— 都有）
                 .withMelt(DEFAULT_MELT_THRESHOLD)
-                .withDrops(List.of(new BallDrop(Items.REDSTONE, 1, 2, 0.30F))));
+                // 破碎掉落（作者 2026-10-18）：材料价值 30%。一次合成 4 个、耗 1 红石粉
+                // ⇒ 每颗球只摊到 0.25 红石粉 ⇒ 30% = 0.075 ⇒ 7.5% 掉 1 个。
+                .withDrops(List.of(new BallDrop(Items.REDSTONE, 1, 1, 0.075F))));
 
         // 雪球-铜粒：不坚固、重量 5、伤害 3
         // 【融化200】【感应2】【电击】直接伤害改为闪电类型
@@ -543,6 +543,8 @@ public final class BallBehavior {
                 .withBounce(3)
                 .withRarity(20)   // 生成权重（作者 2026-10-17 指定：新球统一 20，原来是默认 100）
                 .withFlag(BallProfile.FLAG_MONEY)
+                // 破碎掉落（作者 2026-10-18）：材料价值 30%。5 绿宝石成本 ⇒ 平均 1.5
+                .withDrops(List.of(new BallDrop(Items.EMERALD, 1, 2, 1.00F)))
                 .withSound(BallSound.of(
                         SoundEvents.EXPERIENCE_ORB_PICKUP,
                         SoundEvents.EXPERIENCE_ORB_PICKUP,
@@ -598,7 +600,7 @@ public final class BallBehavior {
         // 【忠诚】属「唯一特性」（不参与合成）；【封印】属「其它类」。
         // 音效：监守者音波（作者指定）；配方 12369874回响碎片 + 5幽匿催发体，一次 1 个。
         override(ModItems.ECHO_BALL.get(), DEFAULT
-                .withDamage(10.0F)
+                .withDamage(20.0F)   // 基础伤害（作者 2026-10-18：10 -> 20）
                 .withWeight(0)
                 .withToughness(400)
                 .withBounce(0)

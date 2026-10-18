@@ -30,6 +30,10 @@ public class MoreBalls {
         ModMenus.register(modEventBus);
         ModEffects.register(modEventBus);
 
+        // 战利品箱里生成球（作者 2026-10-18）—— LootTableLoadEvent 是 mod 总线事件，
+        // 而 26.2 的 @EventBusSubscriber 已没有 bus 属性，所以在这里显式挂。
+        modEventBus.addListener(BallLootTables::onLootTableLoad);
+
         // 右键投掷 + 蓄力链路（全部走官方事件，无 Mixin）
         NeoForge.EVENT_BUS.addListener(BallThrowHandler::onRightClickItem);
         NeoForge.EVENT_BUS.addListener(BallThrowHandler::onStartUsing);

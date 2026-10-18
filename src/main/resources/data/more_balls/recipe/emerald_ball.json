@@ -1,17 +1,8 @@
 {
   "type": "minecraft:crafting_shaped",
   "category": "misc",
-  "key": {
-    "#": "minecraft:emerald_block"
-  },
-  "pattern": [
-    " # ",
-    "###",
-    " # "
-  ],
-  "result": {
-    "count": 4,
-    "id": "more_balls:emerald_ball"
-  },
+  "key": { "#": "minecraft:emerald" },
+  "pattern": [ " # ", "###", " # " ],
+  "result": { "count": 1, "id": "more_balls:emerald_ball" },
   "show_notification": false
 }
