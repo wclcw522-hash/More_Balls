@@ -62,7 +62,6 @@ import java.util.List;
  * <p><b>它是 GAME 总线事件</b>（{@code NeoForge.EVENT_BUS}），不是 {@code IModBusEvent}。
  * 所以改用 {@code @EventBusSubscriber(modid = ...)}（默认就是 GAME 总线）+ {@code @SubscribeEvent}。</p>
  */
-@EventBusSubscriber(modid = MoreBalls.MOD_ID)   // LootTableLoadEvent 是 GAME 总线事件（不是 IModBusEvent）
 public final class BallLootTables {
 
     private BallLootTables() {
@@ -146,7 +145,7 @@ public final class BallLootTables {
             //    但池子白加一遍，日志也会刷屏。原作者说的是「箱子」，就只对 chests/ 下的表生效。
             if (path.startsWith("chests/")) {
                 addBallPool(event, "amethyst", ModItems.AMETHYST_BALL.get(),
-                        AMETHYST_CHANCE, 1, 4, AMETHYST_TRIES, YBelowCondition.yBelow(AMETHYST_MAX_Y));
+                        AMETHYST_CHANCE, 1, 2, AMETHYST_TRIES, YBelowCondition.yBelow(AMETHYST_MAX_Y));
             }
         } catch (Throwable ignored) {
             // 见方法注释：宁可这条规则不加，也不能让战利品加载失败
