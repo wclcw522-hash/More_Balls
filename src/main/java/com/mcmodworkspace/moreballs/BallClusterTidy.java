@@ -46,6 +46,13 @@ public final class BallClusterTidy {
      *
      * @return 被收进壳的球数（0 表示没什么可整理的）
      */
+    /**
+     * 副手槽在 {@code Inventory} 里的下标。
+     *
+     * <p>0–8 快捷栏、9–35 背包、36–39 盔甲、<b>40 副手</b>。</p>
+     */
+    private static final int OFFHAND_SLOT = 40;
+
     public static int tidy(Player player) {
         var inventory = player.getInventory();
 
@@ -59,6 +66,12 @@ public final class BallClusterTidy {
         //   这才是「一键整理」该有的语义：把所有球归位，而不是只扫散球。
         List<ItemStack> loose = new ArrayList<>();
         for (int i = 0; i < inventory.getContainerSize(); i++) {
+            // ⚠️ **不动副手槽**（作者 2026-10-18：整理球堆不要对副手生效）。
+            //    副手往往正插着球/球堆在投掷，被整理会直接打断手上的动作。
+            //    Inventory 的 +40 就是副手槽（0-8 快捷栏、9-35 背包、36-39 盔甲、40 副手）。
+            if (i == OFFHAND_SLOT) {
+                continue;
+            }
             ItemStack slot = inventory.getItem(i);
             if (slot.isEmpty() || !BallAmmo.isBall(slot)) {
                 continue;   // 空格 / 不是球（壳不是球，见下面单独处理）
@@ -71,6 +84,12 @@ public final class BallClusterTidy {
         }
         // 再把已有的壳摊开：里面的球全部取出来，壳那一格腾空（下方会重新建）
         for (int i = 0; i < inventory.getContainerSize(); i++) {
+            // ⚠️ **不动副手槽**（作者 2026-10-18：整理球堆不要对副手生效）。
+            //    副手往往正插着球/球堆在投掷，被整理会直接打断手上的动作。
+            //    Inventory 的 +40 就是副手槽（0-8 快捷栏、9-35 背包、36-39 盔甲、40 副手）。
+            if (i == OFFHAND_SLOT) {
+                continue;
+            }
             ItemStack slot = inventory.getItem(i);
             if (slot.isEmpty() || !BallClusterItem.isCluster(slot)) {
                 continue;
@@ -168,6 +187,12 @@ public final class BallClusterTidy {
                                             ItemStack ball) {
         // ① 先找已有的同类壳
         for (int i = 0; i < inventory.getContainerSize(); i++) {
+            // ⚠️ **不动副手槽**（作者 2026-10-18：整理球堆不要对副手生效）。
+            //    副手往往正插着球/球堆在投掷，被整理会直接打断手上的动作。
+            //    Inventory 的 +40 就是副手槽（0-8 快捷栏、9-35 背包、36-39 盔甲、40 副手）。
+            if (i == OFFHAND_SLOT) {
+                continue;
+            }
             ItemStack slot = inventory.getItem(i);
             if (!BallClusterItem.isCluster(slot)) {
                 continue;

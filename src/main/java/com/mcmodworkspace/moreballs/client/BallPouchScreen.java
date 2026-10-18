@@ -275,6 +275,21 @@ public class BallPouchScreen extends AbstractContainerScreen<BallPouchMenu> {
         if (carried.isEmpty() || !com.mcmodworkspace.moreballs.BallAmmo.isBall(carried)) {
             return;   // 光标上不是球 ⇒ 没有任何提示
         }
+        // ⏳ 临时诊断（验证后删）：光标上确实是球时，统计有几个槽能收
+        int dbgHits = 0;
+        for (Slot s : this.menu.slots) {
+            final net.minecraft.world.item.ItemStack st = s.getItem();
+            if (st.isEmpty() || !com.mcmodworkspace.moreballs.BallClusterItem.isCluster(st)) {
+                continue;
+            }
+            final com.mcmodworkspace.moreballs.BallClusterContents c =
+                    com.mcmodworkspace.moreballs.BallClusterItem.contents(st);
+            if (c.hasRoom() && c.matches(carried)) {
+                dbgHits++;
+            }
+        }
+        com.mcmodworkspace.moreballs.MoreBalls.LOGGER.info(
+                "[pouch][hint] carried={} 可放入的球堆数={}", carried, dbgHits);
         for (Slot slot : this.menu.slots) {
             final net.minecraft.world.item.ItemStack stack = slot.getItem();
             if (stack.isEmpty() || !com.mcmodworkspace.moreballs.BallClusterItem.isCluster(stack)) {

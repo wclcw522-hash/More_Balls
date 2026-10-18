@@ -293,6 +293,20 @@ public class BallPouchMenu extends AbstractContainerMenu {
      */
     @Override
     public void clicked(int slotId, int button, net.minecraft.world.inventory.ContainerInput containerInput, Player player) {
+        // ⏳ 临时诊断（定位「右键放不进球堆」，验证后删）
+        if (button == 1 && containerInput == net.minecraft.world.inventory.ContainerInput.PICKUP) {
+            final ItemStack dbgCarried = this.getCarried();
+            final ItemStack dbgTarget = (slotId >= 0 && slotId < this.slots.size())
+                    ? this.slots.get(slotId).getItem() : ItemStack.EMPTY;
+            MoreBalls.LOGGER.info("[pouch][clicked] slot={} carried={} isBall={} target={} isCluster={}",
+                    slotId, dbgCarried, BallAmmo.isBall(dbgCarried), dbgTarget,
+                    !dbgTarget.isEmpty() && BallClusterItem.isCluster(dbgTarget));
+            if (!dbgTarget.isEmpty() && BallClusterItem.isCluster(dbgTarget)) {
+                final BallClusterContents dbg = BallClusterItem.contents(dbgTarget);
+                MoreBalls.LOGGER.info("[pouch][clicked] hasRoom={} matches={}", dbg.hasRoom(), dbg.matches(dbgCarried));
+            }
+        }
+
         // 只接「右键 + 拾取类点击」
         if (button == 1 && containerInput == net.minecraft.world.inventory.ContainerInput.PICKUP) {
             final ItemStack carried = this.getCarried();
