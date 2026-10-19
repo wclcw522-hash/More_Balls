@@ -43,7 +43,7 @@ public final class BallPouchKeys {
     private BallPouchKeys() {
     }
 
-    /** 按键设置里的分组（「更多球」） */
+    /** 按键设置里的分组（「旋转工艺」） */
     private static final KeyMapping.Category CATEGORY =
             new KeyMapping.Category(Identifier.fromNamespaceAndPath(MoreBalls.MOD_ID, "main"));
 

@@ -6,6 +6,32 @@
 
 ---
 
+## 1.1.4.0 — 改名为「旋转工艺」/ Rotation_Craft（作者 2026-10-19）
+
+**破坏性变更：`mod_id` 从 `more_balls` 改成 `rotation_craft`，旧存档里的球会全部失效。**
+
+| 项 | 旧 | 新 |
+|---|---|---|
+| `mod_id` | `more_balls` | `rotation_craft` |
+| 显示名 / jar | `[更多球] More_Balls` | `[旋转工艺] Rotation_Craft` |
+| 物品 id | `more_balls:iron_ball` | `rotation_craft:iron_ball` |
+| 资源命名空间 | `assets/more_balls`、`data/more_balls` | `assets/rotation_craft`、`data/rotation_craft` |
+| mixin 配置 | `more_balls.mixins.json` | `rotation_craft.mixins.json` |
+| 标签 | `#more_balls:balls` | `#rotation_craft:balls` |
+| 创造栏页签 / 按键分组 | 更多球 | 旋转工艺 |
+| 归档目录 | `[26.2更多球]_More_Balls` | `[26.2旋转工艺]_Rotation_Craft` |
+| GitHub 仓库 | `More_Balls` | `Rotation_Craft` |
+
+`src` 下 392 个文件、1924 行做了全量替换（java 引用、lang key、模型 JSON 纹理路径、
+recipe / advancement / tag 命名空间、`neoforge.mods.toml` 的 config 名）。
+`mod_group_id` 保持 `com.mcmodworkspace.moreballs` —— 实际 Java 包目录就叫 `moreballs`
+（无下划线），两边必须一致；包名不进游戏、不影响任何 id。
+
+**遍历检查发现并修掉的 8 处漏改**：`itemGroup.rotation_craft.all` 与
+`key.categories.rotation_craft` 的值仍是「更多球」（这两条玩家可见）、`en_us` 对应两条仍是
+`More Balls`、以及 5 处 Java 注释。修完 `src` 里旧名残留为 **0**。
+
+---
 ## 1.1.3.72 — 英文语言文件同步 + CHANGELOG 补记（作者 2026-10-18）
 
 `en_us.json` 与中文对齐：14 条词条的常显/shift 对调、5 条描述改写、2 条真实物理伤害死亡播报。

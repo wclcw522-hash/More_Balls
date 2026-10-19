@@ -30,7 +30,7 @@ import net.minecraft.world.item.crafting.RecipeHolder;
 import net.minecraft.world.item.crafting.display.SlotDisplay;
 
 /**
- * 「更多球」的 JEI 插件。
+ * 「旋转工艺」的 JEI 插件。
  *
  * <h2>为什么必须有这个类</h2>
  * <p>组合球的合成是自定义配方（{@link BallComboRecipe}），而 JEI 的工作台分类是这样筛选配方的：

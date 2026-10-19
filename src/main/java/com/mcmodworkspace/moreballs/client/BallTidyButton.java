@@ -68,7 +68,7 @@ public final class BallTidyButton {
     /** 原版物品格的内容区边长（定位「背包第一格」时用） */
     private static final int SLOT_SIZE = 16;
 
-    /** 按键分组 —— 和 {@code BallPouchKeys} 用同一个「更多球」分组，设置界面里归在一起 */
+    /** 按键分组 —— 和 {@code BallPouchKeys} 用同一个「旋转工艺」分组，设置界面里归在一起 */
     private static final KeyMapping.Category CATEGORY =
             new KeyMapping.Category(Identifier.fromNamespaceAndPath(MoreBalls.MOD_ID, "main"));
 

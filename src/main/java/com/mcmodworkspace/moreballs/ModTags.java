@@ -7,7 +7,7 @@ import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.item.Item;
 
 /**
- * 「更多球」的标签定义 —— 本模组「球」这个大类的数据层身份。
+ * 「旋转工艺」的标签定义 —— 本模组「球」这个大类的数据层身份。
  *
  * <p>标签是跨模组的契约：创造模式分类、配方、进度、以及其它模组的联动判定
  * 一律匹配 {@code #rotation_craft:balls}，而不是匹配具体物品 ID。这样才能做到
