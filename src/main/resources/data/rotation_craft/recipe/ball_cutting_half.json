@@ -1,0 +1,9 @@
+{
+  "type": "rotation_craft:ball_cutting",
+  "ingredient": "#rotation_craft:balls/cuttable",
+  "result": {
+    "id": "rotation_craft:ball_half",
+    "count": 2,
+    "components": { "rotation_craft:fragment_source": 0 }
+  }
+}

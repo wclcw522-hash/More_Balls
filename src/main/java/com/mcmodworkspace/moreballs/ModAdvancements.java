@@ -29,7 +29,7 @@ public final class ModAdvancements {
     /** 成就 id 在本模组命名空间下的前缀 */
     private static final String NAMESPACE = MoreBalls.MOD_ID;
 
-    // ===== 成就 id（与 data/more_balls/advancement/<id>.json 一一对应）=====
+    // ===== 成就 id（与 data/rotation_craft/advancement/<id>.json 一一对应）=====
 
     public static final String ROOT = "root";
     public static final String RUBBLE = "rubble";

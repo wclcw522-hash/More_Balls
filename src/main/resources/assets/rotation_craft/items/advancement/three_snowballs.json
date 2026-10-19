@@ -1,0 +1,7 @@
+{
+  "__comment": "成就「三军听令！」的图标入口。真正的模型在 models/item/advancement/three_snowballs.json（三个 cube 拼的三角），这里只做一次转发。",
+  "model": {
+    "type": "minecraft:model",
+    "model": "rotation_craft:item/advancement/three_snowballs"
+  }
+}

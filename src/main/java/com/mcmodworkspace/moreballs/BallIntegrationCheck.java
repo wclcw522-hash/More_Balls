@@ -8,7 +8,7 @@ import net.minecraft.world.item.Item;
  * <b>「加新球」的自检</b> —— 启动时跑一遍，把「忘了适配」当场报出来。
  *
  * <h2>为什么要有这个</h2>
- * <p>加一颗球要同时动好几处：注册物品、进 {@code #more_balls:balls} 标签、
+ * <p>加一颗球要同时动好几处：注册物品、进 {@code #rotation_craft:balls} 标签、
  * 进 {@link BallFragments#sources()}（这样才切得动、才能进组合球）、
  * 补弩装填的模型 case、给贴图与模型文件。任何一处漏掉都不会报错，
  * 只会表现为「某个功能对这颗球不起作用」—— 而且往往要等到玩家实测才被发现。</p>
@@ -20,7 +20,7 @@ import net.minecraft.world.item.Item;
  * <h2>检查什么</h2>
  * <ul>
  *   <li><b>反向检查</b>（硬错）：{@code sources()} 里的每一颗球都必须在
- *       {@code #more_balls:balls} 标签里 —— 不在的话它切出来、合出来也不能当球用，
+ *       {@code #rotation_craft:balls} 标签里 —— 不在的话它切出来、合出来也不能当球用，
  *       属于配置矛盾。</li>
  *   <li><b>正向提示</b>（软警报）：标签里「看起来像球」但不在 {@code sources()} 里的物品。
  *       有些球是<b>故意</b>不参与组合球的（雪球系不参与切割、组合球自己是产物），
@@ -117,8 +117,8 @@ public final class BallIntegrationCheck {
 
         // ===== 检查 0b：可切的球必须进子分类标签 =====
         //
-        // ⚠️ 切割配方读的是 #more_balls:balls/cuttable，而那只是汇总：
-        //    { "values": [ "#more_balls:balls/solid", "#more_balls:balls/hollow" ] }
+        // ⚠️ 切割配方读的是 #rotation_craft:balls/cuttable，而那只是汇总：
+        //    { "values": [ "#rotation_craft:balls/solid", "#rotation_craft:balls/hollow" ] }
         //    真正决定「切不切得动」的是子分类。作者 2026-10-10 报红石球/钻石球切不动，
         //    就是只补了总标签 #balls 而漏了 solid。
         List<String> noSubTag = new ArrayList<>();
@@ -164,11 +164,11 @@ public final class BallIntegrationCheck {
         if (!sourcesNotInTag.isEmpty()) {
             // 这个是硬矛盾：切得出来却扔不出去
             MoreBalls.LOGGER.warn("[ball] ★ 自检失败：以下球在 BallFragments.sources() 里，"
-                    + "但不在 #more_balls:balls 标签中 —— 它们切出来的碎片合不成可用的球，"
+                    + "但不在 #rotation_craft:balls 标签中 —— 它们切出来的碎片合不成可用的球，"
                     + "请往 tags/item/balls.json 补上：{}", sourcesNotInTag);
         }
         if (!notRegistered.isEmpty()) {
-            MoreBalls.LOGGER.warn("[ball] ★ 自检提示：以下物品在 #more_balls:balls 标签里，"
+            MoreBalls.LOGGER.warn("[ball] ★ 自检提示：以下物品在 #rotation_craft:balls 标签里，"
                     + "但没进 BallFragments.sources() —— 如果它们本该能切、能合组合球，"
                     + "就去补 sources()（顺序必须追加在末尾）；"
                     + "如果是刻意排除的（比如雪球系），把它们加进 BallIntegrationCheck."

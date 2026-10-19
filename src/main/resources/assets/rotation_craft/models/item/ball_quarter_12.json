@@ -1,0 +1,6 @@
+{
+  "parent": "minecraft:item/generated",
+  "textures": {
+    "layer0": "rotation_craft:item/tidal_ball_quarter_1"
+  }
+}

@@ -1,0 +1,15 @@
+{
+  "parent": "rotation_craft:iron_ball_from_blocks",
+  "criteria": {
+    "craft_diamond_ball": {
+      "conditions": { "recipe_id": "rotation_craft:diamond_ball" },
+      "trigger": "minecraft:recipe_crafted"
+    }
+  },
+  "display": {
+    "description": { "translate": "advancements.rotation_craft.fufu.description" },
+    "icon": { "id": "minecraft:diamond_block" },
+    "title": { "translate": "advancements.rotation_craft.fufu.title" }
+  },
+  "requirements": [ [ "craft_diamond_ball" ] ]
+}

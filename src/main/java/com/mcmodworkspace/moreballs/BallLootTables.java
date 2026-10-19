@@ -169,7 +169,7 @@ public final class BallLootTables {
         if (chance <= 0.0F || tries <= 0) {
             return;
         }
-        final String poolName = "more_balls_ball_" + key;
+        final String poolName = "rotation_craft_ball_" + key;
         if (event.getTable().getPool(poolName) != null) {
             return;   // 已经加过了
         }

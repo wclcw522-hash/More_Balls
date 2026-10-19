@@ -1,0 +1,6 @@
+{
+  "parent": "minecraft:item/generated",
+  "textures": {
+    "layer0": "rotation_craft:item/slime_ball_quarter_3"
+  }
+}

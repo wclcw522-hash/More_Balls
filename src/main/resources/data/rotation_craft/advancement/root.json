@@ -1,0 +1,19 @@
+{
+  "criteria": {
+    "get_any_ball": {
+      "conditions": {
+        "items": [
+          { "items": "#rotation_craft:balls" }
+        ]
+      },
+      "trigger": "minecraft:inventory_changed"
+    }
+  },
+  "display": {
+    "background": "minecraft:gui/advancements/backgrounds/stone",
+    "description": { "translate": "advancements.rotation_craft.root.description" },
+    "icon": { "id": "rotation_craft:wooden_ball" },
+    "title": { "translate": "advancements.rotation_craft.root.title" }
+  },
+  "requirements": [ [ "get_any_ball" ] ]
+}

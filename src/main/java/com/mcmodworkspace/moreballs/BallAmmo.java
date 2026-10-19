@@ -19,7 +19,7 @@ import net.minecraft.world.level.Level;
 /**
  * 「球」弹药的投射物工厂 —— 决定一件 balls 物品被弩射出去时变成什么实体。
  *
- * <p>只认标签 {@code #more_balls:balls}，所以任何进标签的物品都能当弩弹药，无需改代码。</p>
+ * <p>只认标签 {@code #rotation_craft:balls}，所以任何进标签的物品都能当弩弹药，无需改代码。</p>
  *
  * <p><b>伤害公式（弹药路径）</b>：<br>
  * {@code 命中伤害 = 初始伤害 × 2 × (击中速度 / 实际出手速度)}<br>

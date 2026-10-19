@@ -176,7 +176,7 @@ public final class BallAmmoAutoLoader {
                 // 作者指定：中转区满时，在物品栏上方用一串白字说明这颗球去哪了。
                 // 26.2 里这个「物品栏上方」的方法叫 sendOverlayMessage（老的 displayClientMessage(…, true) 已没了）
                 player.sendOverlayMessage(
-                        Component.translatable("message.more_balls.transit_full"));
+                        Component.translatable("message.rotation_craft.transit_full"));
             }
         }
 
@@ -231,7 +231,7 @@ public final class BallAmmoAutoLoader {
             player.drop(old, false);
         } else if (delivery == BallPouchHelper.Delivery.INVENTORY_TRANSIT_FULL) {
             player.sendOverlayMessage(
-                    Component.translatable("message.more_balls.transit_full"));
+                    Component.translatable("message.rotation_craft.transit_full"));
         }
     }
 

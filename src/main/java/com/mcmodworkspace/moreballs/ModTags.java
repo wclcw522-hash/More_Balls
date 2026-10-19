@@ -10,7 +10,7 @@ import net.minecraft.world.item.Item;
  * 「更多球」的标签定义 —— 本模组「球」这个大类的数据层身份。
  *
  * <p>标签是跨模组的契约：创造模式分类、配方、进度、以及其它模组的联动判定
- * 一律匹配 {@code #more_balls:balls}，而不是匹配具体物品 ID。这样才能做到
+ * 一律匹配 {@code #rotation_craft:balls}，而不是匹配具体物品 ID。这样才能做到
  * 「原版物品、本模组物品、甚至其它模组的物品」都能被同一套逻辑接住。</p>
  *
  * <p>注意：本文件属于「版本特有」代码 —— 26.x 起 MC 把
@@ -28,7 +28,7 @@ public final class ModTags {
         private Items() {
         }
 
-        /** {@code #more_balls:balls} —— 全部球类物品 */
+        /** {@code #rotation_craft:balls} —— 全部球类物品 */
         public static final TagKey<Item> BALLS =
                 TagKey.create(Registries.ITEM, Identifier.fromNamespaceAndPath(MoreBalls.MOD_ID, "balls"));
 
@@ -51,7 +51,7 @@ public final class ModTags {
 
         // ===== 半成品（2.6.0 作者指定：从 balls 的子分类里独立出来）=====
         //
-        // 半球与四分之一球**不是球**，它们是「部件」。所以它们既不在 #more_balls:balls 里，
+        // 半球与四分之一球**不是球**，它们是「部件」。所以它们既不在 #rotation_craft:balls 里，
         // 也不该挂在 balls 的子分类下面 —— 现在是 fragments 这个独立大类下的两个小类。
 
         /** 全部半成品（半球 + 四分之一球） */

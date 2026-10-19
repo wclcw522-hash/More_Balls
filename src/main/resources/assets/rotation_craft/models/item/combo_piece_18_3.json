@@ -1,0 +1,6 @@
+{
+  "parent": "minecraft:item/generated",
+  "textures": {
+    "layer0": "rotation_craft:item/echo_ball_quarter_3"
+  }
+}

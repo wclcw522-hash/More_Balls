@@ -3,6 +3,6 @@
   "__replace_note": "⚠️ 「replace\": false」是必须的 —— 它让本文件与原版标签**合并**而不是**替换**。少了它，原版那一长串（火焰、虚空、溺水、闪电……）会被本模组整个挤掉。",
   "replace": false,
   "values": [
-    "more_balls:ball_return"
+    "rotation_craft:ball_return"
   ]
 }

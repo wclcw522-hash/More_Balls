@@ -40,7 +40,7 @@ public class ComboBallItem extends BallItem {
     /**
      * 组合球的显示名 —— 各来源短名用 {@code -} 连起来，末尾统一加「球」。
      *
-     * <p>来源短名走 lang（{@code ball.more_balls.short.<id>}），拼装模板也走 lang，
+     * <p>来源短名走 lang（{@code ball.rotation_craft.short.<id>}），拼装模板也走 lang，
      * 所以英文环境能正常显示，不是硬编码中文。</p>
      */
     @Override
@@ -62,9 +62,9 @@ public class ComboBallItem extends BallItem {
             }
             first = false;
             joined.append(Component.translatable(
-                    "ball.more_balls.short." + BallFragments.SHORT_ID.get(index)));
+                    "ball.rotation_craft.short." + BallFragments.SHORT_ID.get(index)));
         }
-        return Component.translatable("item.more_balls.combo_ball.format", joined);
+        return Component.translatable("item.rotation_craft.combo_ball.format", joined);
     }
 
     /**

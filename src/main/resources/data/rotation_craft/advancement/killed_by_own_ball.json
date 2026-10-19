@@ -1,0 +1,23 @@
+{
+    "parent":  "rotation_craft:aerodynamic_return",
+    "criteria":  {
+                     "unlocked":  {
+                                      "trigger":  "minecraft:impossible"
+                                  }
+                 },
+    "display":  {
+                    "frame":  "challenge",
+                    "description":  {
+                                        "translate":  "advancements.rotation_craft.killed_by_own_ball.description"
+                                    },
+                    "icon":  { "id": "minecraft:iron_sword" },
+                    "title":  {
+                                  "translate":  "advancements.rotation_craft.killed_by_own_ball.title"
+                              }
+                },
+    "requirements":  [
+                         [
+                             "unlocked"
+                         ]
+                     ]
+}

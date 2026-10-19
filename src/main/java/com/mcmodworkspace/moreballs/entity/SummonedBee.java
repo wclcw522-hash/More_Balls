@@ -22,7 +22,7 @@ import net.minecraft.world.level.storage.ValueOutput;
 import java.util.UUID;
 
 /**
- * <b>被召唤的蜜蜂</b>（{@code more_balls:summoned_bee}）—— 【招蜂引蝶 x】召唤出来的战斗宠物
+ * <b>被召唤的蜜蜂</b>（{@code rotation_craft:summoned_bee}）—— 【招蜂引蝶 x】召唤出来的战斗宠物
  * （作者 2026-10-16 指定）。
  *
  * <h2>为什么是「继承 Bee」而不是把 {@code Bee.java} 抄一份</h2>
@@ -33,7 +33,7 @@ import java.util.UUID;
  *   <li><b>渲染零成本</b>：继承之后客户端可以直接用原版 {@code BeeRenderer}
  *       （它的构造是公开的，泛型绑的也是 {@code Bee}），模型与贴图全是原版的 ——
  *       <b>不需要任何新美术素材</b>。从零做生物就得自己出模型和贴图。</li>
- *   <li>名字也白拿：实体类型自带名字（{@code entity.more_balls.summoned_bee} =
+ *   <li>名字也白拿：实体类型自带名字（{@code entity.rotation_craft.summoned_bee} =
  *       「被召唤的蜜蜂」），不必用 {@code setCustomName}。</li>
  * </ol>
  *
@@ -67,8 +67,8 @@ public class SummonedBee extends Bee {
     /** 血量（作者指定 3 点） */
     public static final double HEALTH = 3.0D;
 
-    private static final String TAG_SUMMONER = "more_balls:summoner";
-    private static final String TAG_LIFE = "more_balls:life";
+    private static final String TAG_SUMMONER = "rotation_craft:summoner";
+    private static final String TAG_LIFE = "rotation_craft:life";
 
     /** 召唤者（球的主人）的 UUID —— 这只蜜蜂绝不打他 */
     private UUID summonerId;

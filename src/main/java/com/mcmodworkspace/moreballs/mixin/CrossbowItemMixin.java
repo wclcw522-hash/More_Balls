@@ -18,7 +18,7 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 import java.util.function.Predicate;
 
 /**
- * 让弩把 {@code #more_balls:balls} 当成合法的副手弹药（原版只认箭与烟花火箭）。
+ * 让弩把 {@code #rotation_craft:balls} 当成合法的副手弹药（原版只认箭与烟花火箭）。
  *
  * <h2>为什么必须用 Mixin</h2>
  * 原版的副手弹药判定硬编码在弩自己的 predicate 里（{@code ARROW_OR_FIREWORK}），
@@ -43,7 +43,7 @@ import java.util.function.Predicate;
 public abstract class CrossbowItemMixin {
 
     /**
-     * 副手弹药判定：在原版 {@code ARROW_OR_FIREWORK} 之外，再接受 {@code #more_balls:balls}。
+     * 副手弹药判定：在原版 {@code ARROW_OR_FIREWORK} 之外，再接受 {@code #rotation_craft:balls}。
      *
      * <p>只扩展「副手」这一条路径。背包里的 balls <b>不会</b>被自动装填 ——
      * 与原版一致：箭可以来自背包，特殊弹药必须手动拿到副手。</p>

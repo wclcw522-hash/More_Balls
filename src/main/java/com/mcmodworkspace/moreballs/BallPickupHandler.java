@@ -24,7 +24,7 @@ import net.neoforged.neoforge.event.entity.player.ItemEntityPickupEvent;
  *
  * <h2>边界</h2>
  * <ul>
- *   <li><b>只认本模组的球</b>：走 {@link BallAmmo#isBall}（也就是 {@code #more_balls:balls}
+ *   <li><b>只认本模组的球</b>：走 {@link BallAmmo#isBall}（也就是 {@code #rotation_craft:balls}
  *       标签），原版雪球、末影珍珠这类同样在标签里的东西也一并算是球</li>
  *   <li><b>袋子可以是任何位置</b>：主手 / 副手 / 背包 / 饰品栏都算 ——
  *       球进哪一段由 {@link BallPouchItem#insert} 按耐久决定</li>

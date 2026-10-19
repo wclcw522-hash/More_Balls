@@ -90,7 +90,7 @@ public final class BallExtraTraits {
     /**
      * 这只蜜蜂是不是【招蜂引蝶】召唤出来的。
      *
-     * <p>⚠️ 作者 2026-10-16 把它<b>做成了独立生物</b>（{@code more_balls:summoned_bee}，
+     * <p>⚠️ 作者 2026-10-16 把它<b>做成了独立生物</b>（{@code rotation_craft:summoned_bee}，
      * 见 {@link com.mcmodworkspace.moreballs.entity.SummonedBee}）—— 所以判据从原来的
      * 「记分板标签」换成了<b>实体类型</b>，一劳永逸：不用再在生成时打标签、
      * 也不用担心标签丢失。{@code BallProjectile.canHitEntity} 靠它做到「球不打自己召唤的蜂」。</p>
@@ -165,11 +165,11 @@ public final class BallExtraTraits {
      * 保证仇恨立刻转移过去，而不是等它挨一下才反应。</p>
      *
      * <h2>2026-10-16 起改用独立生物</h2>
-     * <p>作者要求把它做成独立生物 {@code more_balls:summoned_bee}
+     * <p>作者要求把它做成独立生物 {@code rotation_craft:summoned_bee}
      * （见 {@link com.mcmodworkspace.moreballs.entity.SummonedBee}）——
      * 于是这里<b>不需要</b>再维护任何静态状态：</p>
      * <ul>
-     *   <li>名字：实体类型自带（{@code entity.more_balls.summoned_bee}）</li>
+     *   <li>名字：实体类型自带（{@code entity.rotation_craft.summoned_bee}）</li>
      *   <li>8 秒寿命 + 烟雾 + 无掉落：实体自己的 {@code tick()}</li>
      *   <li>无限攻击：实体覆写的 {@code doHurtTarget}</li>
      *   <li>不仇恨召唤者：实体覆写的 {@code canAttack}</li>
@@ -637,7 +637,7 @@ public final class BallExtraTraits {
      * {@code minecraft:sonic_boom} 同时躺在 {@code bypasses_armor} 与
      * {@code bypasses_enchantments} 两个标签里 —— 它不但无视护甲，
      * <b>连保护附魔都一起跳过了</b>（{@code LivingEntity.java:2013} 直接 return）。
-     * 换成 {@code more_balls:armor_piercing} 之后就是「无视护甲、但吃保护附魔与抗性」。</p>
+     * 换成 {@code rotation_craft:armor_piercing} 之后就是「无视护甲、但吃保护附魔与抗性」。</p>
      *
      * <p>没带【穿甲】时保持原样，用原版的 sonicBoom。</p>
      */
@@ -1063,7 +1063,7 @@ public final class BallExtraTraits {
         ItemStack picked = candidates.get(player.getRandom().nextInt(candidates.size()));
         // 26.2 的 addCooldown 收 ItemStack（不是 Item）
         player.getCooldowns().addCooldown(picked, SEAL_PLAYER_TICKS);
-        player.sendOverlayMessage(Component.translatable("message.more_balls.sealed"));
+        player.sendOverlayMessage(Component.translatable("message.rotation_craft.sealed"));
     }
 
     /**

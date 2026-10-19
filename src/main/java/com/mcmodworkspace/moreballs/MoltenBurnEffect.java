@@ -33,7 +33,7 @@ import org.jspecify.annotations.Nullable;
  * <h2>「不受火焰保护，但被抗火免疫」怎么做到</h2>
  * <p>原版的火焰保护是挂在伤害类型的 {@code minecraft:is_fire} 标签上判定的，
  * 而抗火效果同样是查这个标签 —— 两者绑在一起，没法只满足一半。
- * 所以这里用<b>自己的伤害类型</b> {@code more_balls:molten_burn}（不进货标签），
+ * 所以这里用<b>自己的伤害类型</b> {@code rotation_craft:molten_burn}（不进货标签），
  * 于是火焰保护自然不减免；抗火与火焰免疫则在
  * {@link #hurt} 里<b>手动判定一次</b>，把那半边的语义补齐。</p>
  */
@@ -65,7 +65,7 @@ public class MoltenBurnEffect extends MobEffect {
     /** 续燃时长（刻）—— 每刻把剩余燃烧时间顶到这么多，保证效果期间一直在烧 */
     private static final int REFRESH_FIRE_TICKS = 60;
 
-    /** 伤害类型 {@code more_balls:molten_burn} —— 故意不进 {@code is_fire} 标签 */
+    /** 伤害类型 {@code rotation_craft:molten_burn} —— 故意不进 {@code is_fire} 标签 */
     public static final ResourceKey<DamageType> DAMAGE_TYPE = ResourceKey.create(
             Registries.DAMAGE_TYPE,
             Identifier.fromNamespaceAndPath(MoreBalls.MOD_ID, EFFECT_ID));

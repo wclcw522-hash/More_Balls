@@ -27,7 +27,7 @@ import top.theillusivec4.curios.api.type.capability.ICurioItem;
  * </ul>
  *
  * <p>这三个槽位还要「加到玩家身上」才看得见，那一步由
- * {@code data/more_balls/curios/entities/player_slots.json} 声明；
+ * {@code data/rotation_craft/curios/entities/player_slots.json} 声明；
  * 三个槽位之间互不排斥，可以同时各戴一个袋子。</p>
  */
 public class BallPouchCurioItem extends BallPouchItem implements ICurioItem {

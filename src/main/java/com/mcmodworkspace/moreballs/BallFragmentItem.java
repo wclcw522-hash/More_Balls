@@ -18,7 +18,7 @@ import net.minecraft.world.item.component.TooltipDisplay;
  * <ul>
  *   <li>用切石机从完整球上切下来：一颗球出 <b>2 个半球</b>或 <b>4 个四分之一球</b></li>
  *   <li><b>不能投掷、不能当弩弹药</b> —— 这就是它<b>不是</b> {@link BallItem}、
- *       且不进 {@code #more_balls:balls} 标签的原因</li>
+ *       且不进 {@code #rotation_craft:balls} 标签的原因</li>
  *   <li><b>数值词条</b>（坚固、感应、磁吸、点金）按 1/2、1/4 缩放，
  *       <b>暂时不取整</b> —— 所以显示出来是 {@code 4}、{@code 2.5} 这种</li>
  *   <li><b>无数值特性</b>（变形、磁性、金光闪闪）由半球<b>直接继承</b>；
@@ -88,9 +88,9 @@ public class BallFragmentItem extends Item {
         int safe = Math.max(0, Math.min(idx, BallFragments.SHORT_ID.size() - 1));
         return Component.translatable(
                 this.parts == 2
-                        ? "item.more_balls.ball_half.format"
-                        : "item.more_balls.ball_quarter.format",
-                Component.translatable("ball.more_balls.short." + BallFragments.SHORT_ID.get(safe)));
+                        ? "item.rotation_craft.ball_half.format"
+                        : "item.rotation_craft.ball_quarter.format",
+                Component.translatable("ball.rotation_craft.short." + BallFragments.SHORT_ID.get(safe)));
     }
 
     @Override
@@ -102,15 +102,15 @@ public class BallFragmentItem extends Item {
         BallFragments.Fragment f = this.fragment(stack);
 
         // 明确标出「半成品」：免得玩家拿它去右键、发现扔不出去
-        tooltip.accept(Component.translatable("tooltip.more_balls.fragment")
+        tooltip.accept(Component.translatable("tooltip.rotation_craft.fragment")
                 .withStyle(ChatFormatting.GRAY));
 
-        entry(tooltip, "tooltip.more_balls.entry.tough", f.toughness());
-        entry(tooltip, "tooltip.more_balls.entry.sense", f.sense());
-        entry(tooltip, "tooltip.more_balls.entry.melt", f.melt());
-        entry(tooltip, "tooltip.more_balls.entry.molten", f.molten());
-        entry(tooltip, "tooltip.more_balls.entry.magnet", f.magnet());
-        entry(tooltip, "tooltip.more_balls.entry.transmute", f.transmute());
+        entry(tooltip, "tooltip.rotation_craft.entry.tough", f.toughness());
+        entry(tooltip, "tooltip.rotation_craft.entry.sense", f.sense());
+        entry(tooltip, "tooltip.rotation_craft.entry.melt", f.melt());
+        entry(tooltip, "tooltip.rotation_craft.entry.molten", f.molten());
+        entry(tooltip, "tooltip.rotation_craft.entry.magnet", f.magnet());
+        entry(tooltip, "tooltip.rotation_craft.entry.transmute", f.transmute());
 
         // ===== 特性词条（作者 2026-10-10 的三类法则）=====
         //
@@ -124,17 +124,17 @@ public class BallFragmentItem extends Item {
             int threshold = src == null ? BallBehavior.NOT_THUNDER
                     : BallBehavior.profileFor(new ItemStack(src)).thunderThreshold();
             if (threshold > 0) {
-                tooltip.accept(Component.translatable("tooltip.more_balls.entry.thunder",
+                tooltip.accept(Component.translatable("tooltip.rotation_craft.entry.thunder",
                         String.valueOf(threshold)).withStyle(ChatFormatting.GRAY));
             }
         }
         // 数值型特性：份数不够时显示「未激活」
         if (f.wisdom() > 0) {
-            tooltip.accept(Component.translatable("tooltip.more_balls.entry.wisdom_inactive",
+            tooltip.accept(Component.translatable("tooltip.rotation_craft.entry.wisdom_inactive",
                     String.valueOf(f.wisdom())).withStyle(ChatFormatting.DARK_GRAY));
         }
         if (f.penetration() > 0) {
-            tooltip.accept(Component.translatable("tooltip.more_balls.entry.penetration_inactive",
+            tooltip.accept(Component.translatable("tooltip.rotation_craft.entry.penetration_inactive",
                     String.valueOf(f.penetration())).withStyle(ChatFormatting.DARK_GRAY));
         }
 
@@ -142,16 +142,16 @@ public class BallFragmentItem extends Item {
         // 四分之一球「把特质藏起来」—— 只是不显示，数据上仍然带着
         if (this.parts == 2) {
             if (f.morph()) {
-                tooltip.accept(Component.translatable("tooltip.more_balls.entry.morph")
+                tooltip.accept(Component.translatable("tooltip.rotation_craft.entry.morph")
                         .withStyle(ChatFormatting.GRAY));
             }
             if (f.magnetic()) {
-                tooltip.accept(Component.translatable("tooltip.more_balls.entry.magnetic")
+                tooltip.accept(Component.translatable("tooltip.rotation_craft.entry.magnetic")
                         .withStyle(ChatFormatting.GRAY));
             }
             if (f.glint()) {
                 // 复用金球那条既有词条键（金光闪闪），不另造一个
-                tooltip.accept(Component.translatable("tooltip.more_balls.entry.gold_shiny")
+                tooltip.accept(Component.translatable("tooltip.rotation_craft.entry.gold_shiny")
                         .withStyle(ChatFormatting.GRAY));
             }
         }

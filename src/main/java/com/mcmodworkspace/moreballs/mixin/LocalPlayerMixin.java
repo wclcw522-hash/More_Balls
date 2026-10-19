@@ -41,7 +41,7 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
  *   <li>带 {@code require = 0}：原版将来改了这个方法，这里是<b>安静跳过</b>，
  *       退化成「没有减速减免」，而不是崩游戏</li>
  *   <li>不使用 {@code @Redirect} / {@code @Overwrite}</li>
- *   <li>放在 {@code more_balls.mixins.json} 的 <b>{@code client}</b> 段 ——
+ *   <li>放在 {@code rotation_craft.mixins.json} 的 <b>{@code client}</b> 段 ——
  *       {@code LocalPlayer} 是客户端类，专用服务器上不能加载这个 mixin</li>
  *   <li><b>只改有【诸葛连弩】的弩</b>；没附魔的武器返回值原样透传，原版行为不受影响</li>
  * </ul>

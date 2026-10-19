@@ -31,7 +31,7 @@ import net.neoforged.neoforge.client.event.RegisterSpecialModelRendererEvent;
  *   at net.minecraft.world.item...  ← 由 MoreBalls 构造触发
  * Caused by: Attempted to load class net.minecraft.client.player.LocalPlayer
  *            which is not present on the dedicated server
- * ⇒ Failed to create mod instance. ModID: more_balls
+ * ⇒ Failed to create mod instance. ModID: rotation_craft
  * </pre>
  *
  * <p>也就是说：<b>这一线的模组在专用服务端上根本起不来</b>（实测 {@code runServer} 直接 FAILED）。</p>

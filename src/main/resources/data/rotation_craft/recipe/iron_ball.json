@@ -1,0 +1,8 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "category": "misc",
+  "key": { "#": "minecraft:iron_ingot" },
+  "pattern": [ " # ", "###", " # " ],
+  "result": { "count": 1, "id": "rotation_craft:iron_ball" },
+  "show_notification": false
+}

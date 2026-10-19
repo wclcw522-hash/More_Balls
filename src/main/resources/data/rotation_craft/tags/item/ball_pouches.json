@@ -1,0 +1,12 @@
+{
+  "replace": false,
+  "values": [
+    "rotation_craft:ball_pouch",
+    "rotation_craft:iron_ball_pouch",
+    "rotation_craft:gold_ball_pouch",
+    "rotation_craft:emerald_ball_pouch",
+    "rotation_craft:diamond_ball_pouch",
+    "rotation_craft:obsidian_ball_pouch",
+    "rotation_craft:netherite_ball_pouch"
+  ]
+}

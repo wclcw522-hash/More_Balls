@@ -126,7 +126,7 @@ public record BallClusterContents(ItemStack icon, List<ItemStack> balls) {
 
         // ===== ★ 组合球还要比「构成」（作者 2026-10-16 报的 bug）=====
         //
-        // ⚠️ 所有组合球**共用同一个物品**（{@code more_balls:combo_ball}）——
+        // ⚠️ 所有组合球**共用同一个物品**（{@code rotation_craft:combo_ball}）——
         //    光比物品会把「木 + 铁」和「金 + 钻石」当成同一种球收进同一个壳，
         //    玩家看到的正是「不同的组合球回收进收纳袋时挤进了同一个球堆」。
         //
@@ -148,7 +148,7 @@ public record BallClusterContents(ItemStack icon, List<ItemStack> balls) {
     /**
      * 是不是组合球。
      *
-     * <p>组合球的「身份」不在物品 id 上（所有组合球共用 {@code more_balls:combo_ball}），
+     * <p>组合球的「身份」不在物品 id 上（所有组合球共用 {@code rotation_craft:combo_ball}），
      * 而在 {@code combo_slot_1..4} 组件里 —— 所以 {@link #matches} 光比物品是不够的。</p>
      */
     private static boolean isComboBall(ItemStack stack) {

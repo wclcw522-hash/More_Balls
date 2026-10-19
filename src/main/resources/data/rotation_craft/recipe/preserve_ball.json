@@ -1,0 +1,11 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "category": "misc",
+  "key": {
+    "#": "minecraft:sweet_berries",
+    "H": "minecraft:honey_bottle"
+  },
+  "pattern": [ " # ", "#H#", " # " ],
+  "result": { "count": 4, "id": "rotation_craft:preserve_ball" },
+  "show_notification": false
+}

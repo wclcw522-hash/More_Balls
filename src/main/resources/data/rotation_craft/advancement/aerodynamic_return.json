@@ -1,0 +1,24 @@
+{
+    "parent":  "rotation_craft:crossbow_ammo",
+    "criteria":  {
+                     "unlocked":  {
+                                      "trigger":  "minecraft:impossible"
+                                  }
+                 },
+    "display":  {
+                    "description":  {
+                                        "translate":  "advancements.rotation_craft.aerodynamic_return.description"
+                                    },
+                    "icon":  {
+                                 "id":  "minecraft:wind_charge"
+                             },
+                    "title":  {
+                                  "translate":  "advancements.rotation_craft.aerodynamic_return.title"
+                              }
+                },
+    "requirements":  [
+                         [
+                             "unlocked"
+                         ]
+                     ]
+}

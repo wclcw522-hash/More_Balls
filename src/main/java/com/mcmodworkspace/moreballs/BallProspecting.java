@@ -317,7 +317,7 @@ public final class BallProspecting {
      * 但永不消失」这套行为。
      *
      * <p>硬编码原版注册名管不到模组方块，所以判据以<b>标签优先</b>：
-     * 数据包往 {@code #more_balls:metal_storage_blocks} 里塞什么，什么就按储存块处理。
+     * 数据包往 {@code #rotation_craft:metal_storage_blocks} 里塞什么，什么就按储存块处理。
      * 下面的注册名匹配只作为原版兜底。</p>
      */
     private static final TagKey<Block> METAL_STORAGE_TAG =

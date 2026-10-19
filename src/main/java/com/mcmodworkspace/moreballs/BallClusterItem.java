@@ -31,7 +31,7 @@ import java.util.function.Consumer;
  * <h2>几条设计上的约定（作者 2026-10-14 指定）</h2>
  * <ul>
  *   <li><b>不进创造栏 / 不进 JEI</b> —— 这只是「减少物品栏占用」的措施，
- *       不是给玩家直接拿的东西。创造栏是标签驱动的（只收 {@code #more_balls:balls}），
+ *       不是给玩家直接拿的东西。创造栏是标签驱动的（只收 {@code #rotation_craft:balls}），
  *       所以本物品<b>不挂那个标签</b>就自动进不去，一行代码都不用改</li>
  *   <li><b>满耐久的球不进球堆</b> —— 它们本来就能和同批新球叠成一堆，不需要壳</li>
  *   <li><b>只在「回收」时生成</b>（见 {@code BallProjectile#deliverToOwner}），
@@ -139,13 +139,13 @@ public class BallClusterItem extends Item {
         if (inner.isEmpty()) {
             return super.getName(stack);
         }
-        return Component.translatable("item.more_balls.ball_cluster.named",
+        return Component.translatable("item.rotation_craft.ball_cluster.named",
                 Component.translatable(tierKey(contents.tier())),
                 inner.getHoverName());
     }
 
     private static String tierKey(BallClusterTier tier) {
-        return "cluster.more_balls.tier." + tier.name().toLowerCase(Locale.ROOT);
+        return "cluster.rotation_craft.tier." + tier.name().toLowerCase(Locale.ROOT);
     }
 
     // ===== 入包：回收时把用过的球套壳 =====
@@ -359,18 +359,18 @@ public class BallClusterItem extends Item {
 
         if (isAltDown()) {
             // Alt：只列最少的 6 颗的剩余耐久，其余全部藏起来
-            tooltip.accept(Component.translatable("tooltip.more_balls.cluster.alt_header", count)
+            tooltip.accept(Component.translatable("tooltip.rotation_craft.cluster.alt_header", count)
                     .withStyle(ChatFormatting.GOLD));
             List<ItemStack> few = contents.lowestN(6);
             for (ItemStack ball : few) {
                 tooltip.accept(Component.literal("  ")
                         .append(ball.getHoverName())
                         .append(Component.literal("  "))
-                        .append(Component.translatable("tooltip.more_balls.cluster.left", left(ball))
+                        .append(Component.translatable("tooltip.rotation_craft.cluster.left", left(ball))
                                 .withStyle(ChatFormatting.GRAY)));
             }
             if (count > few.size()) {
-                tooltip.accept(Component.translatable("tooltip.more_balls.cluster.alt_more",
+                tooltip.accept(Component.translatable("tooltip.rotation_craft.cluster.alt_more",
                         count - few.size()).withStyle(ChatFormatting.DARK_GRAY));
             }
             return;
@@ -387,7 +387,7 @@ public class BallClusterItem extends Item {
         //   · 不按 Shift：只给词条本身（【基础伤害11】【坚固3】…）
         //   · 按住 Shift：每条后面追加它的说明（entry.detail()，缩进一格）
         // 两处读同一份数据，**将来球改了词条，球堆自动跟着变**，不会说法不一致。
-        tooltip.accept(Component.translatable("tooltip.more_balls.cluster.count", count)
+        tooltip.accept(Component.translatable("tooltip.rotation_craft.cluster.count", count)
                 .withStyle(ChatFormatting.GOLD));
         if (!lowest.isEmpty()) {
             boolean shift = isShiftDown();
@@ -409,11 +409,11 @@ public class BallClusterItem extends Item {
             }
             // 「这一档有几颗」（作者 2026-10-15）—— 「最低耐久的那一组」的大小，
             // 和 Shift+右键 / 右键取一组 是同一个口径
-            tooltip.accept(Component.translatable("tooltip.more_balls.cluster.lowest",
+            tooltip.accept(Component.translatable("tooltip.rotation_craft.cluster.lowest",
                             left(lowest), contents.lowestGroupSize())
                     .withStyle(ChatFormatting.GRAY));
         }
-        tooltip.accept(Component.translatable("tooltip.more_balls.cluster.hint_alt")
+        tooltip.accept(Component.translatable("tooltip.rotation_craft.cluster.hint_alt")
                 .withStyle(ChatFormatting.DARK_GRAY));
     }
 

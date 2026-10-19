@@ -12,7 +12,7 @@ import net.minecraft.world.item.component.TooltipDisplay;
 import java.util.function.Consumer;
 
 /**
- * 球类物品 —— 所有 {@code #more_balls:balls} 里的自定义球都用这个类。
+ * 球类物品 —— 所有 {@code #rotation_craft:balls} 里的自定义球都用这个类。
  *
  * <h2>「不可回收」是怎么来的</h2>
  * 弩在装填/发射时会往<b>被消耗的弹药</b>上打一个 {@code minecraft:intangible_projectile} 标记，
@@ -205,7 +205,7 @@ public class BallItem extends Item {
         // 末尾提示一句怎么展开被折叠的数值（用更暗的灰跟词条区分开）。
         // 只要没按 Shift 就提示 —— 重量与初速度是每个球都有的，一定有东西被折叠着。
         if (!shift) {
-            tooltip.accept(Component.translatable("tooltip.more_balls.hint.shift")
+            tooltip.accept(Component.translatable("tooltip.rotation_craft.hint.shift")
                     .withStyle(ChatFormatting.DARK_GRAY));
         }
     }

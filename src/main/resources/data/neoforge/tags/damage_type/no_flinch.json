@@ -3,6 +3,6 @@
   "__replace_note": "⚠️ 「replace\": false」是必须的 —— 它让本文件与其它模组/原版的同名标签**合并**而不是**替换**。",
   "replace": false,
   "values": [
-    "more_balls:ball_return"
+    "rotation_craft:ball_return"
   ]
 }

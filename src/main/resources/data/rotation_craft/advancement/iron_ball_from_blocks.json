@@ -1,0 +1,15 @@
+{
+  "parent": "rotation_craft:root",
+  "criteria": {
+    "craft_iron_ball": {
+      "conditions": { "recipe_id": "rotation_craft:iron_ball" },
+      "trigger": "minecraft:recipe_crafted"
+    }
+  },
+  "display": {
+    "description": { "translate": "advancements.rotation_craft.iron_ball_from_blocks.description" },
+    "icon": { "id": "minecraft:iron_block" },
+    "title": { "translate": "advancements.rotation_craft.iron_ball_from_blocks.title" }
+  },
+  "requirements": [ [ "craft_iron_ball" ] ]
+}

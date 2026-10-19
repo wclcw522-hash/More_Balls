@@ -49,13 +49,13 @@ public final class BallPouchKeys {
 
     /** G 键 —— 打开饰品栏里的收纳袋 */
     public static final KeyMapping OPEN_POUCH = new KeyMapping(
-            "key.more_balls.open_pouch",
+            "key.rotation_craft.open_pouch",
             com.mojang.blaze3d.platform.InputConstants.KEY_G,
             CATEGORY);
 
     /** R 键 —— 长按展开径向菜单 */
     public static final KeyMapping RADIAL_MENU = new KeyMapping(
-            "key.more_balls.radial_menu",
+            "key.rotation_craft.radial_menu",
             com.mojang.blaze3d.platform.InputConstants.KEY_R,
             CATEGORY);
 

@@ -675,7 +675,7 @@ public class ComboChargeBallRenderer implements SpecialModelRenderer<int[]> {
         // 每颗球一份贴图；名字带上尺寸与本图指纹，避免撞名
         Identifier id = resource("combo_charge/" + Integer.toHexString(canvas.hashCode())
                 + "_" + COMPOSED.size());
-        String label = "more_balls combo charge " + Arrays.toString(slots);
+        String label = "rotation_craft combo charge " + Arrays.toString(slots);
         // 先留一份像素给侧壁用（canvas 交给 DynamicTexture 之后不能再碰）
         NativeImage pixels = new NativeImage(NativeImage.Format.RGBA, canvas.getWidth(), canvas.getHeight(), false);
         for (int py = 0; py < canvas.getHeight(); py++) {

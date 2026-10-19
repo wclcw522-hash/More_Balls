@@ -1,0 +1,19 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "category": "misc",
+  "key": {
+    "B": "minecraft:emerald_block",
+    "I": "minecraft:emerald",
+    "P": "rotation_craft:gold_ball_pouch"
+  },
+  "pattern": [
+    "BBB",
+    "IPI",
+    "III"
+  ],
+  "result": {
+    "count": 1,
+    "id": "rotation_craft:emerald_ball_pouch"
+  },
+  "show_notification": false
+}

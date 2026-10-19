@@ -59,7 +59,7 @@ public final class BallDamageTypes {
     }
 
     /**
-     * {@code more_balls:true_physical} —— <b>真实物理伤害</b>（作者 2026-10-16 命名）。
+     * {@code rotation_craft:true_physical} —— <b>真实物理伤害</b>（作者 2026-10-16 命名）。
      *
      * <p>原版没有「物理伤害」这个聚合类型，所以本模组自建一个：
      * 登记为物理（{@code neoforge:is_physical}），但被护甲值无视

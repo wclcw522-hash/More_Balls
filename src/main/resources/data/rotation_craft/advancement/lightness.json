@@ -1,0 +1,24 @@
+{
+    "parent":  "rotation_craft:crossbow_ammo",
+    "criteria":  {
+                     "unlocked":  {
+                                      "trigger":  "minecraft:impossible"
+                                  }
+                 },
+    "display":  {
+                    "description":  {
+                                        "translate":  "advancements.rotation_craft.lightness.description"
+                                    },
+                    "icon":  {
+                                 "id":  "minecraft:feather"
+                             },
+                    "title":  {
+                                  "translate":  "advancements.rotation_craft.lightness.title"
+                              }
+                },
+    "requirements":  [
+                         [
+                             "unlocked"
+                         ]
+                     ]
+}

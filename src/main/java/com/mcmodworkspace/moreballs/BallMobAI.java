@@ -614,7 +614,7 @@ public final class BallMobAI {
                 || mob instanceof Blaze
                 || mob instanceof Slime
                 // 【联动口子】作者 2026-10-11 指定：再开一条实体标签。
-                // 第三方模组 / 整合包把自己的生物写进 #more_balls:ball_carriers
+                // 第三方模组 / 整合包把自己的生物写进 #rotation_craft:ball_carriers
                 // （数据包即可）就自动支持，不用改代码、不用重编译。
                 // ⚠️ 这里是**「或」**不是替换 —— 上面那些 instanceof 照旧生效，
                 //    所以就算有人拿 replace:true 把标签整个覆盖掉，原版 19 种也不会失效。
@@ -633,7 +633,7 @@ public final class BallMobAI {
      * <p>为什么不改 {@code BallBehavior.randomBall}：那个方法不知道「是谁在抽」，
      * 掠夺者 / 烈焰人 / 普通怪三条路都调它，所以限制放在这里、由调用方把持有者传进来。</p>
      *
-     * <p>⚠️ 判据用的是<b>自家物品 id</b>（{@code more_balls:tidal_ball}），不违反
+     * <p>⚠️ 判据用的是<b>自家物品 id</b>（{@code rotation_craft:tidal_ball}），不违反
      * 「不硬编码第三方 id」那条规矩。将来若还有别的「限定持有者」的球，把这里抽成一张小表即可。</p>
      *
      * <p>⚠️ 溺尸的包名是 {@code ...entity.monster.zombie.Drowned}（26.x 把它搬进了子包，
@@ -780,7 +780,7 @@ public final class BallMobAI {
         //
         //    ⚠️ 两种形态都算「脚下的球」（作者 2026-10-07 指定）：
         //      · 飞行中 / 已停下的**球实体**（BallProjectile）
-        //      · 以及**掉落物形态的球**（ItemEntity 里装着 #more_balls:balls 的东西）——
+        //      · 以及**掉落物形态的球**（ItemEntity 里装着 #rotation_craft:balls 的东西）——
         //        比如被爆炸炸飞、或者碎裂后滚出来的球
         //    两者共用同一套半径、概率、条件，所以先取实体、没有再取掉落物。
         // ⚠️ 先做一次**合并查询**：把「球实体 + 掉落物」一次捞出来，按类型分流。
@@ -886,7 +886,7 @@ public final class BallMobAI {
     /**
      * 找附近掉在地上的球物品。
      *
-     * <p>判据用 {@link BallAmmo#isBall}（也就是 {@code #more_balls:balls} 标签），
+     * <p>判据用 {@link BallAmmo#isBall}（也就是 {@code #rotation_craft:balls} 标签），
      * 和飞行球那边完全一致 —— 所以原版雪球、末影珍珠这类也算在内。</p>
      */
     private static ItemEntity findDroppedBall(Mob mob, double radius) {
@@ -1010,7 +1010,7 @@ public final class BallMobAI {
     public static final int DISPLAY_SWEEP_DELAY_TICKS = 60;
 
     /** 与 MobBallDisplay.TAG 同一个字符串 */
-    private static final String DISPLAY_TAG = "more_balls:mob_ball_display";
+    private static final String DISPLAY_TAG = "rotation_craft:mob_ball_display";
 
     /**
      * <b>要清扫的图标标签 —— 两套，缺一不可</b>（作者 2026-10-17 指出「苦力怕那块以前修过一次、还有残留」）。
@@ -1020,11 +1020,11 @@ public final class BallMobAI {
      *   <caption>两套图标</caption>
      *   <tr><th>谁在用</th><th>实体标签</th><th>宿主标签前缀</th></tr>
      *   <tr><td>{@code MobBallDisplay}（蜘蛛 / 幻翼 / 史莱姆等）</td>
-     *       <td>{@code more_balls:mob_ball_display}</td>
-     *       <td>{@code more_balls:ball_display_owner:}</td></tr>
+     *       <td>{@code rotation_craft:mob_ball_display}</td>
+     *       <td>{@code rotation_craft:ball_display_owner:}</td></tr>
      *   <tr><td>{@code CreeperBallBehavior}（苦力怕头顶那颗）</td>
-     *       <td>{@code more_balls:creeper_head_icon}</td>
-     *       <td>{@code more_balls:head_of:}</td></tr>
+     *       <td>{@code rotation_craft:creeper_head_icon}</td>
+     *       <td>{@code rotation_craft:head_of:}</td></tr>
      * </table>
      *
      * <p>⚠️ 原来的清扫<b>只认第一套</b> —— 苦力怕那套连扫描都扫不到，所以它留下的孤儿图标
@@ -1032,13 +1032,13 @@ public final class BallMobAI {
      */
     private static final String[] DISPLAY_TAGS = {
             DISPLAY_TAG,
-            "more_balls:creeper_head_icon",
+            "rotation_craft:creeper_head_icon",
     };
 
     /** 两套图标各自的「宿主 UUID」标签前缀 —— 与 {@link #DISPLAY_TAGS} 一一对应（顺序都要遍历） */
     private static final String[] DISPLAY_OWNER_PREFIXES = {
-            "more_balls:ball_display_owner:",
-            "more_balls:head_of:",
+            "rotation_craft:ball_display_owner:",
+            "rotation_craft:head_of:",
     };
 
     /** 这个实体是不是「某个怪的头顶球图标」 */
@@ -1153,7 +1153,7 @@ public final class BallMobAI {
      * 图标就一直挂着。所以这里再拿 {@code level.getEntity(uuid)} 确认一次：
      * <b>查不到、或者查到了但已经死了/被移除，都算宿主不在。</b></p>
      *
-     * <p>⚠️ 两套标签的前缀都要试 —— 苦力怕那套用的是 {@code more_balls:head_of:}。</p>
+     * <p>⚠️ 两套标签的前缀都要试 —— 苦力怕那套用的是 {@code rotation_craft:head_of:}。</p>
      */
     private static boolean hasLivingHost(ServerLevel level, Entity icon) {
         java.util.Set<String> tags = icon.entityTags();

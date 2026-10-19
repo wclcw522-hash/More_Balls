@@ -48,7 +48,7 @@ public enum BallPouchTier {
      *
      * <p>注意这里必须是完整的物品名（{@code ball_pouch} / {@code iron_ball_pouch} …），
      * 不是「leather / iron」那种材质短名 —— 注册时直接拿它当 id，
-     * 用短名会注册出 {@code more_balls:leather} 这种物品，
+     * 用短名会注册出 {@code rotation_craft:leather} 这种物品，
      * 和按 {@code ball_pouch} 命名的那一整套资源对不上，
      * 结果就是<b>没模型、没贴图、没名字，配方也解析失败</b>（踩过）。</p>
      */

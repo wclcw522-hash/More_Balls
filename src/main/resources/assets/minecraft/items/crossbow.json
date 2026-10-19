@@ -1,191 +1,191 @@
 {
     "model": {
         "type": "minecraft:select",
-        "property": "more_balls:charged_ball",
+        "property": "rotation_craft:charged_ball",
         "cases": [
             {
                 "model": {
                     "type": "minecraft:model",
-                    "model": "more_balls:item/crossbow_ball_snowball"
+                    "model": "rotation_craft:item/crossbow_ball_snowball"
                 },
                 "when": "minecraft:snowball"
             },
             {
                 "model": {
                     "type": "minecraft:model",
-                    "model": "more_balls:item/crossbow_ball_ender_pearl"
+                    "model": "rotation_craft:item/crossbow_ball_ender_pearl"
                 },
                 "when": "minecraft:ender_pearl"
             },
             {
                 "model": {
                     "type": "minecraft:model",
-                    "model": "more_balls:item/crossbow_ball_wooden_ball"
+                    "model": "rotation_craft:item/crossbow_ball_wooden_ball"
                 },
-                "when": "more_balls:wooden_ball"
+                "when": "rotation_craft:wooden_ball"
             },
             {
                 "model": {
                     "type": "minecraft:model",
-                    "model": "more_balls:item/crossbow_ball_cobblestone_ball"
+                    "model": "rotation_craft:item/crossbow_ball_cobblestone_ball"
                 },
-                "when": "more_balls:cobblestone_ball"
+                "when": "rotation_craft:cobblestone_ball"
             },
             {
                 "model": {
                     "type": "minecraft:model",
-                    "model": "more_balls:item/crossbow_ball_iron_ball"
+                    "model": "rotation_craft:item/crossbow_ball_iron_ball"
                 },
-                "when": "more_balls:iron_ball"
+                "when": "rotation_craft:iron_ball"
             },
             {
                 "model": {
                     "type": "minecraft:model",
-                    "model": "more_balls:item/crossbow_ball_hollow_iron_ball"
+                    "model": "rotation_craft:item/crossbow_ball_hollow_iron_ball"
                 },
-                "when": "more_balls:hollow_iron_ball"
+                "when": "rotation_craft:hollow_iron_ball"
             },
             {
                 "model": {
                     "type": "minecraft:model",
-                    "model": "more_balls:item/crossbow_ball_gold_ball"
+                    "model": "rotation_craft:item/crossbow_ball_gold_ball"
                 },
-                "when": "more_balls:gold_ball"
+                "when": "rotation_craft:gold_ball"
             },
             {
                 "model": {
                     "type": "minecraft:model",
-                    "model": "more_balls:item/crossbow_ball_snowball_question"
+                    "model": "rotation_craft:item/crossbow_ball_snowball_question"
                 },
-                "when": "more_balls:snowball_question"
+                "when": "rotation_craft:snowball_question"
             },
             {
                 "model": {
                     "type": "minecraft:model",
-                    "model": "more_balls:item/crossbow_ball_snowball_iron_nugget"
+                    "model": "rotation_craft:item/crossbow_ball_snowball_iron_nugget"
                 },
-                "when": "more_balls:snowball_iron_nugget"
+                "when": "rotation_craft:snowball_iron_nugget"
             },
             {
                 "model": {
                     "type": "minecraft:model",
-                    "model": "more_balls:item/crossbow_ball_snowball_gold_nugget"
+                    "model": "rotation_craft:item/crossbow_ball_snowball_gold_nugget"
                 },
-                "when": "more_balls:snowball_gold_nugget"
+                "when": "rotation_craft:snowball_gold_nugget"
             },
             {
                 "model": {
                     "type": "minecraft:model",
-                    "model": "more_balls:item/crossbow_ball_amethyst_ball"
+                    "model": "rotation_craft:item/crossbow_ball_amethyst_ball"
                 },
-                "when": "more_balls:amethyst_ball"
+                "when": "rotation_craft:amethyst_ball"
             },
             {
                 "model": {
                     "type": "minecraft:model",
-                    "model": "more_balls:item/crossbow_ball_copper_ball"
+                    "model": "rotation_craft:item/crossbow_ball_copper_ball"
                 },
-                "when": "more_balls:copper_ball"
+                "when": "rotation_craft:copper_ball"
             },
             {
                 "model": {
                     "type": "minecraft:model",
-                    "model": "more_balls:item/crossbow_ball_hollow_copper_ball"
+                    "model": "rotation_craft:item/crossbow_ball_hollow_copper_ball"
                 },
-                "when": "more_balls:hollow_copper_ball"
+                "when": "rotation_craft:hollow_copper_ball"
             },
             {
                 "model": {
                     "type": "minecraft:model",
-                    "model": "more_balls:item/crossbow_ball_snowball_copper_nugget"
+                    "model": "rotation_craft:item/crossbow_ball_snowball_copper_nugget"
                 },
-                "when": "more_balls:snowball_copper_nugget"
+                "when": "rotation_craft:snowball_copper_nugget"
             },
             {
                 "model": {
                     "type": "minecraft:model",
-                    "model": "more_balls:item/crossbow_ball_redstone_ball"
+                    "model": "rotation_craft:item/crossbow_ball_redstone_ball"
                 },
-                "when": "more_balls:redstone_ball"
+                "when": "rotation_craft:redstone_ball"
             },
             {
                 "model": {
                     "type": "minecraft:model",
-                    "model": "more_balls:item/crossbow_ball_redstone_snowball"
+                    "model": "rotation_craft:item/crossbow_ball_redstone_snowball"
                 },
-                "when": "more_balls:redstone_snowball"
+                "when": "rotation_craft:redstone_snowball"
             },
             {
                 "model": {
                     "type": "minecraft:model",
-                    "model": "more_balls:item/crossbow_ball_diamond_ball"
+                    "model": "rotation_craft:item/crossbow_ball_diamond_ball"
                 },
-                "when": "more_balls:diamond_ball"
+                "when": "rotation_craft:diamond_ball"
             },
             {
-                "when": "more_balls:lapis_ball",
+                "when": "rotation_craft:lapis_ball",
                 "model": {
                     "type": "minecraft:model",
-                    "model": "more_balls:item/crossbow_ball_lapis_ball"
+                    "model": "rotation_craft:item/crossbow_ball_lapis_ball"
                 }
             },
             {
-                "when": "more_balls:tidal_ball",
+                "when": "rotation_craft:tidal_ball",
                 "model": {
                     "type": "minecraft:model",
-                    "model": "more_balls:item/crossbow_ball_tidal_ball"
+                    "model": "rotation_craft:item/crossbow_ball_tidal_ball"
                 }
             },
             {
                 "when": "minecraft:slime_ball",
                 "model": {
                     "type": "minecraft:model",
-                    "model": "more_balls:item/crossbow_ball_slime_ball"
+                    "model": "rotation_craft:item/crossbow_ball_slime_ball"
                 }
             },
             {
-                "when": "more_balls:emerald_ball",
+                "when": "rotation_craft:emerald_ball",
                 "model": {
                     "type": "minecraft:model",
-                    "model": "more_balls:item/crossbow_ball_emerald_ball"
+                    "model": "rotation_craft:item/crossbow_ball_emerald_ball"
                 }
             },
             {
-                "when": "more_balls:dripstone_ball",
+                "when": "rotation_craft:dripstone_ball",
                 "model": {
                     "type": "minecraft:model",
-                    "model": "more_balls:item/crossbow_ball_dripstone_ball"
+                    "model": "rotation_craft:item/crossbow_ball_dripstone_ball"
                 }
             },
             {
-                "when": "more_balls:preserve_ball",
+                "when": "rotation_craft:preserve_ball",
                 "model": {
                     "type": "minecraft:model",
-                    "model": "more_balls:item/crossbow_ball_preserve_ball"
+                    "model": "rotation_craft:item/crossbow_ball_preserve_ball"
                 }
             },
             {
-                "when": "more_balls:talisman_ball",
+                "when": "rotation_craft:talisman_ball",
                 "model": {
                     "type": "minecraft:model",
-                    "model": "more_balls:item/crossbow_ball_talisman_ball"
+                    "model": "rotation_craft:item/crossbow_ball_talisman_ball"
                 }
             },
             {
-                "when": "more_balls:combo_ball",
+                "when": "rotation_craft:combo_ball",
                 "model": {
                     "type": "minecraft:special",
                     "base": "minecraft:item/crossbow_pulling_2",
                     "model": {
-                        "type": "more_balls:combo_charge_ball"
+                        "type": "rotation_craft:combo_charge_ball"
                     }
                 }
             },
             {
-                "when": "more_balls:echo_ball",
+                "when": "rotation_craft:echo_ball",
                 "model": {
                     "type": "minecraft:model",
-                    "model": "more_balls:item/crossbow_ball_echo_ball"
+                    "model": "rotation_craft:item/crossbow_ball_echo_ball"
                 }
             }
         ],

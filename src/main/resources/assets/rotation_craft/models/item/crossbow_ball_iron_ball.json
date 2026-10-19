@@ -1,0 +1,6 @@
+{
+  "parent": "minecraft:item/crossbow",
+  "textures": {
+    "layer0": "rotation_craft:item/crossbow_ball_iron_ball"
+  }
+}

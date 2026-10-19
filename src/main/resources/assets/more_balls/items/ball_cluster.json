@@ -1,9 +1,0 @@
-{
-  "model": {
-    "type": "minecraft:special",
-    "base": "more_balls:item/ball_cluster_base",
-    "model": {
-      "type": "more_balls:ball_cluster"
-    }
-  }
-}

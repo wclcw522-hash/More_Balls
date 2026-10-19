@@ -87,7 +87,7 @@ public final class CreeperBallBehavior {
     private static final double THROW_FORWARD_OFFSET = 0.7D;
 
     /** 头顶图标实体的标记，便于每刻找回自己那一个 */
-    private static final String HEAD_ICON_TAG = "more_balls:creeper_head_icon";
+    private static final String HEAD_ICON_TAG = "rotation_craft:creeper_head_icon";
 
     /**
      * 苦力怕 UUID → 它的头顶图标实体 id。
@@ -105,7 +105,7 @@ public final class CreeperBallBehavior {
             });
 
     /** 图标标签的前缀，后面接苦力怕的 UUID */
-    private static final String HEAD_ICON_OWNER_PREFIX = "more_balls:head_of:";
+    private static final String HEAD_ICON_OWNER_PREFIX = "rotation_craft:head_of:";
 
     /**
      * 给「持球苦力怕」打的标记 —— 用来认「这一炸该不该换成特制参数」。
@@ -113,7 +113,7 @@ public final class CreeperBallBehavior {
      * <p>不能靠「主手有没有球」判断：球在爆炸前 2 刻就已经甩出去了，
      * 等到爆炸那一刻手上是空的。所以状态得提前记在实体上。</p>
      */
-    public static final String BALL_BLAST_TAG = "more_balls:ball_blast";
+    public static final String BALL_BLAST_TAG = "rotation_craft:ball_blast";
 
     /**
      * 爆炸推球的力度 —— <b>手扔速度的 5 倍</b>（作者 2026-10-07 指定）。
@@ -167,7 +167,7 @@ public final class CreeperBallBehavior {
         //
         // 当且仅当**手里是末影珍珠**时走这一条独立流程：
         //   爆炸前扔出珍珠 → 自己进入冻结状态 → 珍珠落地后瞬移过去 → 立刻爆炸。
-        // 因为末影珍珠也在 #more_balls:balls 标签里（原版物品算作球），
+        // 因为末影珍珠也在 #rotation_craft:balls 标签里（原版物品算作球），
         // 所以必须**在通用持球逻辑之前**先判出来，否则它会走成普通扔球。
         if (holdingBall && hand.is(Items.ENDER_PEARL)) {
             pearlCreeperTick(creeper);
@@ -272,7 +272,7 @@ public final class CreeperBallBehavior {
      * <p>打这个标记的苦力怕处于<b>冻结状态</b>：AI 关掉、速度清零，
      * 直到珍珠落地把它带过去、并立即引爆。</p>
      */
-    public static final String PEARL_BLAST_TAG = "more_balls:pearl_blast";
+    public static final String PEARL_BLAST_TAG = "rotation_craft:pearl_blast";
 
     /**
      * 原版苦力怕的爆炸半径。

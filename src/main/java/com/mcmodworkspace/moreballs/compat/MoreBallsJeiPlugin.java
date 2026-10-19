@@ -48,7 +48,7 @@ import net.minecraft.world.item.crafting.display.SlotDisplay;
  * <h2>为什么输入格用「示例」物品</h2>
  * <p>配方本身不挑具体来源（任何带 {@code fragment_source} 组件的半球/四分之一球都行），
  * 所以展示时用一组<b>专用的示例物品</b>来表示「任意半球 / 任意四分之一球」，
- * 它们只用于配方展示（见 {@code #more_balls:example_only} 标签，不在创造栏、也无获取途径）。</p>
+ * 它们只用于配方展示（见 {@code #rotation_craft:example_only} 标签，不在创造栏、也无获取途径）。</p>
  *
  * <h2>优雅降级</h2>
  * <p>本类只依赖 JEI 的 API（{@code compileOnly}），并且靠 {@code @JeiPlugin} 注解被 JEI 发现 ——
@@ -65,7 +65,7 @@ public class MoreBallsJeiPlugin implements IModPlugin {
     /**
      * JEI 里「一颗半球」的展示槽 —— 与<b>切球（石切机）配方</b>同样的观感。
      *
-     * <p>用 {@code TagSlotDisplay(#more_balls:fragments/half)} 表示「任意半球」，
+     * <p>用 {@code TagSlotDisplay(#rotation_craft:fragments/half)} 表示「任意半球」，
      * 而不是列出某几种具体材质。{@code TagSlotDisplay} 会把标签内<b>全部</b>物品
      * 解析进同一个槽，JEI 的 {@code CycleTicker} 便会轮流显示它们 ——
      * 这正是「轮替显示」的机制（作者 2026-10-09 明确要这个效果）。</p>
@@ -85,7 +85,7 @@ public class MoreBallsJeiPlugin implements IModPlugin {
      * 造一个「8 种材质都能轮替显示」的槽。
      *
      * <h2>为什么不用 TagSlotDisplay</h2>
-     * <p>{@code #more_balls:fragments/half} 标签里**只有一条** {@code more_balls:ball_half} ——
+     * <p>{@code #rotation_craft:fragments/half} 标签里**只有一条** {@code rotation_craft:ball_half} ——
      * 材质是靠 {@code fragment_source} 组件区分的，8 种材质共用同一个物品 id。
      * 所以 {@code TagSlotDisplay} 只解析出**一个**裸模板，槽里就一个候选，
      * JEI 的 {@code CycleTicker} 物理上没法轮替（作者反复反馈「没有轮换显示」的原因）。</p>
@@ -227,7 +227,7 @@ public class MoreBallsJeiPlugin implements IModPlugin {
      *   <li>子类型只决定「这个物品在 JEI 里算几个条目」，它<b>不会</b>让球堆的配方查询
      *       落到别的物品身上；</li>
      *   <li>JEI 查配方用的是<b>物品自己的 uid</b>（item id + 子类型串），球堆的 uid
-     *       前缀永远是 {@code more_balls:ball_cluster}，和木球、铁球那些 uid
+     *       前缀永远是 {@code rotation_craft:ball_cluster}，和木球、铁球那些 uid
      *       <b>永远不可能相等</b>。</li>
      * </ul>
      * <p>所以那条需求（作者 2026-10-14 提、2026-10-15 实测失败）一直是空的 ——

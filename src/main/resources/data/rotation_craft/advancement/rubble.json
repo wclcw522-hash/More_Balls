@@ -1,0 +1,15 @@
+{
+  "parent": "rotation_craft:root",
+  "criteria": {
+    "get_rubble": {
+      "conditions": { "items": [ { "items": "rotation_craft:rubble" } ] },
+      "trigger": "minecraft:inventory_changed"
+    }
+  },
+  "display": {
+    "description": { "translate": "advancements.rotation_craft.rubble.description" },
+    "icon": { "id": "rotation_craft:rubble" },
+    "title": { "translate": "advancements.rotation_craft.rubble.title" }
+  },
+  "requirements": [ [ "get_rubble" ] ]
+}

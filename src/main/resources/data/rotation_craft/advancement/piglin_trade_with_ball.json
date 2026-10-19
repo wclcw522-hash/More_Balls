@@ -1,0 +1,14 @@
+{
+  "parent": "rotation_craft:root",
+  "criteria": {
+    "unlocked": {
+      "trigger": "minecraft:impossible"
+    }
+  },
+  "display": {
+    "description": { "translate": "advancements.rotation_craft.piglin_trade_with_ball.description" },
+    "icon": { "id": "minecraft:gold_ingot" },
+    "title": { "translate": "advancements.rotation_craft.piglin_trade_with_ball.title" }
+  },
+  "requirements": [ [ "unlocked" ] ]
+}

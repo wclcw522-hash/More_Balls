@@ -19,7 +19,7 @@ import net.minecraft.world.level.block.Block;
  * <h2>规格</h2>
  * <ul>
  *   <li>切石机把完整球切成 <b>2 个半球</b>或 <b>4 个四分之一球</b></li>
- *   <li>半球与四分之一球<b>不能投掷、不能当弩弹药</b> —— 它们不进 {@code #more_balls:balls} 标签</li>
+ *   <li>半球与四分之一球<b>不能投掷、不能当弩弹药</b> —— 它们不进 {@code #rotation_craft:balls} 标签</li>
  *   <li><b>数值词条</b>（坚固、感应、磁吸、点金）在半成品上按 1/2、1/4 缩放，
  *       <b>暂时不取整</b> —— 所以这里一律用 {@code double} 运算，不能落回 int。
  *       <b>例外：融化 / 熔融是阈值类，不缩放</b>（见 {@code Fragment#scaled}）</li>
@@ -138,7 +138,7 @@ public final class BallFragments {
                     //    落到 fallback（木球的贴图）。
                     ModItems.LAPIS_BALL.get(),
                     // ⚠️ 0.3.6.0 追加的**末影珍珠**（原版物品），同样**只在末尾追加** —— 下标 11。
-                    //    它是原版物品，所以有些东西早就齐了：#more_balls:balls 与
+                    //    它是原版物品，所以有些东西早就齐了：#rotation_craft:balls 与
                     //    balls/solid 标签里都有它、弩的 case 与 crossbow_ball_ender_pearl
                     //    贴图也早就有了。真正缺的只是「进这张表」这一步。
                     //    这里写全限定名 —— 本文件其它地方没用到 Items，省得为一个原版
@@ -162,7 +162,7 @@ public final class BallFragments {
     }
 
     /**
-     * {@code #more_balls:balls} 标签里的<b>全部</b>物品。
+     * {@code #rotation_craft:balls} 标签里的<b>全部</b>物品。
      *
      * <p>遍历注册表筛标签，而不是读 json —— 这样拿到的是「当前实际生效的集合」，
      * 含其它模组通过数据包加进来的东西。给启动自检用（见 {@link BallIntegrationCheck}）。</p>

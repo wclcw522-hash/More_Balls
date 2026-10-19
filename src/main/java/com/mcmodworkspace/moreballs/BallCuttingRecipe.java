@@ -44,10 +44,10 @@ import net.minecraft.world.item.crafting.StonecutterRecipe;
  * 继承之后 {@code getType()} 已经是 {@code RecipeType.STONECUTTING}，天然满足。</p>
  *
  * <h2>配方怎么做到「只写一份」</h2>
- * <p>json 的 {@code ingredient} 写的是汇总标签 {@code #more_balls:balls/cuttable}
+ * <p>json 的 {@code ingredient} 写的是汇总标签 {@code #rotation_craft:balls/cuttable}
  * —— 它本身不含具体物品，只引用两个子分类
- * （{@code #more_balls:balls/solid} 与 {@code #more_balls:balls/hollow}），
- * 所以球<b>必须进对应子分类</b>才切得动；只进 {@code #more_balls:balls} 是不够的。
+ * （{@code #rotation_craft:balls/solid} 与 {@code #rotation_craft:balls/hollow}），
+ * 所以球<b>必须进对应子分类</b>才切得动；只进 {@code #rotation_craft:balls} 是不够的。
  * 产物模板写 {@code ball_half} 或 {@code ball_quarter}，其中 {@code fragment_source}
  * 的占位值会被 {@link #assemble} 换成真实来源。</p>
  *
@@ -173,7 +173,7 @@ public class BallCuttingRecipe extends StonecutterRecipe {
     /**
      * 除了父类的判据，还要把<b>组合球</b>挡在外面。
      *
-     * <p>组合球落在 {@code #more_balls:balls/solid} 里，所以标签层面它是「可切」的。
+     * <p>组合球落在 {@code #rotation_craft:balls/solid} 里，所以标签层面它是「可切」的。
      * 但它不在 {@link BallFragments#sources()} 里 —— 一旦被切，
      * 上面的 {@code assemble} 拿到的 {@code indexOfBall} 是 {@code -1}，
      * 产出的就是**没有来源组件的裸半球**：既合不出球也不显示词条，

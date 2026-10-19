@@ -1,8 +1,0 @@
-{
-  "type": "minecraft:crafting_shaped",
-  "category": "misc",
-  "key": { "#": "minecraft:lapis_lazuli" },
-  "pattern": [ " # ", "###", " # " ],
-  "result": { "count": 1, "id": "more_balls:lapis_ball" },
-  "show_notification": false
-}

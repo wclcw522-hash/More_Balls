@@ -23,7 +23,7 @@ import java.util.List;
  * {@code PlayerContainerEvent.Open/Close}（开关界面）。而物品栏里的左键/右键行为全部由
  * 原版 {@link AbstractContainerMenu#clicked} 直接处理，没有留钩子。</p>
  *
- * <p>项目里本来就有 Mixin 框架（{@code more_balls.mixins.json} + CrossbowItemMixin /
+ * <p>项目里本来就有 Mixin 框架（{@code rotation_craft.mixins.json} + CrossbowItemMixin /
  * LocalPlayerMixin），所以这里沿用同一套，而不是去魔改 UI 层。</p>
  *
  * <h2>接管的时机（四条限制，缺一不可）</h2>

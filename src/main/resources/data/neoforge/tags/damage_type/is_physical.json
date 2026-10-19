@@ -2,6 +2,6 @@
   "__comment": "把本模组的「真实物理伤害」登记为物理伤害。⚠️ 引擎当前不会读这个标签（NeoForge 只声明与写入、没有读取方），登记它的意义是语义正确 + 将来若出现「针对物理伤害的减伤」时自动接上。",
   "replace": false,
   "values": [
-    "more_balls:true_physical"
+    "rotation_craft:true_physical"
   ]
 }

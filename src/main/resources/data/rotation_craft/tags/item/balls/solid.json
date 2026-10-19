@@ -1,0 +1,21 @@
+{
+  "values": [
+    "minecraft:ender_pearl",
+    "rotation_craft:wooden_ball",
+    "rotation_craft:cobblestone_ball",
+    "rotation_craft:iron_ball",
+    "rotation_craft:gold_ball",
+    "rotation_craft:amethyst_ball",
+    "rotation_craft:copper_ball",
+    "rotation_craft:redstone_ball",
+    "rotation_craft:diamond_ball",
+    "rotation_craft:combo_ball",
+    "rotation_craft:lapis_ball",
+    "rotation_craft:tidal_ball",
+    "minecraft:slime_ball",
+    "rotation_craft:emerald_ball",
+    "rotation_craft:dripstone_ball",
+    "rotation_craft:preserve_ball",
+    "rotation_craft:echo_ball"
+  ]
+}

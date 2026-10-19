@@ -8,7 +8,7 @@ import net.neoforged.neoforge.registries.DeferredRegister;
 /**
  * 本模组的物品注册。
  *
- * <p>右键投掷、当弩弹药、坚固反弹等行为全部由标签 {@code #more_balls:balls} 驱动；
+ * <p>右键投掷、当弩弹药、坚固反弹等行为全部由标签 {@code #rotation_craft:balls} 驱动；
  * 这里只负责注册物品本体与**堆叠数**。
  * 每个物品的具体参数（重量 / 坚固 / 弹射 / 伤害 / 蓄力 / 稀有度 / 音效 / 掉落）在
  * {@link BallBehavior#init()} 里登记。</p>
@@ -70,7 +70,7 @@ public final class ModItems {
             "combo_ball", props -> new ComboBallItem(props.stacksTo(BALL_STACK_SIZE)));
 
     /**
-     * 碎石 —— 材料，<b>不是球</b>，因此不在 {@code #more_balls:balls} 标签里。
+     * 碎石 —— 材料，<b>不是球</b>，因此不在 {@code #rotation_craft:balls} 标签里。
      * 球被打碎时掉出来的渣，贴图是从圆石上抠下来的一块不规则碎片。
      */
     public static final DeferredItem<Item> RUBBLE = ITEMS.registerSimpleItem("rubble");
@@ -371,7 +371,7 @@ public final class ModItems {
      *
      * <h2>为什么它不会出现在创造栏和 JEI 里</h2>
      * <p>创造栏是<b>标签驱动</b>的（见 {@code ModCreativeTabs}：实时遍历注册表、只收
-     * {@code #more_balls:balls} 标签的东西）。<b>本物品不挂那个标签</b>，
+     * {@code #rotation_craft:balls} 标签的东西）。<b>本物品不挂那个标签</b>，
      * 于是它自动进不去 —— 一行代码都不用改。</p>
      *
      * <p>作者指定的定位：<b>它只是「减少物品栏占用」的措施</b>，

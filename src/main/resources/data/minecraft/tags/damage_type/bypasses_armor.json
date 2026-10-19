@@ -3,7 +3,7 @@
   "__replace_note": "⚠️ 「replace\": false」是必须的 —— 它让本文件与原版标签**合并**而不是**替换**。少了它，原版那条 bypasses_armor（虚空伤害、/kill 等）会被本模组整个挤掉。其余 6 个 data/minecraft/tags 文件都带着这一项，本文件当初漏了。",
   "replace": false,
   "values": [
-    "more_balls:molten_burn",
-    "more_balls:true_physical"
+    "rotation_craft:molten_burn",
+    "rotation_craft:true_physical"
   ]
 }

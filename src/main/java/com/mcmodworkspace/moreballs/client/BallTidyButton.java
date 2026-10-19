@@ -82,7 +82,7 @@ public final class BallTidyButton {
      * 作用与背包界面里那个小按钮完全一样：发 {@link TidyBallsPayload} 给服务端。</p>
      */
     public static final KeyMapping TIDY_KEY = new KeyMapping(
-            "key.more_balls.tidy",
+            "key.rotation_craft.tidy",
             com.mojang.blaze3d.platform.InputConstants.Type.MOUSE,
             org.lwjgl.glfw.GLFW.GLFW_MOUSE_BUTTON_MIDDLE,
             CATEGORY);
@@ -172,7 +172,7 @@ public final class BallTidyButton {
         }
 
         Button button = Button.builder(
-                        Component.translatable("button.more_balls.tidy"),
+                        Component.translatable("button.rotation_craft.tidy"),
                         pressed -> ClientPacketDistributor.sendToServer(TidyBallsPayload.INSTANCE))
                 .bounds(pos[0], pos[1], SIZE, SIZE)
                 .build();

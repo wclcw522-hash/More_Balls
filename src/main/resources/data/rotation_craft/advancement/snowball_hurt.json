@@ -1,0 +1,24 @@
+{
+    "parent":  "rotation_craft:root",
+    "criteria":  {
+                     "unlocked":  {
+                                      "trigger":  "minecraft:impossible"
+                                  }
+                 },
+    "display":  {
+                    "description":  {
+                                        "translate":  "advancements.rotation_craft.snowball_hurt.description"
+                                    },
+                    "icon":  {
+                                 "id":  "minecraft:stone_button"
+                             },
+                    "title":  {
+                                  "translate":  "advancements.rotation_craft.snowball_hurt.title"
+                              }
+                },
+    "requirements":  [
+                         [
+                             "unlocked"
+                         ]
+                     ]
+}

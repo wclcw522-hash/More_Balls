@@ -1,0 +1,24 @@
+{
+    "parent":  "rotation_craft:root",
+    "criteria":  {
+                     "unlocked":  {
+                                      "trigger":  "minecraft:impossible"
+                                  }
+                 },
+    "display":  {
+                    "description":  {
+                                        "translate":  "advancements.rotation_craft.wisdom.description"
+                                    },
+                    "icon":  {
+                                 "id":  "rotation_craft:amethyst_ball"
+                             },
+                    "title":  {
+                                  "translate":  "advancements.rotation_craft.wisdom.title"
+                              }
+                },
+    "requirements":  [
+                         [
+                             "unlocked"
+                         ]
+                     ]
+}

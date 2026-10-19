@@ -1,0 +1,9 @@
+{
+  "type": "minecraft:smithing_transform",
+  "template": "minecraft:netherite_upgrade_smithing_template",
+  "base": "rotation_craft:obsidian_ball_pouch",
+  "addition": "minecraft:netherite_ingot",
+  "result": {
+    "id": "rotation_craft:netherite_ball_pouch"
+  }
+}

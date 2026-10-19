@@ -91,7 +91,7 @@ public final class BallTooltip {
             int ticks, int amplifier) {
         MobEffectInstance instance = new MobEffectInstance(effect, ticks, amplifier);
         Component duration = MobEffectUtil.formatDuration(instance, 1.0F, 20.0F);
-        return Component.translatable("tooltip.more_balls.effect_duration",
+        return Component.translatable("tooltip.rotation_craft.effect_duration",
                 effectNameWithLevel(effect.value(), amplifier), duration);
     }
 
@@ -125,17 +125,17 @@ public final class BallTooltip {
         List<Entry> out = new ArrayList<>();
 
         // 【基础伤害】—— 常显
-        out.add(Entry.of(line("tooltip.more_balls.entry.damage", format(profile.damage())), Kind.BASIC));
+        out.add(Entry.of(line("tooltip.rotation_craft.entry.damage", format(profile.damage())), Kind.BASIC));
 
         // 【重量】【初速度】【弹性】—— 机制细节，展开时才露出来
         if (detailed) {
-            out.add(Entry.of(line("tooltip.more_balls.entry.weight", String.valueOf(profile.weight())),
+            out.add(Entry.of(line("tooltip.rotation_craft.entry.weight", String.valueOf(profile.weight())),
                     Kind.BASIC));
-            out.add(Entry.of(line("tooltip.more_balls.entry.velocity", format(profile.launchSpeed())),
+            out.add(Entry.of(line("tooltip.rotation_craft.entry.velocity", format(profile.launchSpeed())),
                     Kind.BASIC));
             // 不坚固的球碰上就碎、根本不会反弹，弹性对它没有意义
             if (profile.isTough()) {
-                out.add(Entry.of(line("tooltip.more_balls.entry.bounce", String.valueOf(profile.bounce())),
+                out.add(Entry.of(line("tooltip.rotation_craft.entry.bounce", String.valueOf(profile.bounce())),
                         Kind.BASIC));
             }
         }
@@ -143,37 +143,37 @@ public final class BallTooltip {
         // 【蓄力x】—— 取默认值时归进折叠组；被改成别的数值就常显。
         // 单独归成 CHARGE 一类：径向菜单会跳过它（球都是用弩打出去的）
         if (detailed || profile.chargeLevels() != BallBehavior.DEFAULT_CHARGE_LEVELS) {
-            out.add(Entry.of(line("tooltip.more_balls.entry.charge", String.valueOf(profile.chargeLevels())),
+            out.add(Entry.of(line("tooltip.rotation_craft.entry.charge", String.valueOf(profile.chargeLevels())),
                     Kind.CHARGE));
         }
 
         // 【坚固】/【坚固x】—— 有才显示
         if (profile.toughness() == BallBehavior.TOUGH_FOREVER) {
-            out.add(Entry.of(line("tooltip.more_balls.entry.tough_forever"), Kind.TRAIT));
+            out.add(Entry.of(line("tooltip.rotation_craft.entry.tough_forever"), Kind.TRAIT));
         } else if (profile.toughness() > 0) {
-            out.add(Entry.of(line("tooltip.more_balls.entry.tough", String.valueOf(profile.toughness())),
+            out.add(Entry.of(line("tooltip.rotation_craft.entry.tough", String.valueOf(profile.toughness())),
                     Kind.TRAIT));
         }
 
         // 【融化x】—— 雪球类默认 200；说明只在 Shift 展开时出现
         if (profile.hasMelt()) {
             out.add(Entry.of(
-                    line("tooltip.more_balls.entry.melt", String.valueOf(profile.meltThreshold())),
+                    line("tooltip.rotation_craft.entry.melt", String.valueOf(profile.meltThreshold())),
                     Kind.TRAIT,
-                    line("tooltip.more_balls.desc.melt", String.valueOf(profile.meltThreshold()))));
+                    line("tooltip.rotation_craft.desc.melt", String.valueOf(profile.meltThreshold()))));
         }
 
         // 【磁吸】—— 空心铁球自有词条：飞行时把身边金属拽向自己。
         // ⚠️ 它和【磁性】**不是一回事**，别混、也别互相改名（作者 2026-10-07 纠正过）
         if (profile.hasMagnet()) {
-            out.add(Entry.of(line("tooltip.more_balls.entry.magnet"), Kind.TRAIT));
+            out.add(Entry.of(line("tooltip.rotation_craft.entry.magnet"), Kind.TRAIT));
         }
 
         // 【磁性】—— 从【探寻】改来的词条：飞行途中会朝铁磁性目标偏航。
         // 判据走底层词条 hasMagnetic()，不硬编码物品。说明收在 Shift 里
         if (profile.hasMagnetic()) {
-            out.add(Entry.of(line("tooltip.more_balls.entry.magnetic"), Kind.TRAIT,
-                    line("tooltip.more_balls.desc.magnetic")));
+            out.add(Entry.of(line("tooltip.rotation_craft.entry.magnetic"), Kind.TRAIT,
+                    line("tooltip.rotation_craft.desc.magnetic")));
         }
 
         // 【熔融x】—— 空心铁球专属：热量攒够后击中目标会把它烫伤
@@ -183,18 +183,18 @@ public final class BallTooltip {
             //    %2$s 是**效果名+时长**。描述对调后两者挤到了同一行，
             //    必须分别给 %1$s / %2$s，否则「获得」后面也会显示成阈值数字
             //    （作者 2026-10-18 报的「描述越改越乱」就是这个）。
-            line("tooltip.more_balls.entry.molten",
+            line("tooltip.rotation_craft.entry.molten",
                     String.valueOf(profile.moltenThreshold()),
                     effectWithDuration(ModEffects.MOLTEN_BURN, BallBehavior.MOLTEN_BURN_TICKS, 0)),
                     Kind.TRAIT,
-                    line("tooltip.more_balls.desc.molten")));
+                    line("tooltip.rotation_craft.desc.molten")));
         }
 
         // 【变形】—— 金球
         if (profile.morphBlock() != null) {
             // 作者 2026-10-07 改的文本：常显是那句俏皮话，细则收在 Shift 里
-            out.add(Entry.of(line("tooltip.more_balls.entry.morph"), Kind.TRAIT,
-                    line("tooltip.more_balls.desc.morph")));
+            out.add(Entry.of(line("tooltip.rotation_craft.entry.morph"), Kind.TRAIT,
+                    line("tooltip.rotation_craft.desc.morph")));
         }
 
         // ===== 2.6.0 新增的五个词条（智慧 / 善良 / 导电 / 引雷 / 电击，作者 2026-10-07 指定）=====
@@ -202,48 +202,48 @@ public final class BallTooltip {
         // 【智慧】—— 紫水晶球：发射后扫描并锁定最近的敌对目标
         // 【智慧N】—— N 是可追踪的次数（没写就是 1）
         if (profile.wisdom() > 0) {
-            out.add(Entry.of(Component.translatable("tooltip.more_balls.entry.wisdom", profile.wisdom()),
-                    Kind.TRAIT, line("tooltip.more_balls.desc.wisdom",
+            out.add(Entry.of(Component.translatable("tooltip.rotation_craft.entry.wisdom", profile.wisdom()),
+                    Kind.TRAIT, line("tooltip.rotation_craft.desc.wisdom",
                             String.valueOf(profile.wisdom()))));
         }
 
         // 【善良】—— 不伤害友好与中立生物，碰到就反弹
         if (profile.kindness()) {
-            out.add(Entry.of(line("tooltip.more_balls.entry.kindness"), Kind.TRAIT,
-                    line("tooltip.more_balls.desc.kindness")));
+            out.add(Entry.of(line("tooltip.rotation_craft.entry.kindness"), Kind.TRAIT,
+                    line("tooltip.rotation_craft.desc.kindness")));
         }
 
         // 【导电】—— 像避雷针一样吸引自然闪电
         if (profile.conduction()) {
-            out.add(Entry.of(line("tooltip.more_balls.entry.conduction"), Kind.TRAIT,
-                    line("tooltip.more_balls.desc.conduction")));
+            out.add(Entry.of(line("tooltip.rotation_craft.entry.conduction"), Kind.TRAIT,
+                    line("tooltip.rotation_craft.desc.conduction")));
         }
 
         // 【引雷x】—— 热量满后释放雷电
         if (profile.hasThunder()) {
             out.add(Entry.of(
-                    line("tooltip.more_balls.entry.thunder",
+                    line("tooltip.rotation_craft.entry.thunder",
                             String.valueOf(profile.thunderThreshold())),
                     Kind.TRAIT,
-                    line("tooltip.more_balls.desc.thunder")));
+                    line("tooltip.rotation_craft.desc.thunder")));
         }
 
         // 【电击】—— 直接伤害为闪电类型
         if (profile.shockDamage()) {
-            out.add(Entry.of(line("tooltip.more_balls.entry.shock"), Kind.TRAIT,
-                    line("tooltip.more_balls.desc.shock")));
+            out.add(Entry.of(line("tooltip.rotation_craft.entry.shock"), Kind.TRAIT,
+                    line("tooltip.rotation_craft.desc.shock")));
         }
 
         // ===== 更早批次：金球 / 雪球-金粒自带的词条（渲染代码排在此处）=====
 
         // 【金光闪闪】—— 金球专属（这套猪灵行为整套都挂在金球上，所以直接认物品）
         if (BallBehavior.isGoldShiny(stack)) {
-            out.add(Entry.of(line("tooltip.more_balls.entry.gold_shiny"), Kind.TRAIT));
+            out.add(Entry.of(line("tooltip.rotation_craft.entry.gold_shiny"), Kind.TRAIT));
         }
 
         // 【点金】—— 雪球-金粒
         if (profile.transmuteChance() > BallBehavior.NOT_TRANSMUTE) {
-            out.add(Entry.of(line("tooltip.more_balls.entry.transmute"), Kind.TRAIT));
+            out.add(Entry.of(line("tooltip.rotation_craft.entry.transmute"), Kind.TRAIT));
         }
 
         // ===== 3.0.0（0.3.4.0）新增的六个词条 =====
@@ -252,7 +252,7 @@ public final class BallTooltip {
         if (profile.hasPenetration()) {
             out.add(Entry.of(
                     // 原常显只有「【穿透x】」没有描述 ⇒ 描述对调后 shift 里不再留那一行（作者 2026-10-18）
-            line("tooltip.more_balls.entry.penetration", String.valueOf(profile.penetration())),
+            line("tooltip.rotation_craft.entry.penetration", String.valueOf(profile.penetration())),
                     Kind.TRAIT));
         }
 
@@ -266,7 +266,7 @@ public final class BallTooltip {
             //    所以两个参数也必须跟着搬到 entry 这边 —— 否则占位符没东西可填，
             //    会原样显示成 %1$s / %2$s（作者报的「效果名与时长被百分号取代」就是这个）。
             out.add(Entry.of(
-                    Component.translatable("tooltip.more_balls.entry.pulse",
+                    Component.translatable("tooltip.rotation_craft.entry.pulse",
                             effectWithDuration(ModEffects.SHOCK, RedstonePulse.DURATION_BASE, 0),
                             effectWithDuration(ModEffects.SHOCK, RedstonePulse.DURATION_STRONG, RedstonePulse.AMPLIFIER_STRONG)),
                     Kind.TRAIT));
@@ -274,22 +274,22 @@ public final class BallTooltip {
 
         // 【照明】—— 雪球-红石：下方四棱锥区域内的生物被染色发光
         if (profile.hasFlag(BallBehavior.BallProfile.FLAG_ILLUMINATE)) {
-            out.add(Entry.of(line("tooltip.more_balls.entry.illuminate"), Kind.TRAIT,
-                    line("tooltip.more_balls.desc.illuminate")));
+            out.add(Entry.of(line("tooltip.rotation_craft.entry.illuminate"), Kind.TRAIT,
+                    line("tooltip.rotation_craft.desc.illuminate")));
         }
 
         // 【破坏王x】—— 钻石球：能砸碎 x 个方块
         if (profile.hasBreaker()) {
             out.add(Entry.of(
-                    line("tooltip.more_balls.entry.breaker", String.valueOf(profile.breaker())),
+                    line("tooltip.rotation_craft.entry.breaker", String.valueOf(profile.breaker())),
                     Kind.TRAIT,
-                    line("tooltip.more_balls.desc.breaker", String.valueOf(profile.breaker()))));
+                    line("tooltip.rotation_craft.desc.breaker", String.valueOf(profile.breaker()))));
         }
 
         // 【透镜】—— 钻石球：白天晴天时给下方持续积热
         if (profile.hasFlag(BallBehavior.BallProfile.FLAG_LENS)) {
-            out.add(Entry.of(line("tooltip.more_balls.entry.lens"), Kind.TRAIT,
-                    line("tooltip.more_balls.desc.lens")));
+            out.add(Entry.of(line("tooltip.rotation_craft.entry.lens"), Kind.TRAIT,
+                    line("tooltip.rotation_craft.desc.lens")));
         }
 
         // 【魔法】—— 青金石球：命中随机 debuff / 回收随机 buff / 0.1% 大奖
@@ -298,8 +298,8 @@ public final class BallTooltip {
         // 名字带效果颜色、时长自动按 tick 速率格式化成 mm:ss，
         // 而不是在 lang 里写死「（01:00）」（那样时长一改就对不上）。
         if (profile.hasFlag(BallBehavior.BallProfile.FLAG_MAGIC)) {
-            out.add(Entry.of(line("tooltip.more_balls.entry.magic"), Kind.TRAIT,
-                    Component.translatable("tooltip.more_balls.desc.magic",
+            out.add(Entry.of(line("tooltip.rotation_craft.entry.magic"), Kind.TRAIT,
+                    Component.translatable("tooltip.rotation_craft.desc.magic",
                             effectWithDuration(ModEffects.IMMORTAL, ImmortalEffect.REWARD_TICKS, 0))));
         }
 
@@ -307,20 +307,20 @@ public final class BallTooltip {
         // 作为弹药击中其它生物时与它换位。词条名走常显、说明只在 Shift 展开时出现，
         // 和上面【照明】【透镜】一个做法。
         if (profile.transpose()) {
-            out.add(Entry.of(line("tooltip.more_balls.entry.transpose"), Kind.TRAIT,
-                    line("tooltip.more_balls.desc.transpose")));
+            out.add(Entry.of(line("tooltip.rotation_craft.entry.transpose"), Kind.TRAIT,
+                    line("tooltip.rotation_craft.desc.transpose")));
         }
 
         // 【潮涌】—— 潮汐球：入水后不受重力、速度 ×3，并环绕激流的纹理特效
         if (profile.tidalSurge()) {
-            out.add(Entry.of(line("tooltip.more_balls.entry.tidal_surge"), Kind.TRAIT,
-                    line("tooltip.more_balls.desc.tidal_surge")));
+            out.add(Entry.of(line("tooltip.rotation_craft.entry.tidal_surge"), Kind.TRAIT,
+                    line("tooltip.rotation_craft.desc.tidal_surge")));
         }
 
         // 【忠诚】—— 潮汐球：永远带忠诚附魔，且不会被任何生物捡走
         if (profile.loyalty()) {
             // 原常显只有「【忠诚】」⇒ shift 里不再留那一行（作者 2026-10-18）
-            out.add(Entry.of(line("tooltip.more_balls.entry.loyalty"), Kind.TRAIT));
+            out.add(Entry.of(line("tooltip.rotation_craft.entry.loyalty"), Kind.TRAIT));
         }
 
         // ===== 更早批次：【感应】自 2.0.0 起就有（渲染代码排在此处）=====
@@ -329,8 +329,8 @@ public final class BallTooltip {
         // 说明只在 Shift 展开时出现
         if (profile.hasSense()) {
             Component text = profile.sense() == BallBehavior.DEFAULT_SENSE_LEVEL
-                    ? line("tooltip.more_balls.entry.sense_plain")
-                    : line("tooltip.more_balls.entry.sense", String.valueOf(profile.sense()));
+                    ? line("tooltip.rotation_craft.entry.sense_plain")
+                    : line("tooltip.rotation_craft.entry.sense", String.valueOf(profile.sense()));
             // 原常显只有「【感应x】」⇒ shift 里不再留那一行（作者 2026-10-18）
             out.add(Entry.of(text, Kind.TRAIT));
         }
@@ -343,41 +343,41 @@ public final class BallTooltip {
         if (profile.hasFlag(BallBehavior.BallProfile.FLAG_MONEY)) {
             // 同上：带效果名/时长的那句搬到常显行了，参数也跟着搬。
             out.add(Entry.of(
-                    Component.translatable("tooltip.more_balls.entry.money",
+                    Component.translatable("tooltip.rotation_craft.entry.money",
                             effectWithDuration(ModEffects.MONEY, BallExtraTraits.MONEY_TICKS,
                                     MoneyEffect.MAX_AMPLIFIER)),
                     Kind.TRAIT,
-                    line("tooltip.more_balls.desc.money")));
+                    line("tooltip.rotation_craft.desc.money")));
         }
 
         // 【尖刺】—— 滴水石球（「其它特殊」类）：击中 / 碰撞 / 破碎时射出 8 枚滴水石锥
         if (profile.hasFlag(BallBehavior.BallProfile.FLAG_SPIKE)) {
-            out.add(Entry.of(line("tooltip.more_balls.entry.spike"), Kind.TRAIT,
-                    line("tooltip.more_balls.desc.spike")));
+            out.add(Entry.of(line("tooltip.rotation_craft.entry.spike"), Kind.TRAIT,
+                    line("tooltip.rotation_craft.desc.spike")));
         }
 
         // 【封印】—— 符箓球（「其它特殊」类）：封玩家快捷栏 / 封怪物攻击并打掉它手里的球
         if (profile.hasFlag(BallBehavior.BallProfile.FLAG_SEAL)) {
-            out.add(Entry.of(line("tooltip.more_balls.entry.seal"), Kind.TRAIT,
-                    line("tooltip.more_balls.desc.seal")));
+            out.add(Entry.of(line("tooltip.rotation_craft.entry.seal"), Kind.TRAIT,
+                    line("tooltip.rotation_craft.desc.seal")));
         }
         // 【尖啸】【穿甲】—— 回响球那两条（作者 2026-10-16）
         if (profile.hasFlag(BallBehavior.BallProfile.FLAG_SHRIEK)) {
-            out.add(Entry.of(line("tooltip.more_balls.entry.shriek"), Kind.TRAIT,
-                    line("tooltip.more_balls.desc.shriek")));
+            out.add(Entry.of(line("tooltip.rotation_craft.entry.shriek"), Kind.TRAIT,
+                    line("tooltip.rotation_craft.desc.shriek")));
         }
         if (profile.hasFlag(BallBehavior.BallProfile.FLAG_PIERCE)) {
-            out.add(Entry.of(line("tooltip.more_balls.entry.pierce"), Kind.TRAIT,
-                    line("tooltip.more_balls.desc.pierce")));
+            out.add(Entry.of(line("tooltip.rotation_craft.entry.pierce"), Kind.TRAIT,
+                    line("tooltip.rotation_craft.desc.pierce")));
         }
 
         // 【招蜂引蝶N】—— 蜜饯球（**数值类特性**）：击中时召唤 N 只蜜蜂
         // （血量走常量 BallExtraTraits.BEE_HEALTH，别在文案里写死）
         if (profile.hasBees()) {
             out.add(Entry.of(
-                    line("tooltip.more_balls.entry.bees", String.valueOf(profile.beeCount())),
+                    line("tooltip.rotation_craft.entry.bees", String.valueOf(profile.beeCount())),
                     Kind.TRAIT,
-                    line("tooltip.more_balls.desc.bees", String.valueOf(profile.beeCount()),
+                    line("tooltip.rotation_craft.desc.bees", String.valueOf(profile.beeCount()),
                             BallExtraTraits.beeHealthText())));
         }
 
@@ -392,8 +392,8 @@ public final class BallTooltip {
             boolean combo = BallExtraTraits.isComboBall(stack);
             if (combo || detailed) {
                 out.add(Entry.of(
-                        line(combo ? "tooltip.more_balls.entry.nurture"
-                                        : "tooltip.more_balls.entry.nurture_inactive",
+                        line(combo ? "tooltip.rotation_craft.entry.nurture"
+                                        : "tooltip.rotation_craft.entry.nurture_inactive",
                                 effectWithDuration(net.minecraft.world.effect.MobEffects.REGENERATION,
                                         BallExtraTraits.NURTURE_TICKS, 0)),
                         Kind.TRAIT));

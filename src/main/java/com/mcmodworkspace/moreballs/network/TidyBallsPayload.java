@@ -54,7 +54,7 @@ public record TidyBallsPayload() implements CustomPacketPayload {
         }
         int moved = BallClusterTidy.tidy(player);
         if (moved > 0) {
-            player.sendOverlayMessage(Component.translatable("message.more_balls.tidy_done", moved));
+            player.sendOverlayMessage(Component.translatable("message.rotation_craft.tidy_done", moved));
         }
     }
 }

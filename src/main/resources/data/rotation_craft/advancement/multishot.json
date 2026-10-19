@@ -1,0 +1,27 @@
+{
+    "parent":  "rotation_craft:crossbow_ammo",
+    "criteria":  {
+                     "unlocked":  {
+                                      "trigger":  "minecraft:impossible"
+                                  }
+                 },
+    "display":  {
+                    "description":  {
+                                        "translate":  "advancements.rotation_craft.multishot.description"
+                                    },
+                    "icon":  {
+                                 "components":  {
+                                                    "minecraft:item_model":  "rotation_craft:advancement/three_snowballs"
+                                                },
+                                 "id":  "minecraft:snowball"
+                             },
+                    "title":  {
+                                  "translate":  "advancements.rotation_craft.multishot.title"
+                              }
+                },
+    "requirements":  [
+                         [
+                             "unlocked"
+                         ]
+                     ]
+}

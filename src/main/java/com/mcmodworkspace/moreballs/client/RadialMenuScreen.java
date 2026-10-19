@@ -121,7 +121,7 @@ public class RadialMenuScreen extends Screen {
     private final List<ItemStack> kinds;
 
     public RadialMenuScreen() {
-        super(Component.translatable("gui.more_balls.radial_menu"));
+        super(Component.translatable("gui.rotation_craft.radial_menu"));
         Minecraft minecraft = Minecraft.getInstance();
         this.kinds = minecraft.player == null
                 ? new ArrayList<>()
@@ -247,7 +247,7 @@ public class RadialMenuScreen extends Screen {
         renderCenter(graphics, centerX, centerY, mouseX, mouseY);
 
         // ③ 页码提示（压在底盘内底部）
-        Component hint = Component.translatable("gui.more_balls.page",
+        Component hint = Component.translatable("gui.rotation_craft.page",
                 this.page + 1, pageCount());
         graphics.text(this.font, hint, centerX - this.font.width(hint) / 2,
                 centerY + DISC_RADIUS - 14, COLOR_TEXT, true);
@@ -273,8 +273,8 @@ public class RadialMenuScreen extends Screen {
                 centerX + 1, centerY + CENTER_RADIUS, COLOR_RING);
 
         // 两边的文字 —— 各放在自己那半边
-        Component prev = Component.translatable("gui.more_balls.prev_page");
-        Component next = Component.translatable("gui.more_balls.next_page");
+        Component prev = Component.translatable("gui.rotation_craft.prev_page");
+        Component next = Component.translatable("gui.rotation_craft.next_page");
         drawCentered(graphics, prev, centerX - CENTER_RADIUS / 2, centerY - 4,
                 canPrev ? (overLeft ? COLOR_HIGHLIGHT : COLOR_TEXT) : COLOR_DISABLED, 0.6F);
         drawCentered(graphics, next, centerX + CENTER_RADIUS / 2, centerY - 4,
@@ -292,7 +292,7 @@ public class RadialMenuScreen extends Screen {
         graphics.fill(icon[0] - 13, icon[1] - 13, icon[0] + 13, icon[1] + 13,
                 hovered ? 0x80FF6B6B : 0x40202020);
 
-        Component label = Component.translatable("gui.more_balls.cancel");
+        Component label = Component.translatable("gui.rotation_craft.cancel");
         drawCentered(graphics, label, icon[0], icon[1] - 4,
                 hovered ? COLOR_HIGHLIGHT : COLOR_TEXT, 0.85F);
     }

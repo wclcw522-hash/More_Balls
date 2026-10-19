@@ -60,7 +60,7 @@ public class BallPouchScreen extends AbstractContainerScreen<BallPouchMenu> {
      * 分段为「标题 v=0 / 槽位 v=17 / 玩家 v=125」。几何和原版公式一致，只是列数不同。</p>
      */
     private static final Identifier CONTAINER_TEXTURE =
-            Identifier.fromNamespaceAndPath("more_balls", "textures/gui/ball_pouch.png");
+            Identifier.fromNamespaceAndPath("rotation_craft", "textures/gui/ball_pouch.png");
 
     /** 底图的实际尺寸（blit 用它归一化 UV —— 必须与图片真实尺寸一致） */
     private static final int TEX_W = 284;
@@ -178,7 +178,7 @@ public class BallPouchScreen extends AbstractContainerScreen<BallPouchMenu> {
         // ③ 第二个标题区 —— 写「中转区」。它同时就是两段的分隔，不必另外画线
         drawTitleBar(graphics, x, y);
         graphics.text(this.font,
-                Component.translatable("container.more_balls.ball_pouch.transit"),
+                Component.translatable("container.rotation_craft.ball_pouch.transit"),
                 x + TITLE_INSET_X, y + TITLE_INSET_Y, TITLE_COLOR, false);
         y += BallPouchMenu.SECTION_TITLE_HEIGHT;
 

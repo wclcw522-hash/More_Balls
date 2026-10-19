@@ -13,7 +13,7 @@ import net.minecraft.world.item.enchantment.Enchantment;
 import net.minecraft.world.level.Level;
 
 /**
- * 本模组的附魔 —— 全部数据驱动，定义在 {@code data/more_balls/enchantment/}。
+ * 本模组的附魔 —— 全部数据驱动，定义在 {@code data/rotation_craft/enchantment/}。
  *
  * <p>这里只做两件事：提供 {@link ResourceKey}，以及把等级换算成实际效果。</p>
  *
@@ -49,12 +49,12 @@ public final class ModEnchantments {
     /** 强弩最高等级 */
     public static final int MAX_LEVEL = 3;
 
-    /** {@code more_balls:powerful_crossbow} */
+    /** {@code rotation_craft:powerful_crossbow} */
     public static final ResourceKey<Enchantment> POWERFUL_CROSSBOW = key("powerful_crossbow");
 
     // ===== 轻盈 =====
 
-    /** {@code more_balls:lightness} —— 1 级，弹药重量减半向上取整，最低 1 */
+    /** {@code rotation_craft:lightness} —— 1 级，弹药重量减半向上取整，最低 1 */
     public static final ResourceKey<Enchantment> LIGHTNESS = key("lightness");
 
     /** 【轻盈】的重量下限（作者指定：最低 1） */
@@ -62,7 +62,7 @@ public final class ModEnchantments {
 
     // ===== 极速 =====
 
-    /** {@code more_balls:swiftness} —— 5 级，每级提升弹药初速度 */
+    /** {@code rotation_craft:swiftness} —— 5 级，每级提升弹药初速度 */
     public static final ResourceKey<Enchantment> SWIFTNESS = key("swiftness");
 
     /**
@@ -74,7 +74,7 @@ public final class ModEnchantments {
 
     // ===== 空气动力球 =====
 
-    /** {@code more_balls:aerodynamic_ball} —— 1 级，弹药静止后自动回归主人 */
+    /** {@code rotation_craft:aerodynamic_ball} —— 1 级，弹药静止后自动回归主人 */
     public static final ResourceKey<Enchantment> AERODYNAMIC_BALL = key("aerodynamic_ball");
 
     /** 【空气动力球】回到主人身边时对主人的物理伤害（作者指定：1 滴血） */
@@ -111,7 +111,7 @@ public final class ModEnchantments {
      * {@code getSource}，拿不到「是不是这一下」的信息。要用它就得加一个「正在结算回收伤害」
      * 的旗标来配对，比开一个伤害类型更绕。</p>
      *
-     * <p>这个做法与本项目已有的 {@code more_balls:molten_burn} 完全一致
+     * <p>这个做法与本项目已有的 {@code rotation_craft:molten_burn} 完全一致
      * （自有伤害类型 + 往原版 damage_type 标签里追加）。</p>
      */
     public static final ResourceKey<DamageType> RETURN_DAMAGE_TYPE = ResourceKey.create(
@@ -120,7 +120,7 @@ public final class ModEnchantments {
 
     // ===== 诸葛连弩 =====
 
-    /** {@code more_balls:repeater_crossbow} —— 3 级，按住右键连发 */
+    /** {@code rotation_craft:repeater_crossbow} —— 3 级，按住右键连发 */
     public static final ResourceKey<Enchantment> REPEATER_CROSSBOW = key("repeater_crossbow");
 
     /** 【诸葛连弩】最高等级 */
@@ -158,7 +158,7 @@ public final class ModEnchantments {
     /**
      * <b>【诸葛连弩】每级对装填时长的削减比例。</b>
      *
-     * <p>⚠️ 必须与 {@code data/more_balls/enchantment/repeater_crossbow.json} 里
+     * <p>⚠️ 必须与 {@code data/rotation_craft/enchantment/repeater_crossbow.json} 里
      * {@code crossbow_charge_time} 的 {@code factor.per_level_above_first}（{@code -0.15}）
      * 保持一致 —— <b>改一边就要改另一边</b>。</p>
      */

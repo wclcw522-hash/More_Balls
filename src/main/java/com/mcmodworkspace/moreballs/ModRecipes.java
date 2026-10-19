@@ -41,7 +41,7 @@ public final class ModRecipes {
      * 切球：一条配方覆盖所有球（作者 2026-10-08 指定改成机制化）。
      *
      * <p>和上面两条不同，这条有 json 数据文件（half 与 quarter 各一份），
-     * 因为产物模板要从数据里来；但<b>材料是标签 {@code #more_balls:balls}</b>，
+     * 因为产物模板要从数据里来；但<b>材料是标签 {@code #rotation_craft:balls}</b>，
      * 所以加新球不用再补配方。</p>
      */
     // 类型按父类 StonecutterRecipe 声明 —— 见 BallCuttingRecipe.SERIALIZER 上的说明，

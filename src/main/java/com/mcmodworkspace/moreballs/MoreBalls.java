@@ -10,14 +10,14 @@ import net.neoforged.neoforge.common.NeoForge;
 import org.slf4j.Logger;
 
 /**
- * [更多球] More_Balls —— 入口类（NeoForge 26.2 版本线）。
+ * [旋转工艺] Rotation_Craft —— 入口类（NeoForge 26.2 版本线）。
  *
  * <p>本文件位于各版本线的 {@code src/} 中，属于「版本特有」代码，不参与跨版本同步。</p>
  */
 @Mod(MoreBalls.MOD_ID)
 public class MoreBalls {
 
-    public static final String MOD_ID = "more_balls";
+    public static final String MOD_ID = "rotation_craft";
     public static final Logger LOGGER = ModLog.of(MOD_ID);
 
     public MoreBalls(IEventBus modEventBus, ModContainer modContainer) {

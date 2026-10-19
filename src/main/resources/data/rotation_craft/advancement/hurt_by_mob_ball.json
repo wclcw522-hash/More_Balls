@@ -1,0 +1,24 @@
+{
+    "parent":  "rotation_craft:root",
+    "criteria":  {
+                     "unlocked":  {
+                                      "trigger":  "minecraft:impossible"
+                                  }
+                 },
+    "display":  {
+                    "description":  {
+                                        "translate":  "advancements.rotation_craft.hurt_by_mob_ball.description"
+                                    },
+                    "icon":  {
+                                 "id":  "minecraft:zombie_head"
+                             },
+                    "title":  {
+                                  "translate":  "advancements.rotation_craft.hurt_by_mob_ball.title"
+                              }
+                },
+    "requirements":  [
+                         [
+                             "unlocked"
+                         ]
+                     ]
+}

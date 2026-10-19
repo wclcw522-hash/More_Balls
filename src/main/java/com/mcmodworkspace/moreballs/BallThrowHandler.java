@@ -13,7 +13,7 @@ import net.neoforged.neoforge.event.entity.living.LivingEntityUseItemEvent;
 import net.neoforged.neoforge.event.entity.player.PlayerInteractEvent;
 
 /**
- * 右键投掷 —— 任何带 {@code #more_balls:balls} 标签的物品都能像雪球一样扔出去。
+ * 右键投掷 —— 任何带 {@code #rotation_craft:balls} 标签的物品都能像雪球一样扔出去。
  *
  * <h2>两条出手路径</h2>
  * <ul>

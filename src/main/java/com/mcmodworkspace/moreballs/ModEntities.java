@@ -34,7 +34,7 @@ public final class ModEntities {
             DeferredRegister.create(Registries.ENTITY_TYPE, MoreBalls.MOD_ID);
 
     /**
-     * {@code more_balls:ball_ender_pearl} —— 作为弩弹药射出的末影珍珠。
+     * {@code rotation_craft:ball_ender_pearl} —— 作为弩弹药射出的末影珍珠。
      *
      * <p>与原版珍珠的区别只有一个：命中实体时造成 {@link BallEnderpearl#AMMO_DAMAGE} 点伤害，
      * 传送功能照旧。</p>
@@ -48,7 +48,7 @@ public final class ModEntities {
                     .build(ResourceKey.create(Registries.ENTITY_TYPE,
                             Identifier.fromNamespaceAndPath(MoreBalls.MOD_ID, "ball_ender_pearl"))));
 
-    /** {@code more_balls:ball} —— 所有球类弹药的通用投射物 */
+    /** {@code rotation_craft:ball} —— 所有球类弹药的通用投射物 */
     public static final DeferredHolder<EntityType<?>, EntityType<BallProjectile>> BALL =
             ENTITIES.register("ball", () -> EntityType.Builder
                     .<BallProjectile>of(BallProjectile::new, MobCategory.MISC)
@@ -59,7 +59,7 @@ public final class ModEntities {
                             Identifier.fromNamespaceAndPath(MoreBalls.MOD_ID, "ball"))));
 
     /**
-     * {@code more_balls:dripstone_shard} —— 滴水石球的【尖刺】射出去的<b>滴水石锥</b>。
+     * {@code rotation_craft:dripstone_shard} —— 滴水石球的【尖刺】射出去的<b>滴水石锥</b>。
      *
      * <p>作者 2026-10-15 指定：击中 / 碰撞 / 破碎时一次射出 8 枚「最小的滴水石锥」，
      * 基础伤害 3。它要<b>真的是滴水石锥的样子</b>，所以实体携带
@@ -79,7 +79,7 @@ public final class ModEntities {
                             Identifier.fromNamespaceAndPath(MoreBalls.MOD_ID, "dripstone_shard"))));
 
     /**
-     * {@code more_balls:summoned_bee} —— 【招蜂引蝶 x】召唤出来的<b>战斗宠物蜜蜂</b>
+     * {@code rotation_craft:summoned_bee} —— 【招蜂引蝶 x】召唤出来的<b>战斗宠物蜜蜂</b>
      * （作者 2026-10-16 指定做成独立生物）。
      *
      * <p>它继承原版 {@code Bee}（飞行、模型、贴图全部复用），只改三件事：
@@ -88,7 +88,7 @@ public final class ModEntities {
      *
      * <p>判定盒与追踪参数照抄原版蜜蜂（0.7 × 0.6 / 追踪 8 / 同步间隔 3）——
      * 让它在网络上的表现与真蜜蜂一致。名字走语言键
-     * {@code entity.more_balls.summoned_bee}（「被召唤的蜜蜂」），不需要 {@code setCustomName}。</p>
+     * {@code entity.rotation_craft.summoned_bee}（「被召唤的蜜蜂」），不需要 {@code setCustomName}。</p>
      */
     public static final DeferredHolder<EntityType<?>, EntityType<SummonedBee>> SUMMONED_BEE =
             ENTITIES.register("summoned_bee", () -> EntityType.Builder

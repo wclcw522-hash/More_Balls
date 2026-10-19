@@ -186,7 +186,7 @@ public class BallPouchItem extends Item {
      * @return true 表示全部塞进去了
      */
     public static boolean insertToTransit(ItemStack pouch, ItemStack ball) {
-        // ★ 球堆（壳）也要收（作者 2026-10-15）：壳不是 `#more_balls:balls` 标签里的物品，
+        // ★ 球堆（壳）也要收（作者 2026-10-15）：壳不是 `#rotation_craft:balls` 标签里的物品，
         //   原先只判 `isBall` ⇒ **球堆根本塞不进袋子** ⇒ 袋子里的球堆这条路整条是断的。
         if (ball.isEmpty() || !(BallAmmo.isBall(ball)
                 || BallClusterItem.isCluster(ball))) {
@@ -342,7 +342,7 @@ public class BallPouchItem extends Item {
 
     /** 只往<b>弹药段</b>塞 */
     public static boolean insertToAmmo(ItemStack pouch, ItemStack ball) {
-        // ★ 球堆（壳）也要收（作者 2026-10-15）：壳不是 `#more_balls:balls` 标签里的物品，
+        // ★ 球堆（壳）也要收（作者 2026-10-15）：壳不是 `#rotation_craft:balls` 标签里的物品，
         //   原先只判 `isBall` ⇒ **球堆根本塞不进袋子** ⇒ 袋子里的球堆这条路整条是断的。
         if (ball.isEmpty() || !(BallAmmo.isBall(ball)
                 || BallClusterItem.isCluster(ball))) {
@@ -752,7 +752,7 @@ public class BallPouchItem extends Item {
                             (id, inventory, p) -> new BallPouchMenu(id, inventory, pouch),
                             // 界面顶部那条标题写「备用区」—— 不再用物品名，
                             // 因为下面还有第二个标题区写「中转区」，两个标题各管一段
-                            Component.translatable("container.more_balls.ball_pouch")),
+                            Component.translatable("container.rotation_craft.ball_pouch")),
                     // ⚠️ 先写一个**版本标记字节**（作者 2026-10-16 报的联机崩溃）：
                     //    NeoForge 的 openMenu 在「额外数据为空」时会退回原版 ClientboundOpenScreenPacket，
                     //    而那条路径客户端工厂拿到的是 **null** buf ⇒ 客户端一句 decode 就 NPE，
@@ -772,11 +772,11 @@ public class BallPouchItem extends Item {
         BallPouchTier tier = tier(pouch);
         BallPouchContents contents = contents(pouch);
 
-        consumer.accept(Component.translatable("tooltip.more_balls.pouch.tier",
-                        Component.translatable("pouch.more_balls.tier." + tier.id()))
+        consumer.accept(Component.translatable("tooltip.rotation_craft.pouch.tier",
+                        Component.translatable("pouch.rotation_craft.tier." + tier.id()))
                 .withStyle(ChatFormatting.GOLD));
 
-        consumer.accept(Component.translatable("tooltip.more_balls.pouch.ammo",
+        consumer.accept(Component.translatable("tooltip.rotation_craft.pouch.ammo",
                         BallPouchContents.countBalls(contents.ammo()),
                         BallPouchContents.countFilled(contents.ammo()), tier.ammoSlots())
                 .withStyle(ChatFormatting.AQUA));
@@ -784,14 +784,14 @@ public class BallPouchItem extends Item {
         // 【球堆】（作者 2026-10-15）：转运段一格可能装着一整堆，
         // 所以这里同时报「多少颗」和「用了几格」——
         // 只报格数的话，装了一堆球却显示「1 / 18」，看起来像球丢了。
-        consumer.accept(Component.translatable("tooltip.more_balls.pouch.transit",
+        consumer.accept(Component.translatable("tooltip.rotation_craft.pouch.transit",
                         BallPouchContents.countBalls(contents.transit()),
                         BallPouchContents.countFilled(contents.transit()), tier.transitSlots())
                 .withStyle(ChatFormatting.YELLOW));
 
         if (!tier.isMax()) {
-            consumer.accept(Component.translatable("tooltip.more_balls.pouch.next",
-                            Component.translatable("pouch.more_balls.tier." + tier.next().id()))
+            consumer.accept(Component.translatable("tooltip.rotation_craft.pouch.next",
+                            Component.translatable("pouch.rotation_craft.tier." + tier.next().id()))
                     .withStyle(ChatFormatting.DARK_GRAY));
         }
     }

@@ -125,7 +125,7 @@ public final class MoreBallsClient {
 
         // ===== ★ 球堆：手上是**壳**，能不能蓄力要看**壳里那颗球**（作者 2026-10-15）=====
         //
-        // ⚠️⚠️ 这里原先直接问 `BallBehavior.handles(stack)` —— 而壳**不在** `#more_balls:balls`
+        // ⚠️⚠️ 这里原先直接问 `BallBehavior.handles(stack)` —— 而壳**不在** `#rotation_craft:balls`
         //    标签里，`handles` 对它返回 false ⇒ **本方法当场 return** ⇒
         //    那条「蓄力 x / y」在手持球堆蓄力时**永远不显示**。
         //
@@ -152,7 +152,7 @@ public final class MoreBallsClient {
         if (level < 1) {
             return;
         }
-        Component label = Component.translatable("hud.more_balls.charge", level, maxLevel);
+        Component label = Component.translatable("hud.rotation_craft.charge", level, maxLevel);
 
         GuiGraphicsExtractor graphics = event.getGuiGraphics();
         Font font = minecraft.font;
@@ -162,7 +162,7 @@ public final class MoreBallsClient {
     }
 
     /**
-     * 注册物品模型属性 {@code more_balls:charged_ball}。
+     * 注册物品模型属性 {@code rotation_craft:charged_ball}。
      *
      * <p>弩拉满时要根据「装的是不是球」换模型，而原版的 {@code charge_type} 是个封闭枚举
      * （只有箭 / 烟花火箭 / 空），加不了新值 —— 所以自己起一个属性。
@@ -177,7 +177,7 @@ public final class MoreBallsClient {
      * 挂错总线不会触发，症状是模型静默空白。</p>
      */
     public static void registerSpecialModelRenderers(RegisterSpecialModelRendererEvent event) {
-        MoreBalls.LOGGER.info("[ball][弩] ⓪ 注册 special 渲染器 more_balls:combo_charge_ball —— 事件已触发");
+        MoreBalls.LOGGER.info("[ball][弩] ⓪ 注册 special 渲染器 rotation_craft:combo_charge_ball —— 事件已触发");
         event.register(
                 Identifier.fromNamespaceAndPath(MoreBalls.MOD_ID, "combo_charge_ball"),
                 ComboChargeBallRenderer.Unbaked.MAP_CODEC);

@@ -1,0 +1,24 @@
+{
+    "parent":  "rotation_craft:root",
+    "criteria":  {
+                     "unlocked":  {
+                                      "trigger":  "minecraft:impossible"
+                                  }
+                 },
+    "display":  {
+                    "description":  {
+                                        "translate":  "advancements.rotation_craft.crossbow_ammo.description"
+                                    },
+                    "icon":  {
+                                 "id":  "minecraft:end_rod"
+                             },
+                    "title":  {
+                                  "translate":  "advancements.rotation_craft.crossbow_ammo.title"
+                              }
+                },
+    "requirements":  [
+                         [
+                             "unlocked"
+                         ]
+                     ]
+}

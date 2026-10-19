@@ -36,7 +36,7 @@ import java.util.List;
  * <h2>「矿物产物」怎么界定 —— 一条标签，第三方可以往里加</h2>
  * <p>作者要求「尽量直接写一个大类，让后续可能加入的 mod 矿物也包含在内」。
  * 所以这里查的是<b>本模组自己的一条物品标签</b>：
- * {@code #more_balls:mineral_products}，它默认引 NeoForge 的通用标签
+ * {@code #rotation_craft:mineral_products}，它默认引 NeoForge 的通用标签
  * （{@code #c:ingots} / {@code #c:gems} / {@code #c:nuggets}）再加原版那几样
  * —— <b>不含</b> {@code #c:raw_materials} 与 {@code #c:ores}。
  * <b>别人家的模组只要把自己的矿物登记进 {@code c:} 那一套（NeoForge 的通行做法），
@@ -75,7 +75,7 @@ public class MoneyEffect extends MobEffect {
     /**
      * <b>矿物产物</b>的大类标签 —— 见类注释。
      *
-     * <p>定义文件：{@code data/more_balls/tags/item/mineral_products.json}</p>
+     * <p>定义文件：{@code data/rotation_craft/tags/item/mineral_products.json}</p>
      */
     public static final TagKey<Item> MINERAL_PRODUCTS = TagKey.create(Registries.ITEM,
             Identifier.fromNamespaceAndPath(MoreBalls.MOD_ID, "mineral_products"));

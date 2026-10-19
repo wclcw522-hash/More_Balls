@@ -44,9 +44,9 @@ import java.util.function.Consumer;
  * **唯一的差别是「画哪张图」**：它画合成出来的弩上那颗球，我画壳里那颗球的贴图。</p>
  *
  * <h2>贴图怎么找</h2>
- * <p>约定：<b>{@code more_balls:textures/item/<物品路径>.png}</b>。
+ * <p>约定：<b>{@code rotation_craft:textures/item/<物品路径>.png}</b>。
  * 查过 {@code models/item/*.json} —— 木球 / 铁球 / 圆石球 / 钻石球…… 全是
- * {@code item/generated} + {@code layer0: more_balls:item/<同名>}，一一对应。</p>
+ * {@code item/generated} + {@code layer0: rotation_craft:item/<同名>}，一一对应。</p>
  *
  * <p>⚠️ <b>组合球（{@code combo_ball}）没有单一贴图</b> —— 它是 {@code composite} +
  * 四个 {@code select}（按 {@code combo_slot_N} 组件选 {@code combo_piece_<来源>_<象限>}）
@@ -126,9 +126,9 @@ public class BallClusterSpecialRenderer implements SpecialModelRenderer<ItemStac
      *
      * <p>两条路：</p>
      * <ul>
-     *   <li><b>普通球</b> —— 约定 {@code more_balls:textures/item/<物品路径>.png}
+     *   <li><b>普通球</b> —— 约定 {@code rotation_craft:textures/item/<物品路径>.png}
      *       （查过 {@code models/item/*.json}，所有普通球都是
-     *       {@code item/generated} + {@code layer0: more_balls:item/<同名>}）</li>
+     *       {@code item/generated} + {@code layer0: rotation_craft:item/<同名>}）</li>
      *   <li><b>组合球</b> —— 没有单一贴图，见 {@link #composedComboTexture}</li>
      * </ul>
      *
@@ -160,7 +160,7 @@ public class BallClusterSpecialRenderer implements SpecialModelRenderer<ItemStac
      * （按 {@code combo_slot_1..4} 组件选 {@code combo_piece_<来源>_<象限>} 模型），
      * 而那些 {@code combo_piece} 模型指向的是 <b>{@code <球名>_quarter_<1..4>.png}</b>
      * —— 查过 {@code models/item/combo_piece_*.json} 确认的
-     * （例如 {@code combo_piece_0_1.json} 的 layer0 是 {@code more_balls:item/wooden_ball_quarter_1}）。</p>
+     * （例如 {@code combo_piece_0_1.json} 的 layer0 是 {@code rotation_craft:item/wooden_ball_quarter_1}）。</p>
      *
      * <p>{@code combo_slot_N} 里存的下标正好是 {@link BallFragments#sources()} 里的位置，
      * 所以「象限 → 来源球 → 那张 quadrant 贴图」是一条直线。</p>
@@ -206,17 +206,17 @@ public class BallClusterSpecialRenderer implements SpecialModelRenderer<ItemStac
                 continue;
             }
             Identifier sourceId = BuiltInRegistries.ITEM.getKey(sources.get(index));
-            // ⚠️⚠️ **namespace 必须固定用 more_balls，不能用 sourceId.getNamespace()**
+            // ⚠️⚠️ **namespace 必须固定用 rotation_craft，不能用 sourceId.getNamespace()**
             //     （作者 2026-10-17 报的「球堆里右下角史莱姆球不渲染」就是它）。
             //
             //     **史莱姆球与末影珍珠是原版物品**，物品 id 是 `minecraft:slime_ball` /
             //     `minecraft:ender_pearl` —— 拿它们的 namespace 拼出来就是
             //     `minecraft:textures/item/slime_ball_quarter_4.png`，
-            //     **那个文件根本不存在**（碎片贴图都在本模组的 more_balls 下）。
+            //     **那个文件根本不存在**（碎片贴图都在本模组的 rotation_craft 下）。
             //     readTexture 返回 null ⇒ 那一格被跳过 ⇒ 球堆上缺一块。
             //
             //     所以这里只取物品的 **path**（slime_ball / ender_pearl / wooden_ball …），
-            //     namespace 一律 more_balls —— 与生成碎片贴图时的做法一致。
+            //     namespace 一律 rotation_craft —— 与生成碎片贴图时的做法一致。
             Identifier pieceId = Identifier.fromNamespaceAndPath(MoreBalls.MOD_ID,
                     "textures/item/" + sourceId.getPath() + "_quarter_" + (q + 1) + ".png");
             com.mojang.blaze3d.platform.NativeImage piece =
@@ -232,7 +232,7 @@ public class BallClusterSpecialRenderer implements SpecialModelRenderer<ItemStac
                 "ball_cluster_combo/" + Integer.toHexString(java.util.Arrays.hashCode(slots)));
         net.minecraft.client.Minecraft.getInstance().getTextureManager().register(id,
                 new net.minecraft.client.renderer.texture.DynamicTexture(
-                        () -> "more_balls ball cluster " + cacheKey, canvas));
+                        () -> "rotation_craft ball cluster " + cacheKey, canvas));
         COMBO_TEXTURES.put(cacheKey, id);
         return id;
     }

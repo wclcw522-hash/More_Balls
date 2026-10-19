@@ -67,6 +67,6 @@ public final class BallCuttingGate {
         if (!player.getInventory().add(back)) {
             player.drop(back, false);
         }
-        player.sendOverlayMessage(Component.translatable("message.more_balls.cut_gate"));
+        player.sendOverlayMessage(Component.translatable("message.rotation_craft.cut_gate"));
     }
 }

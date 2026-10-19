@@ -1,0 +1,10 @@
+{
+  "values": [
+    "minecraft:snowball",
+    "rotation_craft:snowball_question",
+    "rotation_craft:snowball_iron_nugget",
+    "rotation_craft:snowball_gold_nugget",
+    "rotation_craft:snowball_copper_nugget",
+      "rotation_craft:redstone_snowball"
+  ]
+}

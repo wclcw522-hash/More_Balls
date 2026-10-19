@@ -146,7 +146,7 @@ public final class BallPouchCurios {
         player.openMenu(
                 new SimpleMenuProvider(
                         (id, inventory, p) -> new BallPouchMenu(id, inventory, pouch),
-                        net.minecraft.network.chat.Component.translatable("container.more_balls.ball_pouch")),
+                        net.minecraft.network.chat.Component.translatable("container.rotation_craft.ball_pouch")),
                 // ⚠️ 与 BallPouchItem.use 同一套写侧保险：先写版本标记字节。
                 //    NeoForge 的 openMenu 在「额外数据为空」时会退回原版 ClientboundOpenScreenPacket，
                 //    那条路径客户端工厂拿到的是 **null** buf ⇒ 客户端解码 NPE 并被 disconnect

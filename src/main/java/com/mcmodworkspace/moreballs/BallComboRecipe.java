@@ -62,7 +62,7 @@ public final class BallComboRecipe {
      */
     private static SlotDisplay comboResult() {
         // ⚠️ 光写 combo_sources 不够 —— 组合球的**贴图**是四个 minecraft:select
-        //    按 combo_slot_1..4 选象限拼出来的（见 assets/more_balls/items/combo_ball.json），
+        //    按 combo_slot_1..4 选象限拼出来的（见 assets/rotation_craft/items/combo_ball.json），
         //    四个 slot 缺失时每层都落到 fallback（木球那一象限），
         //    JEI 里的成品格就显示成一颗纯木球 —— 这正是作者反馈「JEI 里组合球看着不对」。
         //    真实产物走 BallFragments.makeComboBall，它两个都写，这里必须对齐。

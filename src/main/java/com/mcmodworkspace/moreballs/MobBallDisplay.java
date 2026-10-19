@@ -48,10 +48,10 @@ public final class MobBallDisplay {
     }
 
     /** 所有展示实体共用的标签（兜底清理时按它找） */
-    public static final String TAG = "more_balls:mob_ball_display";
+    public static final String TAG = "rotation_craft:mob_ball_display";
 
     /** 「这个图标属于谁」的标签前缀 —— 用它精确认领，不依赖包围盒 */
-    public static final String OWNER_PREFIX = "more_balls:ball_display_owner:";
+    public static final String OWNER_PREFIX = "rotation_craft:ball_display_owner:";
 
     /**
      * 头顶展示：离头顶多高（格）。

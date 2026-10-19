@@ -18,11 +18,11 @@ import net.neoforged.neoforge.registries.DeferredRegister;
  * 创造模式分类注册。
  *
  * <p>「球」这个分类是<b>标签驱动</b>的：内容不是写死的物品清单，而是每次打开时
- * 实时遍历物品注册表、筛出带 {@code #more_balls:balls} 标签的物品。好处是任何
+ * 实时遍历物品注册表、筛出带 {@code #rotation_craft:balls} 标签的物品。好处是任何
  * 物品 —— 原版的、本模组的、第三方模组的 —— 只要被加进该标签就会自动出现在这里，
  * 不需要改一行 Java 代码。</p>
  *
- * <p>显示名走语言文件：{@code itemGroup.more_balls}
+ * <p>显示名走语言文件：{@code itemGroup.rotation_craft}
  * （zh_cn =「球」，en_us =「Balls」）。</p>
  */
 public final class ModCreativeTabs {
@@ -34,10 +34,10 @@ public final class ModCreativeTabs {
     public static final DeferredRegister<CreativeModeTab> TABS =
             DeferredRegister.create(Registries.CREATIVE_MODE_TAB, MoreBalls.MOD_ID);
 
-    /** 「球」分类 —— 只收带 {@code #more_balls:balls} 标签的东西 */
+    /** 「球」分类 —— 只收带 {@code #rotation_craft:balls} 标签的东西 */
     public static final DeferredHolder<CreativeModeTab, CreativeModeTab> BALLS =
             TABS.register("balls", () -> CreativeModeTab.builder()
-                    .title(Component.translatable("itemGroup.more_balls"))
+                    .title(Component.translatable("itemGroup.rotation_craft"))
                     .icon(() -> new ItemStack(Items.SNOWBALL))
                     .displayItems((parameters, output) -> parameters.holders()
                             .lookupOrThrow(Registries.ITEM)
@@ -49,7 +49,7 @@ public final class ModCreativeTabs {
     // ===== 分类页布局（作者 2026-10-07 定稿）=====
     //
     //  · 「球」一页装下**全部**球 —— 实心 / 空心 / 雪球三类合起来展示，
-    //    不再拆成三个子分类页（它们本来就都在 #more_balls:balls 里）。
+    //    不再拆成三个子分类页（它们本来就都在 #rotation_craft:balls 里）。
     //  · 「半成品」一页装下**两种切球**（半球 + 四分之一球）—— 它们是部件、
     //    不是球，所以从「球」那边独立出来，另起一个 fragments 大类。
     //  · 「更多球」页是本模组全部物品的兜底清单。
@@ -76,7 +76,7 @@ public final class ModCreativeTabs {
      */
     public static final DeferredHolder<CreativeModeTab, CreativeModeTab> ALL =
             TABS.register("all", () -> CreativeModeTab.builder()
-                    .title(Component.translatable("itemGroup.more_balls.all"))
+                    .title(Component.translatable("itemGroup.rotation_craft.all"))
                     .icon(() -> new ItemStack(ModItems.BALL_POUCH.get()))
                     .displayItems((parameters, output) -> {
                         // 先摆球 —— 按标签来，和「球」页保持一致的顺序
